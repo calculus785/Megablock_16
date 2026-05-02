@@ -26,6 +26,11 @@ States="*uid://cph5fy6gacr18"
 Events="*uid://dx54d28ey5ivw"
 Sequences="*uid://cxs7e27nqb1fu"
 Interactables="*uid://cmqwvi3ikuxyj"
+Clock="*uid://by7t2cnjd5in6"
+Registry="*uid://dmivdqie8s3jv"
+Rooms="*uid://bj5n8v51gcc32"
+Memory="*uid://bj3yfcfdpoyt2"
+Pathfinder="*uid://ckk1n46njl23c"
 
 [physics]
 
