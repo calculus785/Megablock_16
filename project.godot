@@ -19,6 +19,8 @@ config/icon="res://icon.svg"
 
 Settings="*uid://ct2cp8uwdwqc4"
 Stats="*uid://drdjnq5q7ufgn"
+Traits="*uid://du53bigjtdef7"
+Identity="*uid://dutfd21u65ce1"
 
 [physics]
 
