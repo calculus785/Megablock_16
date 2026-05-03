@@ -18,7 +18,13 @@ var _selected_index: int = 0
 
 func _ready() -> void:
 	visible = false
+	# Auto-refresh when any event fires
+	Sim.event_fired.connect(_on_event_fired)
 	print("[EventInspector] Ready. F2 to toggle, Tab to cycle characters.")
+
+func _on_event_fired(_char_id: String, _event_key: String, _summary: String) -> void:
+	if _visible:
+		_refresh()
 
 
 func _input(event: InputEvent) -> void:

@@ -19,6 +19,7 @@
 #   call_action:          name of function in Actions to execute
 #   outcomes:             stat/feeling/state/relationship deltas
 #   magnitude:            "minor" | "moderate" | "major" | "huge"
+#   cooldown_events:      number of other events that must fire before this can fire again
 #   ticker_worthy:        appears in news ticker if true
 #   player_choice:        triggers Decisions popup if actor is player
 #   storybook_templates:  array of narrative variants
@@ -39,6 +40,7 @@ const EVENTS: Dictionary = {
 	"base_weight": 12,
 	"category": "psychology",
 	"magnitude": "minor",
+	"cooldown_events": 2,  
 	"requirements": {
 		"stats_below": { "energy": 60 },
 	},
@@ -63,6 +65,7 @@ const EVENTS: Dictionary = {
 	"base_weight": 8,
 	"category": "psychology",
 	"magnitude": "minor",
+	"cooldown_events": 3,
 	"requirements": {
 		"stats_above": { "boredom": 25 },
 		"not_has_persistent_state": ["IN_HOSPITAL", "IN_JAIL", "IN_VR_POD"],
@@ -88,6 +91,7 @@ const EVENTS: Dictionary = {
 	"base_weight": 10,
 	"category": "psychology",
 	"magnitude": "minor",
+	"cooldown_events": 2,
 	"requirements": {
 		# Will check memory.long_term.size() > 0 once Memory is built
 	},
@@ -118,6 +122,7 @@ const EVENTS: Dictionary = {
 	"base_weight": 6,
 	"category": "social",
 	"magnitude": "minor",
+	"cooldown_events": 8,
 	"requirements": {
 		"not_in_room": ["bar"],
 		"not_has_persistent_state": ["BANNED_FROM_BAR", "IN_HOSPITAL", "IN_JAIL"],
@@ -145,6 +150,7 @@ const EVENTS: Dictionary = {
 	"base_weight": 14,
 	"category": "social",
 	"magnitude": "minor",
+	"cooldown_events": 0,
 	"requirements": {
 		"in_room": ["bar"],
 		"stats_above": { "cash": 5 },

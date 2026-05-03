@@ -53,8 +53,11 @@ func build_frame(character: CharData, target, event_def: Dictionary) -> Dictiona
 	var frame: Dictionary = {}
 	frame["name"] = character.char_name
 	frame["room"] = character.current_room
+	# Always set target — fallback to "someone" if no target resolved
 	if target is CharData:
 		frame["target"] = target.char_name
+	else:
+		frame["target"] = "someone"
 	return frame
 
 
