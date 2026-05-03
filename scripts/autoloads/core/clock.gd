@@ -55,6 +55,15 @@ const DAYS_PER_MONTH: int = DAYS_PER_WEEK * WEEKS_PER_MONTH                    #
 const DAYS_PER_YEAR: int = DAYS_PER_MONTH * MONTHS_PER_YEAR                    # 90
 
 # ── SEASON MAP ───────────────────────────────────────────────
+# 1 = first month of season pair (intensity rising)
+# 2 = second month of season pair (intensity falling)
+# 0 = neutral (no intensity)
+const SEASON_MONTH_POSITION: Dictionary = {
+	1: 1, 2: 2,   # summer pair
+	3: 0,          # neutral
+	4: 1, 5: 2,   # winter pair
+	6: 0,          # neutral
+}
 const SEASON_BY_MONTH: Dictionary = {
 	1: "summer", 2: "summer", 3: "neutral",
 	4: "winter", 5: "winter", 6: "neutral",
@@ -185,11 +194,23 @@ func _update_season() -> void:
 
 
 func _update_season_intensity() -> void:
-	# Peaks at midpoint of each 15-day month (day 8).
-	# intensity = 7 - abs(day_in_month - 8)
-	# Range: 0.0 (day 1 and 15) to 7.0 (day 8)
-	var day_in_month: int = _absolute_day_in_month()
-	season_intensity = maxf(0.0, 7.0 - absf(day_in_month - 8.0))
+	var position: int = SEASON_MONTH_POSITION.get(current_month, 0)
+
+	# Neutral months have no intensity
+	if position == 0:
+		season_intensity = 0.0
+		return
+
+	var day: int = _absolute_day_in_month() % DAYS_PER_MONTH
+	if day == 0:
+		day = DAYS_PER_MONTH
+
+	# Position 1 (first month): intensity rises from ~0 to 7.0
+	# Position 2 (second month): intensity falls from 7.0 to ~0
+	if position == 1:
+		season_intensity = (float(day) / float(DAYS_PER_MONTH)) * 7.0
+	else:
+		season_intensity = (float(DAYS_PER_MONTH - day + 1) / float(DAYS_PER_MONTH)) * 7.0
 
 
 # ── CONVENIENCE GETTERS ──────────────────────────────────────

@@ -13,6 +13,35 @@
 #   can_be_hidden     — if true, can be assigned without a UI bubble
 #   can_be_targeted   — if true, this feeling can be directed at a specific character
 
+# ─────────────────────────────────────────────────────────────
+# RUNTIME FEELING INSTANCE SHAPE
+# (Stored on CharData.feelings — populated by FeelingDriver.push)
+# ─────────────────────────────────────────────────────────────
+# Each active feeling on a character is a Dictionary:
+#
+#   {
+#     "feeling_key":     "FRUSTRATED",
+#     "hours_remaining": 2.5,
+#     "target_id":       null or char_id (if can_be_targeted),
+#     "is_hidden":       false,
+#     "causes": [
+#       {
+#         "event_key": "POOL_GAME_LOSS",
+#         "at_tick":   1247,
+#         "summary":   "Lost at pool to Sara"
+#       },
+#       ...
+#     ]
+#   }
+#
+# When the same feeling is pushed again while already active:
+#   - hours_remaining refreshes to max(remaining, new_duration)
+#   - the new cause appends to causes[] (capped at last 4)
+#   - causes never expire on their own — they vanish with the feeling
+#
+# Event/Action code should also write a 'felt' short-term memory
+# entry per push, for the wider memory system to use.
+
 extends Node
 
 
