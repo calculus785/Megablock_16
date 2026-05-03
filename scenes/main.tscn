@@ -1,6 +1,9 @@
 [gd_scene format=3 uid="uid://t5jp84d8j7ii"]
 
 [ext_resource type="Script" uid="uid://ynp1h7djuu3t" path="res://scripts/debug/bootstrap.gd" id="1_o5qli"]
+[ext_resource type="PackedScene" uid="uid://qjc5y4r31msg" path="res://scenes/debug/event_inspector.tscn" id="2_0wfyh"]
 
 [node name="main" type="Node2D" unique_id=435215768]
 script = ExtResource("1_o5qli")
+
+[node name="EventInspector" parent="." unique_id=1917008883 instance=ExtResource("2_0wfyh")]

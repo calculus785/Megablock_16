@@ -1,0 +1,22 @@
+[gd_scene format=3 uid="uid://qjc5y4r31msg"]
+
+[ext_resource type="FontFile" uid="uid://nxbheyhccoky" path="res://assets/fonts/JetBrainsMono-Regular.ttf" id="1_hf4y0"]
+[ext_resource type="Script" uid="uid://bpi55nhmcyf7j" path="res://scripts/ui/event_inspector.gd" id="2_as4ga"]
+
+[node name="EventInspector" type="CanvasLayer" unique_id=1917008883]
+script = ExtResource("2_as4ga")
+
+[node name="Panel" type="Panel" parent="." unique_id=2113068012]
+offset_right = 750.0
+offset_bottom = 1080.0
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Panel" unique_id=431633103]
+layout_mode = 0
+offset_right = 754.0
+offset_bottom = 1088.0
+horizontal_scroll_mode = 0
+
+[node name="Label" type="Label" parent="Panel/ScrollContainer" unique_id=289954202]
+custom_minimum_size = Vector2(0.1, 0)
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_hf4y0")
