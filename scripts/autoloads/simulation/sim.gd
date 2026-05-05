@@ -32,14 +32,55 @@ var _event_counter: int = 0
 
 func _ready() -> void:
 	Clock.tick.connect(_on_tick)
+	Clock.half_hour_ticked.connect(_on_half_hour)
 	print("[Sim] Loaded. Listening to Clock.tick.")
 
 
 func _on_tick() -> void:
 	for character in Registry.get_all():
+		# Sleeping characters get a wake check instead of the normal pipeline
+		if character.is_sleeping:
+			_try_wake(character)
+			continue
 		if not character.is_actionable():
 			continue
 		_run_pipeline(character)
+
+func _on_half_hour() -> void:
+	# Restore energy for sleeping characters each half-hour tick
+	# 8 energy per tick × ~16 ticks in a night = full restore from empty
+	for character in Registry.get_all():
+		if character.is_sleeping:
+			Actions.modify_stat(character, "energy", 8.0)
+
+
+func _try_wake(character: CharData) -> void:
+	# Wake up if it's morning AND energy is recovered enough to function
+	var is_morning: bool = Clock.current_hour >= 7 and Clock.current_hour < 10
+	var energy: float = character.stats.get("energy", 0.0)
+	if not (is_morning and energy >= 60.0):
+		return
+
+	character.is_sleeping = false
+
+	var summary: String = "%s woke up." % character.char_name
+	character.storybook.append({
+		"event_key":         "WAKE",
+		"summary":           summary,
+		"at_tick":           Clock.get_total_days(),
+		"target_id":         null,
+		"magnitude":         "minor",
+		"memorable":         false,
+		"memory_tags":       [],
+		"times_recalled":    0,
+		"last_recalled_day": 0,
+		"pinned_to_story":   false,
+	})
+
+	if Settings.debug_console_logging:
+		print("[Sim] %s → %s" % [character.char_name, summary])
+
+	event_fired.emit(character.char_id, "WAKE", summary)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -196,6 +237,34 @@ func _check_requirements(character: CharData, reqs: Dictionary) -> bool:
 		for feeling_key in reqs["not_has_feeling"]:
 			if FeelingDriver.has_feeling(character, feeling_key):
 				return false
+	# time_of_day — matches Clock.get_time_of_day() against an array of buckets
+	# e.g. "time_of_day": ["evening", "night"]
+	if reqs.has("time_of_day"):
+		if not Clock.get_time_of_day() in reqs["time_of_day"]:
+			return false
+	
+	# in_home_room — character must be in their own apartment
+	if reqs.has("in_home_room") and reqs["in_home_room"]:
+		if character.current_room != character.home_room:
+			return false
+
+	# not_in_home_room — character must NOT be in their apartment
+	if reqs.has("not_in_home_room") and reqs["not_in_home_room"]:
+		if character.current_room == character.home_room:
+			return false
+
+	# other_character_in_room — at least one other character must share the room
+	# NOTE: uses Registry directly — Rooms.get_occupants() is a Phase 3 shell.
+	# Phase 3: replace this loop with Rooms.get_occupants(character.current_room)
+	if reqs.has("other_character_in_room") and reqs["other_character_in_room"]:
+		var others_present := false
+		for other in Registry.get_all():
+			if other.char_id != character.char_id and \
+					other.current_room == character.current_room:
+				others_present = true
+				break
+		if not others_present:
+			return false
 
 	return true
 

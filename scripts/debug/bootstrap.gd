@@ -66,6 +66,11 @@ func _ready() -> void:
 	for i in range(3, TEST_ROOMS.size()):
 		Registry.generate_random_character(TEST_ROOMS[i])
 
+	# Testing: put everyone in the same room so social events fire
+	# Remove this when movement is real (Phase 3)
+	for character in Registry.get_all():
+		character.current_room = "bar_f1_s1"
+
 	print("[Bootstrap] Done. %d characters in registry." % Registry.get_count())
 	_print_character_summary()
 

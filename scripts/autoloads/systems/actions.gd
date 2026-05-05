@@ -33,6 +33,23 @@ func call_action(action_name: String, character: CharData, target, args: Diction
 		"think_about":             return _think_about(character, target, args)
 		"queue_intent_visit_bar":  return _queue_intent_visit_bar(character, target, args)
 		"order_drink":             return _order_drink(character, target, args)
+		"daydream":         return _daydream(character, target, args)
+		"cry":              return _cry(character, target, args)
+		"late_night_stare": return _late_night_stare(character, target, args)
+		"pace_hallway":     return _pace_hallway(character, target, args)
+		"look_in_mirror":   return _look_in_mirror(character, target, args)
+		"nod_in_passing":   return _nod_in_passing(character, target, args)
+		"greet":            return _greet(character, target, args)
+		"chat":             return _chat(character, target, args)
+		"compliment":       return _compliment(character, target, args)
+		"insult":           return _insult(character, target, args)
+		"sleep":                       return _sleep(character, target, args)
+		"argue":                       return _argue(character, target, args)
+		"deep_conversation":           return _deep_conversation(character, target, args)
+		"queue_intent_visit_library":  return _queue_intent_visit_library(character, target, args)
+		"read_book":                   return _read_book(character, target, args)
+		"drink_alone":                 return _drink_alone(character, target, args)
+		"flirt":                       return _flirt(character, target, args)
 		_:
 			push_warning("[Actions] Unknown action: '%s'" % action_name)
 			return DONE
@@ -93,4 +110,126 @@ func _order_drink(character: CharData, _target, _args: Dictionary) -> String:
 		if "ADDICT_PRONE" in character.get_all_active_traits() \
 		else 2.0
 	modify_stat(character, "addiction", addiction_delta)
+	return DONE
+
+func _daydream(character: CharData, _target, _args: Dictionary) -> String:
+	modify_stat(character, "boredom", -15.0)
+	modify_stat(character, "stress", -5.0)
+	return DONE
+
+
+func _cry(character: CharData, _target, _args: Dictionary) -> String:
+	# Stress relief despite everything else getting worse
+	modify_stat(character, "stress", -10.0)
+	modify_stat(character, "loneliness", 10.0)
+	return DONE
+
+
+func _late_night_stare(character: CharData, _target, _args: Dictionary) -> String:
+	modify_stat(character, "stress", -5.0)
+	modify_stat(character, "boredom", -5.0)
+	return DONE
+
+
+func _pace_hallway(character: CharData, _target, _args: Dictionary) -> String:
+	modify_stat(character, "stress", -8.0)
+	modify_stat(character, "energy", -3.0)
+	modify_stat(character, "boredom", -5.0)
+	return DONE
+
+
+func _look_in_mirror(character: CharData, _target, _args: Dictionary) -> String:
+	modify_stat(character, "stress", -3.0)
+	return DONE
+
+
+func _nod_in_passing(character: CharData, _target, _args: Dictionary) -> String:
+	modify_stat(character, "loneliness", -3.0)
+	return DONE
+
+
+func _greet(character: CharData, target, _args: Dictionary) -> String:
+	modify_stat(character, "loneliness", -8.0)
+	if target is CharData:
+		modify_stat(target, "loneliness", -5.0)
+	return DONE
+
+
+func _chat(character: CharData, target, _args: Dictionary) -> String:
+	modify_stat(character, "loneliness", -12.0)
+	modify_stat(character, "boredom", -10.0)
+	modify_stat(character, "stress", -5.0)
+	if target is CharData:
+		modify_stat(target, "loneliness", -8.0)
+		modify_stat(target, "boredom", -8.0)
+	return DONE
+
+
+func _compliment(character: CharData, target, _args: Dictionary) -> String:
+	modify_stat(character, "happiness", 3.0)
+	if target is CharData:
+		modify_stat(target, "happiness", 8.0)
+		modify_stat(target, "stress", -5.0)
+	return DONE
+
+
+func _insult(character: CharData, target, _args: Dictionary) -> String:
+	modify_stat(character, "stress", -8.0)
+	if target is CharData:
+		modify_stat(target, "stress", 15.0)
+		modify_stat(target, "happiness", -10.0)
+	return DONE
+
+func _sleep(character: CharData, _target, _args: Dictionary) -> String:
+	# Sim._try_wake() handles the wake-up check each tick
+	# Sim._on_half_hour() restores energy while sleeping
+	character.is_sleeping = true
+	return DONE
+
+
+func _argue(character: CharData, target, _args: Dictionary) -> String:
+	# Stress spikes for both — arguing makes things worse short term
+	modify_stat(character, "stress", 10.0)
+	if target is CharData:
+		modify_stat(target, "stress", 15.0)
+		modify_stat(target, "happiness", -10.0)
+	return DONE
+
+
+func _deep_conversation(character: CharData, target, _args: Dictionary) -> String:
+	modify_stat(character, "loneliness", -25.0)
+	modify_stat(character, "stress", -10.0)
+	if target is CharData:
+		modify_stat(target, "loneliness", -20.0)
+		modify_stat(target, "stress", -8.0)
+	return DONE
+
+
+func _queue_intent_visit_library(character: CharData, _target, _args: Dictionary) -> String:
+	# Stub — same pattern as visit_bar until intent queue is built in Phase 2
+	modify_stat(character, "boredom", -5.0)
+	return DONE
+
+
+func _read_book(character: CharData, _target, _args: Dictionary) -> String:
+	modify_stat(character, "boredom", -20.0)
+	modify_stat(character, "stress", -10.0)
+	modify_stat(character, "happiness", 5.0)
+	return DONE
+
+
+func _drink_alone(character: CharData, _target, _args: Dictionary) -> String:
+	modify_stat(character, "stress", -5.0)
+	modify_stat(character, "loneliness", 8.0)
+	modify_stat(character, "cash", -5.0)
+	modify_stat(character, "addiction", 2.0)
+	return DONE
+
+
+func _flirt(character: CharData, target, _args: Dictionary) -> String:
+	# No attraction check yet — Phase 4 Relationships adds compatibility logic
+	# For now: both get a happiness bump, drama emerges from the sim naturally
+	modify_stat(character, "happiness", 5.0)
+	if target is CharData:
+		modify_stat(target, "happiness", 5.0)
 	return DONE

@@ -170,9 +170,505 @@ const EVENTS: Dictionary = {
 		"{name} sat at the bar. The drink appeared.",
 	],
 },
+
+"DAYDREAM": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 10,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 3,
+	"requirements": {
+		"stats_above": { "boredom": 20 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_state": ["LONELY"] }, "multiply": 1.5 },
+		{ "condition": { "has_state": ["CONTENT"] }, "multiply": 1.4 },
+		{ "condition": { "stats_above": { "boredom": 50 } }, "multiply": 1.8 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "daydream",
+	"outcomes": {
+		"stats": { "boredom": -15, "stress": -5 },
+	},
+	"storybook_templates": [
+		"{name} stared at nothing for a while.",
+		"{name} drifted somewhere else entirely. Just for a moment.",
+		"The room went quiet in {name}'s head.",
+	],
+},
+
+"CRY": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 4,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 5,
+	"requirements": {
+		"stats_below": { "happiness": 30 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_state": ["MISERABLE"] }, "multiply": 2.5 },
+		{ "condition": { "has_feeling": ["GRIEF_FEELING"] }, "multiply": 2.0 },
+		{ "condition": { "has_feeling": ["HEARTBROKEN_FEELING"] }, "multiply": 2.0 },
+		{ "condition": { "has_state": ["LONELY"] }, "multiply": 1.5 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "cry",
+	"outcomes": {
+		"stats": { "stress": -10, "loneliness": 10 },
+		"feelings": ["GRIEF_FEELING"],
+	},
+	"storybook_templates": [
+		"{name} cried. No particular reason needed.",
+		"It came out of nowhere. {name} sat with it.",
+		"{name} didn't try to stop it this time.",
+	],
+},
+
+"LATE_NIGHT_STARE": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 6,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 4,
+	"requirements": {
+		"time_of_day": ["night"],
+		"stats_above": { "stress": 30 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "stats_above": { "stress": 60 } }, "multiply": 2.0 },
+		{ "condition": { "has_state": ["LONELY"] }, "multiply": 1.6 },
+		{ "condition": { "stats_below": { "happiness": 40 } }, "multiply": 1.5 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "late_night_stare",
+	"outcomes": {
+		"stats": { "stress": -5, "boredom": -5 },
+	},
+	"storybook_templates": [
+		"{name} sat up and stared at the ceiling.",
+		"It was late. {name} wasn't sleeping anyway.",
+		"{name} watched the city through the window. Nothing moving.",
+	],
+},
+
+"PACE_HALLWAY": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 7,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 3,
+	"requirements": {
+		"stats_above": { "stress": 40 },
+		"not_has_persistent_state": ["IN_HOSPITAL", "IN_JAIL"],
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_state": ["ANXIOUS"] }, "multiply": 2.0 },
+		{ "condition": { "stats_above": { "stress": 70 } }, "multiply": 2.5 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "pace_hallway",
+	"outcomes": {
+		"stats": { "stress": -8, "energy": -3, "boredom": -5 },
+	},
+	"storybook_templates": [
+		"{name} paced the hallway until it helped.",
+		"{name} walked circuits. Nowhere in particular.",
+		"Three lengths of the corridor. Then three more.",
+	],
+},
+
+"LOOK_IN_MIRROR": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 5,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 6,
+	"requirements": {
+		"in_home_room": true,
+	},
+	"weight_modifiers": [
+		{ "condition": { "stats_below": { "happiness": 35 } }, "multiply": 1.8 },
+		{ "condition": { "has_trait": ["VAIN"] }, "multiply": 2.5 },
+		{ "condition": { "has_state": ["CONTENT"] }, "multiply": 1.4 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "look_in_mirror",
+	"outcomes": {
+		"stats": { "stress": -3 },
+	},
+	"storybook_templates": [
+		"{name} looked in the mirror for a long moment.",
+		"{name} caught their own reflection. Looked away first.",
+		"The mirror again. {name} wasn't sure what they were looking for.",
+	],
+},
+
+"NOD_IN_PASSING": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 12,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 4,
+	"requirements": {
+		"other_character_in_room": true,
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["SHY"] }, "multiply": 1.8 },
+		{ "condition": { "has_trait": ["ANTISOCIAL"] }, "multiply": 1.5 },
+		{ "condition": { "has_state": ["TIRED"] }, "multiply": 1.4 },
+	],
+	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
+	"call_action": "nod_in_passing",
+	"outcomes": {
+		"stats": { "loneliness": -3 },
+	},
+	"storybook_templates": [
+		"{name} nodded at {target}. {target} nodded back.",
+		"{name} and {target} passed each other. Nothing said.",
+		"Eye contact. A nod. That was enough.",
+	],
+},
+
+"GREET": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 9,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 6,
+	"requirements": {
+		"other_character_in_room": true,
+		"stats_below": { "loneliness": 70 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["CHARMING"] }, "multiply": 1.6 },
+		{ "condition": { "has_trait": ["SHY"] }, "multiply": 0.4 },
+		{ "condition": { "has_state": ["LONELY"] }, "multiply": 1.8 },
+	],
+	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
+	"call_action": "greet",
+	"outcomes": {
+		"stats": { "loneliness": -8 },
+		"target_stats": { "loneliness": -5 },
+	},
+	"storybook_templates": [
+		"{name} said hello to {target}.",
+		"{name} introduced themselves to {target}. First time, maybe.",
+		"{name} caught {target}'s eye and smiled.",
+	],
+},
+
+"CHAT": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 8,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 3,
+	"requirements": {
+		"other_character_in_room": true,
+		"stats_below": { "loneliness": 80 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["GOSSIP"] }, "multiply": 1.5 },
+		{ "condition": { "has_trait": ["ANTISOCIAL"] }, "multiply": 0.3 },
+		{ "condition": { "has_trait": ["SHY"] }, "multiply": 0.5 },
+		{ "condition": { "stats_above": { "loneliness": 50 } }, "multiply": 1.6 },
+	],
+	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
+	"call_action": "chat",
+	"outcomes": {
+		"stats": { "loneliness": -12, "boredom": -10, "stress": -5 },
+		"target_stats": { "loneliness": -8, "boredom": -8 },
+	},
+	"storybook_templates": [
+		"{name} chatted with {target} for a while.",
+		"{name} and {target} talked. Nothing heavy.",
+		"A few minutes with {target}. {name} felt better for it.",
+	],
+},
+
+"COMPLIMENT": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 5,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 8,
+	"requirements": {
+		"other_character_in_room": true,
+		"stats_above": { "happiness": 40 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["CHARMING"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["FLIRTATIOUS"] }, "multiply": 1.8 },
+		{ "condition": { "has_state": ["CONTENT"] }, "multiply": 1.5 },
+		{ "condition": { "stats_above": { "happiness": 70 } }, "multiply": 1.8 },
+	],
+	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
+	"call_action": "compliment",
+	"outcomes": {
+		"stats": { "happiness": 3 },
+		"target_stats": { "happiness": 8, "stress": -5 },
+	},
+	"storybook_templates": [
+		"{name} said something kind to {target}.",
+		"{name} told {target} they liked their jacket. Meant it.",
+		"{target} didn't expect the compliment. {name} gave it anyway.",
+	],
+},
+
+"INSULT": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 3,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 5,
+	"requirements": {
+		"other_character_in_room": true,
+		"stats_above": { "stress": 50 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["SHORT_TEMPERED"] }, "multiply": 3.0 },
+		{ "condition": { "has_trait": ["MEAN"] }, "multiply": 2.5 },
+		{ "condition": { "has_state": ["FURIOUS"] }, "multiply": 3.5 },
+		{ "condition": { "stats_above": { "stress": 75 } }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
+	"call_action": "insult",
+	"outcomes": {
+		"stats": { "stress": -8 },
+		"target_stats": { "stress": 15, "happiness": -10 },
+		"target_feelings": ["UPSET_FEELING"],
+	},
+	"storybook_templates": [
+		"{name} said something cutting to {target}.",
+		"{name} didn't hold back. {target} felt it.",
+		"The words came out wrong. Or exactly right, depending on who you asked.",
+	],
+},
+
+"SLEEP": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 15,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 0,
+	"requirements": {
+		"stats_below": { "energy": 40 },
+		"time_of_day": ["night", "evening"],
+	},
+	"weight_modifiers": [
+		{ "condition": { "stats_below": { "energy": 20 } }, "multiply": 3.0 },
+		{ "condition": { "has_state": ["EXHAUSTED"] }, "multiply": 4.0 },
+		{ "condition": { "has_trait": ["NIGHT_OWL"] }, "multiply": 0.3 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "sleep",
+	"outcomes": {},
+	"storybook_templates": [
+		"{name} went to sleep.",
+		"{name} couldn't keep their eyes open any longer.",
+		"That was enough for one day. {name} slept.",
+	],
+},
+
+"ARGUE": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 4,
+	"category": "social",
+	"magnitude": "moderate",
+	"cooldown_events": 6,
+	"requirements": {
+		"other_character_in_room": true,
+		"stats_above": { "stress": 55 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["SHORT_TEMPERED"] }, "multiply": 3.0 },
+		{ "condition": { "has_trait": ["MEAN"] }, "multiply": 2.0 },
+		{ "condition": { "has_state": ["FURIOUS"] }, "multiply": 4.0 },
+		{ "condition": { "has_state": ["MISERABLE"] }, "multiply": 2.0 },
+		{ "condition": { "stats_above": { "stress": 80 } }, "multiply": 2.5 },
+	],
+	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
+	"call_action": "argue",
+	"outcomes": {
+		"stats": { "stress": 10 },
+		"target_stats": { "stress": 15, "happiness": -10 },
+		"feelings": ["UPSET_FEELING"],
+		"target_feelings": ["UPSET_FEELING"],
+	},
+	"storybook_templates": [
+		"{name} got into it with {target}. Neither backed down.",
+		"It started small. By the end {name} and {target} were both red in the face.",
+		"{name} said something to {target} that couldn't be unsaid.",
+		"The argument had been building for a while. {name} finally let it out.",
+	],
+},
+
+"DEEP_CONVERSATION": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 5,
+	"category": "social",
+	"magnitude": "moderate",
+	"cooldown_events": 20,
+	"requirements": {
+		"other_character_in_room": true,
+		"time_of_day": ["evening", "night"],
+		"stats_above": { "happiness": 50 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["ROMANTIC"] }, "multiply": 1.8 },
+		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 1.5 },
+		{ "condition": { "has_state": ["LONELY"] }, "multiply": 2.0 },
+		{ "condition": { "stats_above": { "loneliness": 50 } }, "multiply": 1.8 },
+	],
+	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room", "exclude_robots": true },
+	"call_action": "deep_conversation",
+	"outcomes": {
+		"stats": { "loneliness": -25, "stress": -10 },
+		"target_stats": { "loneliness": -20, "stress": -8 },
+		"feelings": ["CONTENT_FEELING"],
+		"target_feelings": ["CONTENT_FEELING"],
+	},
+	"storybook_templates": [
+		"{name} and {target} talked until the lights dimmed. Something shifted.",
+		"It started as small talk. It didn't stay that way.",
+		"{name} told {target} something real. {target} listened.",
+		"Late night. {name} and {target} were still talking.",
+	],
+},
+
+"VISIT_LIBRARY": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 5,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 10,
+	"requirements": {
+		"not_in_room": ["library"],
+		"stats_above": { "boredom": 30 },
+		"not_has_persistent_state": ["IN_HOSPITAL", "IN_JAIL"],
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["HOMEBODY"] }, "multiply": 0.5 },
+		{ "condition": { "stats_above": { "boredom": 60 } }, "multiply": 1.8 },
+	],
+	"target_resolution": { "type": "room" },
+	"call_action": "queue_intent_visit_library",
+	"outcomes": {
+		"stats": { "boredom": -5 },
+	},
+	"storybook_templates": [
+		"{name} headed to the library.",
+		"{name} needed somewhere quiet.",
+	],
+},
+
+"READ_BOOK": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 14,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 2,
+	"requirements": {
+		"in_room": ["library"],
+	},
+	"weight_modifiers": [
+		{ "condition": { "stats_above": { "boredom": 40 } }, "multiply": 1.8 },
+		{ "condition": { "has_state": ["RESTLESS"] }, "multiply": 1.5 },
+		{ "condition": { "stats_above": { "stress": 50 } }, "multiply": 1.6 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "read_book",
+	"outcomes": {
+		"stats": { "boredom": -20, "stress": -10, "happiness": 5 },
+	},
+	"storybook_templates": [
+		"{name} found a book and disappeared into it.",
+		"{name} read for hours. The building kept going without them.",
+		"The library was quiet. {name} was exactly where they needed to be.",
+	],
+},
+
+"DRINK_ALONE": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 6,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 4,
+	"requirements": {
+		"in_room": ["bar"],
+		"stats_below": { "happiness": 35 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_state": ["MISERABLE"] }, "multiply": 2.5 },
+		{ "condition": { "has_state": ["LONELY"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["ALCOHOLIC"] }, "multiply": 2.0 },
+		{ "condition": { "stats_below": { "happiness": 20 } }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "drink_alone",
+	"outcomes": {
+		"stats": { "stress": -5, "loneliness": 8, "cash": -5, "addiction": 2 },
+		"feelings": ["MELANCHOLY_FEELING"],
+	},
+	"storybook_templates": [
+		"{name} drank alone. Nobody sat next to them.",
+		"The bar was full. {name} was still alone in it.",
+		"{name} nursed their drink and didn't look up.",
+		"Another round. {name} wasn't counting.",
+	],
+},
+
+"FLIRT": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 3,
+	"category": "romantic",
+	"magnitude": "moderate",
+	"cooldown_events": 8,
+	"requirements": {
+		"other_character_in_room": true,
+		"stats_above": { "happiness": 55 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["FLIRTATIOUS"] }, "multiply": 4.0 },
+		{ "condition": { "has_trait": ["ROMANTIC"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["SHY"] }, "multiply": 0.2 },
+		{ "condition": { "stats_above": { "happiness": 75 } }, "multiply": 1.8 },
+		{ "condition": { "has_state": ["CONTENT"] }, "multiply": 1.5 },
+	],
+	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room", "exclude_robots": true },
+	"call_action": "flirt",
+	"outcomes": {
+		"stats": { "happiness": 5 },
+		"target_stats": { "happiness": 5 },
+	},
+	"storybook_templates": [
+		"{name} flirted with {target}. Subtly, or not.",
+		"{name} said something to {target} that wasn't quite a compliment.",
+		"{target} caught {name} looking. {name} didn't look away.",
+		"{name} turned the charm on. {target} noticed.",
+	],
+},
 }
-
-
 # ─────────────────────────────────────────────────────────────
 # CATEGORIES
 # Used for Architect tracking, news ticker colour, weight modifier

@@ -34,13 +34,16 @@ func resolve_target(character: CharData, event_def: Dictionary):
 				return null
 			return all_rooms[randi() % all_rooms.size()]
 		"character":
-			# Return a random other character in the same room
-			var occupants := Rooms.get_occupants(character.current_room)
-			occupants.erase(character.char_id)
-			if occupants.is_empty():
+			# NOTE: uses Registry directly — Rooms.get_occupants() is a Phase 3 shell.
+			# Phase 3: replace this with Rooms.get_occupants(character.current_room)
+			var candidates: Array = []
+			for other in Registry.get_all():
+				if other.char_id != character.char_id and \
+						other.current_room == character.current_room:
+					candidates.append(other)
+			if candidates.is_empty():
 				return null
-			var target_id: String = occupants[randi() % occupants.size()]
-			return Registry.get_character(target_id)
+			return candidates[randi() % candidates.size()]
 		"memory":
 			# No memories yet — return null
 			return null
