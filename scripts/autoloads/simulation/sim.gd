@@ -8,6 +8,7 @@
 # Phase 1 implementation:
 #   - Full requirement evaluation
 #   - Weighted random roll with modifiers
+#   - Event-count cooldowns (cooldown_events field on each event)
 #   - Context.resolve_target() for targeting
 #   - Actions.call_action() for execution
 #   - Stat outcomes applied from event definition
@@ -15,11 +16,18 @@
 #   - Console logging with storybook text
 #
 # Not yet: intent queue, sequences, player gate, auto-fire pass
+# Future: layer location memory cooldowns (not_recent_room) in Phase 3
 
 extends Node
 
 # Emitted after each event fires — EventInspector listens to this
 signal event_fired(char_id: String, event_key: String, summary: String)
+
+# Global counter — increments every time any event fires on any character.
+# Cooldowns store the _event_counter value when the event becomes available again.
+# Speed-independent: a character always does N other things before repeating,
+# regardless of sim speed.
+var _event_counter: int = 0
 
 
 func _ready() -> void:
@@ -49,6 +57,10 @@ func _run_pipeline(character: CharData) -> void:
 	if event_key == "":
 		return
 
+	# Check cooldown — skip if this event fired too recently
+	if _is_on_cooldown(character, event_key):
+		return
+
 	var event_def: Dictionary = Events.get_event(event_key)
 
 	# ── 2. RESOLVE ──────────────────────────────────────────
@@ -73,11 +85,34 @@ func _run_pipeline(character: CharData) -> void:
 	# ── 7. ECHO ─────────────────────────────────────────────
 	var summary: String = _echo(character, target, event_key, event_def, frame)
 
+	# Set cooldown AFTER the event fires
+	_set_cooldown(character, event_key, event_def)
+	_event_counter += 1
+
 	# ── LOG ─────────────────────────────────────────────────
 	if Settings.debug_console_logging:
 		print("[Sim] %s → %s" % [character.char_name, summary])
 
 	event_fired.emit(character.char_id, event_key, summary)
+
+
+# ─────────────────────────────────────────────────────────────
+# COOLDOWNS
+# Reads cooldown_events from the event definition.
+# Stores the _event_counter value when the event becomes available again.
+# ─────────────────────────────────────────────────────────────
+
+func _is_on_cooldown(character: CharData, event_key: String) -> bool:
+	if not character.event_cooldowns.has(event_key):
+		return false
+	return _event_counter < character.event_cooldowns[event_key]
+
+
+func _set_cooldown(character: CharData, event_key: String, event_def: Dictionary) -> void:
+	var duration: int = event_def.get("cooldown_events", 0)
+	if duration > 0:
+		# Store the counter value when this event becomes available again
+		character.event_cooldowns[event_key] = _event_counter + duration
 
 
 # ─────────────────────────────────────────────────────────────
@@ -207,25 +242,19 @@ func _apply_weight_modifiers(character: CharData, event_def: Dictionary, base_we
 
 # ─────────────────────────────────────────────────────────────
 # STAGE 6 — EXECUTE OUTCOMES
-# Applies stat deltas and feelings from the event definition.
-# Note: stat changes from call_action (Actions) already applied.
-# Outcomes here are the event-level deltas on top of that.
 # ─────────────────────────────────────────────────────────────
 
 func _apply_outcomes(character: CharData, target, event_def: Dictionary) -> void:
 	var outcomes: Dictionary = event_def.get("outcomes", {})
 
-	# Actor stat deltas
 	if outcomes.has("stats"):
 		for stat_key in outcomes["stats"]:
 			Actions.modify_stat(character, stat_key, outcomes["stats"][stat_key])
 
-	# Target stat deltas
 	if outcomes.has("target_stats") and target is CharData:
 		for stat_key in outcomes["target_stats"]:
 			Actions.modify_stat(target, stat_key, outcomes["target_stats"][stat_key])
 
-	# Feelings pushed onto actor
 	if outcomes.has("feelings"):
 		for feeling_key in outcomes["feelings"]:
 			FeelingDriver.push(character, feeling_key, {
@@ -234,7 +263,6 @@ func _apply_outcomes(character: CharData, target, event_def: Dictionary) -> void
 				"summary": "outcome of %s" % event_def.get("call_action", "event"),
 			})
 
-	# Feelings pushed onto target
 	if outcomes.has("target_feelings") and target is CharData:
 		for feeling_key in outcomes["target_feelings"]:
 			FeelingDriver.push(target, feeling_key, {
@@ -248,7 +276,6 @@ func _apply_outcomes(character: CharData, target, event_def: Dictionary) -> void
 
 # ─────────────────────────────────────────────────────────────
 # STAGE 7 — ECHO
-# Writes a storybook entry. Returns the summary string for logging.
 # ─────────────────────────────────────────────────────────────
 
 func _echo(character: CharData, _target, event_key: String,
@@ -263,18 +290,17 @@ func _echo(character: CharData, _target, event_key: String,
 		var template: String = templates[randi() % templates.size()]
 		summary = Context.fill_template(template, frame)
 
-	# Write to storybook
 	character.storybook.append({
-		"event_key":        event_key,
-		"summary":          summary,
-		"at_tick":          Clock.get_total_days(),
-		"target_id":        null,
-		"magnitude":        event_def.get("magnitude", "minor"),
-		"memorable":        event_def.get("magnitude", "minor") in ["major", "huge"],
-		"memory_tags":      [],
-		"times_recalled":   0,
+		"event_key":         event_key,
+		"summary":           summary,
+		"at_tick":           Clock.get_total_days(),
+		"target_id":         null,
+		"magnitude":         event_def.get("magnitude", "minor"),
+		"memorable":         event_def.get("magnitude", "minor") in ["major", "huge"],
+		"memory_tags":       [],
+		"times_recalled":    0,
 		"last_recalled_day": 0,
-		"pinned_to_story":  false,
+		"pinned_to_story":   false,
 	})
 
 	return summary
