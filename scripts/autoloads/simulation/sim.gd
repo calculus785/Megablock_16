@@ -38,11 +38,13 @@ func _ready() -> void:
 
 func _on_tick() -> void:
 	for character in Registry.get_all():
-		# Sleeping characters get a wake check instead of the normal pipeline
 		if character.is_sleeping:
 			_try_wake(character)
 			continue
 		if not character.is_actionable():
+			continue
+		# Auto-fire pass — fires before weighted roll, skips normal pipeline
+		if _run_auto_fire(character):
 			continue
 		_run_pipeline(character)
 
@@ -373,3 +375,50 @@ func _echo(character: CharData, _target, event_key: String,
 	})
 
 	return summary
+
+# ─────────────────────────────────────────────────────────────
+# AUTO-FIRE PASS
+# Checks priority events before the weighted roll.
+# If any eligible auto_fire event is found, fires the highest
+# priority one and skips the normal pipeline for this tick.
+# Returns true if an auto_fire event fired.
+# ─────────────────────────────────────────────────────────────
+
+func _run_auto_fire(character: CharData) -> bool:
+	var candidates: Array = []
+
+	for event_key in Events.get_events_by_trigger("auto_fire"):
+		if _is_on_cooldown(character, event_key):
+			continue
+		var event_def: Dictionary = Events.get_event(event_key)
+		if _check_requirements(character, event_def.get("requirements", {})):
+			candidates.append([event_key, event_def.get("priority", 0)])
+
+	if candidates.is_empty():
+		return false
+
+	# Sort by priority descending — highest fires first
+	candidates.sort_custom(func(a, b): return a[1] > b[1])
+
+	var event_key: String = candidates[0][0]
+	var event_def: Dictionary = Events.get_event(event_key)
+
+	var target = Context.resolve_target(character, event_def)
+	var frame: Dictionary = Context.build_frame(character, target, event_def)
+
+	var action_name: String = event_def.get("call_action", "")
+	if action_name == "":
+		return false
+
+	var _result: String = Actions.call_action(action_name, character, target, frame)
+	_apply_outcomes(character, target, event_def)
+	var summary: String = _echo(character, target, event_key, event_def, frame)
+
+	_set_cooldown(character, event_key, event_def)
+	_event_counter += 1
+
+	if Settings.debug_console_logging:
+		print("[Sim] ⚡ %s → %s" % [character.char_name, summary])
+
+	event_fired.emit(character.char_id, event_key, summary)
+	return true

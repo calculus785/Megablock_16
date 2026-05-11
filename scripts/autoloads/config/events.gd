@@ -460,7 +460,7 @@ const EVENTS: Dictionary = {
 
 "SLEEP": {
 	"scope": "character",
-	"trigger_mode": "rolled",
+	"trigger_mode": "auto_fire",
 	"base_weight": 15,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -481,6 +481,28 @@ const EVENTS: Dictionary = {
 		"{name} went to sleep.",
 		"{name} couldn't keep their eyes open any longer.",
 		"That was enough for one day. {name} slept.",
+	],
+},
+
+"ENERGY_CRASH": {
+	"scope": "character",
+	"trigger_mode": "auto_fire",
+	"priority": 95,
+	"base_weight": 0,
+	"category": "health",
+	"magnitude": "moderate",
+	"cooldown_events": 20,
+	"requirements": {
+		"stats_below": { "energy": 10 },
+	},
+	"weight_modifiers": [],
+	"target_resolution": { "type": "self" },
+	"call_action": "sleep",
+	"outcomes": {},
+	"storybook_templates": [
+		"{name} crashed. Couldn't keep going.",
+		"{name}'s body gave out. They slept wherever they were.",
+		"That was all {name} had. They were out.",
 	],
 },
 
