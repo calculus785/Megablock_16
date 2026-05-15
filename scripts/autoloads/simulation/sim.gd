@@ -41,9 +41,14 @@ func _on_tick() -> void:
 		if character.is_sleeping:
 			_try_wake(character)
 			continue
+		# Sequence advance — before is_actionable check.
+		# Initiator drives the sequence each tick. Responder is skipped (is_actionable false).
+		if character.active_sequence != "" and character.sequence_role == "initiator":
+			if not _check_and_interrupt(character):
+				_advance_sequence(character)
+			continue
 		if not character.is_actionable():
 			continue
-		# Auto-fire pass — fires before weighted roll, skips normal pipeline
 		if _run_auto_fire(character):
 			continue
 		_run_pipeline(character)
@@ -120,7 +125,14 @@ func _run_pipeline(character: CharData) -> void:
 	if action_name == "":
 		return
 
-	var _result: String = Actions.call_action(action_name, character, target, frame)
+	var result: String = Actions.call_action(action_name, character, target, frame)
+
+	# If the action returned LOCK_SEQUENCE, start the sequence on both participants.
+	# The invite event's outcomes/echo still fire — they describe the invitation moment.
+	if result == Actions.LOCK_SEQUENCE:
+		var seq_key: String = event_def.get("sequence_key", "")
+		if seq_key != "" and target is CharData:
+			_start_sequence(character, target, seq_key)
 
 	# ── 6. EXECUTE ──────────────────────────────────────────
 	_apply_outcomes(character, target, event_def)
@@ -412,6 +424,7 @@ func _run_auto_fire(character: CharData) -> bool:
 
 	var _result: String = Actions.call_action(action_name, character, target, frame)
 	_apply_outcomes(character, target, event_def)
+	
 	var summary: String = _echo(character, target, event_key, event_def, frame)
 
 	_set_cooldown(character, event_key, event_def)
@@ -422,3 +435,237 @@ func _run_auto_fire(character: CharData) -> bool:
 
 	event_fired.emit(character.char_id, event_key, summary)
 	return true
+
+	# ─────────────────────────────────────────────────────────────
+# SEQUENCES
+# ─────────────────────────────────────────────────────────────
+
+# Called when an invite action returns LOCK_SEQUENCE.
+# Locks both participants into the sequence at beat 0.
+func _start_sequence(initiator: CharData, responder: CharData, seq_key: String) -> void:
+	if initiator.active_sequence != "" or responder.active_sequence != "":
+		push_warning("[Sim] _start_sequence aborted — participant already in sequence.")
+		return
+	initiator.active_sequence   = seq_key
+	initiator.sequence_beat     = 0
+	initiator.sequence_role     = "initiator"
+	initiator.sequence_partner_id = responder.char_id
+	initiator.sequence_context  = {}
+
+	responder.active_sequence   = seq_key
+	responder.sequence_beat     = 0
+	responder.sequence_role     = "responder"
+	responder.sequence_partner_id = initiator.char_id
+	responder.sequence_context  = {}
+
+	if Settings.debug_console_logging:
+		print("[Sim] 🎱 %s + %s locked into %s" % [
+			initiator.char_name, responder.char_name, seq_key
+		])
+
+
+# Called each tick for the initiator of an active sequence.
+# Fires the current beat, applies outcomes, writes storybook, advances.
+func _advance_sequence(character: CharData) -> void:
+	var seq_key: String  = character.active_sequence
+	var beat_id: int     = character.sequence_beat
+	var beat: Dictionary = Sequences.get_beat(seq_key, beat_id)
+
+	if beat.is_empty():
+		push_warning("[Sim] Sequence %s beat %d not found — force-ending." % [seq_key, beat_id])
+		var partner: CharData = Registry.get_character(character.sequence_partner_id)
+		_end_sequence(character, partner)
+		return
+
+	var partner: CharData = Registry.get_character(character.sequence_partner_id)
+
+	# Determine actor/target for this beat
+	# "responder" role flips who acts. "both" uses initiator as actor.
+	var actor: CharData  = character
+	var other: CharData  = partner
+	if beat.get("actor_role", "initiator") == "responder" and partner:
+		actor = partner
+		other = character
+
+	# Call the beat's action (stub — outcomes are in the beat definition)
+	var action_name: String = beat.get("call_action", "")
+	if action_name != "":
+		Actions.call_action(action_name, actor, other, character.sequence_context)
+
+	# Apply outcomes defined on this beat
+	if beat.has("outcomes"):
+		_apply_outcomes(actor, other, beat)
+
+	# Write storybook for this beat
+	if beat.has("storybook_templates"):
+		var frame: Dictionary = {
+			"name":   actor.char_name,
+			"target": other.char_name if other else "someone",
+		}
+		var templates: Array  = beat["storybook_templates"]
+		var template: String  = templates[randi() % templates.size()]
+		var summary: String   = Context.fill_template(template, frame)
+
+		character.storybook.append({
+			"event_key":         seq_key + "_B" + str(beat_id),
+			"summary":           summary,
+			"at_tick":           Clock.get_total_days(),
+			"target_id":         partner.char_id if partner else null,
+			"magnitude":         "minor",
+			"memorable":         false,
+			"memory_tags":       [],
+			"times_recalled":    0,
+			"last_recalled_day": 0,
+			"pinned_to_story":   false,
+		})
+
+		if Settings.debug_console_logging:
+			print("[Sim] 🎱 %s (beat %d) → %s" % [seq_key, beat_id, summary])
+
+		event_fired.emit(character.char_id, seq_key, summary)
+
+	# Determine next beat
+	var next_beat = "END"
+
+	if beat.has("weighted_outcomes"):
+		# Branch beat — roll weighted outcomes, store result in context
+		var branch: Dictionary = _roll_sequence_branch(character, beat)
+		next_beat = branch.get("next_beat", "END")
+		var outcome_key: String = branch.get("outcome_key", "")
+		character.sequence_context["outcome_key"] = outcome_key
+		if partner:
+			partner.sequence_context["outcome_key"] = outcome_key
+	else:
+		next_beat = beat.get("next_beat", "END")
+
+	# Advance or end — next_beat can be int or "END" string, so convert to compare
+	if str(next_beat) == "END":
+		_end_sequence(character, partner)
+	else:
+		var next_id: int = int(next_beat)
+		character.sequence_beat = next_id
+		if partner:
+			partner.sequence_beat = next_id
+
+
+# Weighted roll for a branch beat (e.g. beat 1 of PLAY_POOL_SEQ).
+# Applies outcome-specific weight modifiers from the beat definition.
+func _roll_sequence_branch(character: CharData, beat: Dictionary) -> Dictionary:
+	var branches: Array   = beat.get("weighted_outcomes", [])
+	var modifiers: Array  = beat.get("weight_modifiers", [])
+
+	var pool: Array = []
+	for branch in branches:
+		var weight: float = float(branch.get("weight", 10))
+		# Outcome-specific modifiers — only boost the named outcome_key
+		for mod in modifiers:
+			if mod.get("outcome") == branch.get("outcome_key", ""):
+				var cond: Dictionary = mod.get("condition", {})
+				if _check_beat_condition(character, cond):
+					weight *= float(mod.get("multiply", 1.0))
+		pool.append({ "branch": branch, "weight": weight })
+
+	var total: float  = 0.0
+	for entry in pool:
+		total += entry["weight"]
+
+	var roll: float    = randf() * total
+	var running: float = 0.0
+	for entry in pool:
+		running += entry["weight"]
+		if roll <= running:
+			return entry["branch"]
+
+	return pool[0]["branch"]
+
+
+# Checks conditions used inside beat weight_modifiers.
+# Separate from _check_requirements — beat conditions use different keys.
+func _check_beat_condition(character: CharData, condition: Dictionary) -> bool:
+	if condition.has("actor_has_trait"):
+		for trait_key in condition["actor_has_trait"]:
+			if not trait_key in character.get_all_active_traits():
+				return false
+	return true
+
+
+# Clears all sequence fields on one character.
+func _clear_sequence(character: CharData) -> void:
+	character.active_sequence    = ""
+	character.sequence_beat      = 0
+	character.sequence_role      = ""
+	character.sequence_partner_id = ""
+	character.sequence_context   = {}
+
+
+# Called when the final beat resolves. Clears both participants.
+func _end_sequence(initiator: CharData, partner: CharData) -> void:
+	if Settings.debug_console_logging:
+		print("[Sim] ✅ %s ended for %s + %s" % [
+			initiator.active_sequence,
+			initiator.char_name,
+			partner.char_name if partner else "unknown"
+		])
+	_clear_sequence(initiator)
+	if partner:
+		_clear_sequence(partner)
+
+
+# Checks if any interruptible auto_fire event is eligible for a locked character.
+# If found: writes "cut short" storybook, clears sequence, fires the interrupt event.
+# Returns true if an interrupt fired.
+func _check_and_interrupt(character: CharData) -> bool:
+	for event_key in Events.get_events_by_trigger("auto_fire"):
+		var event_def: Dictionary = Events.get_event(event_key)
+		if not event_def.get("can_interrupt_sequences", false):
+			continue
+		if _is_on_cooldown(character, event_key):
+			continue
+		if not _check_requirements(character, event_def.get("requirements", {})):
+			continue
+
+		# Found an interruptible event — write trace before clearing
+		var partner: CharData = Registry.get_character(character.sequence_partner_id)
+		var cut_short: String = "%s and %s's game was cut short." % [
+			character.char_name,
+			partner.char_name if partner else "their partner"
+		]
+		var trace: Dictionary = {
+			"event_key":         "SEQUENCE_INTERRUPTED",
+			"summary":           cut_short,
+			"at_tick":           Clock.get_total_days(),
+			"target_id":         character.sequence_partner_id,
+			"magnitude":         "minor",
+			"memorable":         false,
+			"memory_tags":       [],
+			"times_recalled":    0,
+			"last_recalled_day": 0,
+			"pinned_to_story":   false,
+		}
+		character.storybook.append(trace)
+		if partner:
+			partner.storybook.append(trace.duplicate())
+
+		# Clear both
+		_clear_sequence(character)
+		if partner:
+			_clear_sequence(partner)
+
+		# Fire the interrupt event normally
+		var target = Context.resolve_target(character, event_def)
+		var frame: Dictionary = Context.build_frame(character, target, event_def)
+		var action_name: String = event_def.get("call_action", "")
+		if action_name != "":
+			Actions.call_action(action_name, character, target, frame)
+		_apply_outcomes(character, target, event_def)
+		var summary: String = _echo(character, target, event_key, event_def, frame)
+		_set_cooldown(character, event_key, event_def)
+		_event_counter += 1
+
+		if Settings.debug_console_logging:
+			print("[Sim] ⚡ INTERRUPTED → %s → %s" % [character.char_name, summary])
+
+		event_fired.emit(character.char_id, event_key, summary)
+		return true
+
+	return false

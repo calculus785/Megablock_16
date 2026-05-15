@@ -50,6 +50,10 @@ func call_action(action_name: String, character: CharData, target, args: Diction
 		"read_book":                   return _read_book(character, target, args)
 		"drink_alone":                 return _drink_alone(character, target, args)
 		"flirt":                       return _flirt(character, target, args)
+		"start_pool_game":  return _start_pool_game(character, target, args)
+		"rack_pool_balls":  return _rack_pool_balls(character, target, args)
+		"play_pool_round":  return _play_pool_round(character, target, args)
+		"pool_victory":     return _pool_victory(character, target, args)
 		_:
 			push_warning("[Actions] Unknown action: '%s'" % action_name)
 			return DONE
@@ -232,4 +236,68 @@ func _flirt(character: CharData, target, _args: Dictionary) -> String:
 	modify_stat(character, "happiness", 5.0)
 	if target is CharData:
 		modify_stat(target, "happiness", 5.0)
+	return DONE
+
+# ─────────────────────────────────────────────────────────────
+# POOL SEQUENCE
+# ─────────────────────────────────────────────────────────────
+
+# Consent check. Rolls against target's traits/stats.
+# Returns LOCK_SEQUENCE if accepted, DONE if refused.
+func _start_pool_game(character: CharData, target, _args: Dictionary) -> String:
+	if not target is CharData:
+		return DONE
+	if target.active_sequence != "": 
+		return DONE
+	var accept_chance: float = 50.0
+	var target_traits: Array = target.get_all_active_traits()
+
+	if "SOCIAL" in target_traits:      accept_chance += 20.0
+	if "ANTISOCIAL" in target_traits:  accept_chance -= 30.0
+	if "COMPETITIVE" in target_traits: accept_chance += 15.0
+	if "SHY" in target_traits:         accept_chance -= 10.0
+	if target.stats.get("boredom", 0.0) > 50.0: accept_chance += 15.0
+	if target.stats.get("stress", 0.0) > 60.0:  accept_chance -= 20.0
+
+	accept_chance = clamp(accept_chance, 5.0, 95.0)
+
+	if randf() * 100.0 > accept_chance:
+		# Refused — initiator's reaction depends on their traits
+		var my_traits: Array = character.get_all_active_traits()
+		if "INSECURE" in my_traits or "SHY" in my_traits:
+			FeelingDriver.push(character, "HUMILIATED", {
+				"event_key": "start_pool_game",
+				"at_tick":   Clock.get_total_days(),
+				"summary":   "%s said no to pool." % target.char_name,
+			})
+		elif "COMPETITIVE" in my_traits:
+			FeelingDriver.push(character, "FRUSTRATED", {
+				"event_key": "start_pool_game",
+				"at_tick":   Clock.get_total_days(),
+				"summary":   "%s refused a game." % target.char_name,
+			})
+		else:
+			modify_stat(character, "stress", 3.0)
+
+		if Settings.debug_console_logging:
+			print("[Sim] 🚫 %s asked %s to play pool — refused." % [
+				character.char_name, target.char_name
+			])
+		return DONE
+
+	return LOCK_SEQUENCE
+
+
+# Beat 0 — rack balls. Outcomes in beat definition.
+func _rack_pool_balls(_character: CharData, _target, _args: Dictionary) -> String:
+	return DONE
+
+
+# Beat 1 — play round. Winner decided by Sim's weighted branch roll.
+func _play_pool_round(_character: CharData, _target, _args: Dictionary) -> String:
+	return DONE
+
+
+# Beats 2/3 — victory/loss feelings in beat definition.
+func _pool_victory(_character: CharData, _target, _args: Dictionary) -> String:
 	return DONE

@@ -690,6 +690,40 @@ const EVENTS: Dictionary = {
 		"{name} turned the charm on. {target} noticed.",
 	],
 },
+
+"PLAY_POOL_INVITE": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 6,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 10,
+	"sequence_key": "PLAY_POOL_SEQ",
+	"requirements": {
+		"in_room": ["bar"],
+		"other_character_in_room": true,
+		"stats_above": { "energy": 30 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["COMPETITIVE"] },      "multiply": 2.0 },
+		{ "condition": { "has_trait": ["SOCIAL"] },           "multiply": 1.5 },
+		{ "condition": { "stats_above": { "boredom": 50 } }, "multiply": 1.4 },
+	],
+	"target_resolution": {
+		"type": "character",
+		"filter": "same_room",
+		"scope": "same_room",
+		"exclude_robots": true,
+	},
+	"call_action": "start_pool_game",
+	"outcomes": {
+		"stats": { "boredom": -5 },
+	},
+	"storybook_templates": [
+		"{name} challenged {target} to a game of pool.",
+		"{name} picked up a cue and nodded at {target}.",
+	],
+},
 }
 # ─────────────────────────────────────────────────────────────
 # CATEGORIES

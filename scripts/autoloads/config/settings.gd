@@ -10,7 +10,7 @@
 extends Node
 
 # --- Game speed ---
-var sim_speed: float = 1.0       # 1.0 = normal, 2.0 = double, etc.
+var sim_speed: float = 3.1       # 1.0 = normal, 2.0 = double, etc.
 var paused: bool = false
 
 # --- Display ---
