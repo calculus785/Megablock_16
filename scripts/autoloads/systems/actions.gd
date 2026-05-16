@@ -54,6 +54,18 @@ func call_action(action_name: String, character: CharData, target, args: Diction
 		"rack_pool_balls":  return _rack_pool_balls(character, target, args)
 		"play_pool_round":  return _play_pool_round(character, target, args)
 		"pool_victory":     return _pool_victory(character, target, args)
+		"spill_drink":              return _spill_drink(character, target, args)
+		"physical_fight":           return _physical_fight(character, target, args)
+		"confront":                 return _confront(character, target, args)
+		"gossip":                   return _gossip(character, target, args)
+		"queue_intent_visit_cafe":  return _queue_intent_visit_cafe(character, target, args)
+		"order_food":               return _order_food(character, target, args)
+		"order_coffee":             return _order_coffee(character, target, args)
+		"sit_alone_cafe":           return _sit_alone_cafe(character, target, args)
+		"share_meal":               return _share_meal(character, target, args)
+		"cook_meal":                return _cook_meal(character, target, args)
+		"study_together":           return _study_together(character, target, args)
+		"quiet_moment_together":    return _quiet_moment_together(character, target, args)
 		_:
 			push_warning("[Actions] Unknown action: '%s'" % action_name)
 			return DONE
@@ -236,6 +248,47 @@ func _flirt(character: CharData, target, _args: Dictionary) -> String:
 	modify_stat(character, "happiness", 5.0)
 	if target is CharData:
 		modify_stat(target, "happiness", 5.0)
+	return DONE
+
+func _spill_drink(_character: CharData, _target, _args: Dictionary) -> String:
+	return DONE
+
+func _physical_fight(_character: CharData, _target, _args: Dictionary) -> String:
+	return DONE
+
+# Saying your piece clears the underlying anger
+func _confront(character: CharData, _target, _args: Dictionary) -> String:
+	FeelingDriver.remove(character, "FURIOUS")
+	return DONE
+
+func _gossip(_character: CharData, _target, _args: Dictionary) -> String:
+	# Phase 2: this will transfer a memory entry to the target
+	return DONE
+
+func _queue_intent_visit_cafe(character: CharData, _target, _args: Dictionary) -> String:
+	# Stub — full intent queue arrives in Phase 2
+	modify_stat(character, "boredom", -5.0)
+	return DONE
+
+func _order_food(_character: CharData, _target, _args: Dictionary) -> String:
+	return DONE
+
+func _order_coffee(_character: CharData, _target, _args: Dictionary) -> String:
+	return DONE
+
+func _sit_alone_cafe(_character: CharData, _target, _args: Dictionary) -> String:
+	return DONE
+
+func _share_meal(_character: CharData, _target, _args: Dictionary) -> String:
+	return DONE
+
+func _cook_meal(_character: CharData, _target, _args: Dictionary) -> String:
+	return DONE
+
+func _study_together(_character: CharData, _target, _args: Dictionary) -> String:
+	return DONE
+
+func _quiet_moment_together(_character: CharData, _target, _args: Dictionary) -> String:
 	return DONE
 
 # ─────────────────────────────────────────────────────────────
