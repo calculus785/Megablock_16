@@ -1,26 +1,21 @@
 # event_inspector.gd
 # Debug overlay — toggled with F2, cycle characters with Tab.
-# Phase 0 version: shows stats, traits, feelings, states for selected character.
-# Phase 1+ will add eligible events + weights, memory, relationships.
-# Attach to an EventInspector scene (CanvasLayer → Panel → VBoxContainer → Label).
+# Shows stats, traits, feelings, states, eligible events + weights,
+# and last 5 storybook entries for the selected character.
 
 extends CanvasLayer
 
-# Whether the overlay is currently visible
 var _visible: bool = false
-
-# Index into Registry.get_all() for which character we're inspecting
 var _selected_index: int = 0
 
-# The label we write into
 @onready var _label: Label = $Panel/ScrollContainer/Label
 
 
 func _ready() -> void:
 	visible = false
-	# Auto-refresh when any event fires
 	Sim.event_fired.connect(_on_event_fired)
 	print("[EventInspector] Ready. F2 to toggle, Tab to cycle characters.")
+
 
 func _on_event_fired(_char_id: String, _event_key: String, _summary: String) -> void:
 	if _visible:
@@ -28,14 +23,12 @@ func _on_event_fired(_char_id: String, _event_key: String, _summary: String) -> 
 
 
 func _input(event: InputEvent) -> void:
-	# F2 toggles the overlay
 	if event.is_action_pressed("ui_inspector_toggle"):
 		_visible = not _visible
 		visible = _visible
 		if _visible:
 			_refresh()
 
-	# Tab cycles to next character while visible
 	if _visible and event.is_action_pressed("ui_focus_next"):
 		var all := Registry.get_all()
 		if all.size() == 0:
@@ -50,7 +43,6 @@ func _refresh() -> void:
 		_label.text = "No characters in registry."
 		return
 
-	# Clamp index in case characters were removed
 	_selected_index = clamp(_selected_index, 0, all.size() - 1)
 	var character: CharData = all[_selected_index]
 
@@ -67,7 +59,6 @@ func _refresh() -> void:
 	# ── STATS ───────────────────────────────────────────────
 	lines.append("── STATS ──────────────────────────────────────")
 	var stat_keys: Array = Stats.STATS.keys()
-	# Print in two columns for readability
 	var i := 0
 	while i < stat_keys.size():
 		var key_a: String = stat_keys[i]
@@ -76,7 +67,7 @@ func _refresh() -> void:
 		if i + 1 < stat_keys.size():
 			var key_b: String = stat_keys[i + 1]
 			var val_b: float = character.stats.get(key_b, 0.0)
-			line += "    %-22s %6.1f" % [key_b, val_b]
+			line += "   %-22s %6.1f" % [key_b, val_b]
 		lines.append(line)
 		i += 2
 	lines.append("")
@@ -109,7 +100,6 @@ func _refresh() -> void:
 				target_tag,
 				instance.get("hours_remaining", 0.0),
 			])
-			# Show causes
 			for cause in instance.get("causes", []):
 				lines.append("    ↳ %s" % cause.get("summary", "unknown cause"))
 	lines.append("")
@@ -124,6 +114,41 @@ func _refresh() -> void:
 		lines.append("  persistent: " + ", ".join(character.persistent_states))
 	else:
 		lines.append("  persistent: (none)")
+	lines.append("")
+
+	# ── ELIGIBLE EVENTS + WEIGHTS ───────────────────────────
+	lines.append("── ELIGIBLE EVENTS ─────────────────────────────")
+	var eligible: Array = Sim.get_eligible_with_weights(character)
+	if eligible.is_empty():
+		lines.append("  (none eligible)")
+	else:
+		# Calculate total weight for percentage display
+		var total_weight: float = 0.0
+		for entry in eligible:
+			if not entry["on_cooldown"]:
+				total_weight += entry["weight"]
+
+		for entry in eligible:
+			var cd_tag: String = " [CD]" if entry["on_cooldown"] else ""
+			var pct: String = ""
+			if not entry["on_cooldown"] and total_weight > 0.0:
+				pct = "  %4.1f%%" % (entry["weight"] / total_weight * 100.0)
+			lines.append("  %-24s %6.1f%s%s" % [
+				entry["event_key"], entry["weight"], pct, cd_tag
+			])
+	lines.append("")
+
+	# ── LAST 5 STORYBOOK ENTRIES ────────────────────────────
+	lines.append("── LAST 5 EVENTS ───────────────────────────────")
+	var book: Array = character.storybook
+	if book.is_empty():
+		lines.append("  (no events yet)")
+	else:
+		var start_idx: int = max(0, book.size() - 5)
+		for idx in range(start_idx, book.size()):
+			var entry: Dictionary = book[idx]
+			var mag: String = entry.get("magnitude", "minor")[0].to_upper()
+			lines.append("  [%s] %s" % [mag, entry.get("summary", "?")])
 	lines.append("")
 
 	# ── CLOCK ───────────────────────────────────────────────

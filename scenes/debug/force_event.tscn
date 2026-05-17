@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dy2mm6cvxxmsp"]
+
+[ext_resource type="Script" uid="uid://cn4dwh23ou3l" path="res://scripts/ui/force_event.gd" id="1_ys7q0"]
+
+[node name="ForceEvent" type="CanvasLayer" unique_id=109504296]
+script = ExtResource("1_ys7q0")

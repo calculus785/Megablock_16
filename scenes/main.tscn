@@ -2,8 +2,11 @@
 
 [ext_resource type="Script" uid="uid://ynp1h7djuu3t" path="res://scripts/debug/bootstrap.gd" id="1_o5qli"]
 [ext_resource type="PackedScene" uid="uid://qjc5y4r31msg" path="res://scenes/debug/event_inspector.tscn" id="2_0wfyh"]
+[ext_resource type="PackedScene" uid="uid://dy2mm6cvxxmsp" path="res://scenes/debug/force_event.tscn" id="3_sugp2"]
 
 [node name="main" type="Node2D" unique_id=435215768]
 script = ExtResource("1_o5qli")
 
 [node name="EventInspector" parent="." unique_id=1917008883 instance=ExtResource("2_0wfyh")]
+
+[node name="ForceEvent" parent="." unique_id=109504296 instance=ExtResource("3_sugp2")]

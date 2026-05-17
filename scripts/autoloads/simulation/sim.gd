@@ -150,6 +150,74 @@ func _run_pipeline(character: CharData) -> void:
 
 	event_fired.emit(character.char_id, event_key, summary)
 
+# ─────────────────────────────────────────────────────────────
+# FORCE FIRE (debug)
+# Runs an event on a character, skipping eligibility + cooldown.
+# Called by ForceEvent panel (F3). Returns the storybook summary.
+# ─────────────────────────────────────────────────────────────
+
+func force_fire_event(character: CharData, event_key: String) -> String:
+	var event_def: Dictionary = Events.get_event(event_key)
+	if event_def.is_empty():
+		push_warning("[Sim] force_fire_event — unknown event: %s" % event_key)
+		return "Unknown event: %s" % event_key
+
+	# RESOLVE
+	var target = Context.resolve_target(character, event_def)
+
+	# FRAME
+	var frame: Dictionary = Context.build_frame(character, target, event_def)
+
+	# ACT
+	var action_name: String = event_def.get("call_action", "")
+	if action_name != "":
+		var result: String = Actions.call_action(action_name, character, target, frame)
+		if result == Actions.LOCK_SEQUENCE:
+			var seq_key: String = event_def.get("sequence_key", "")
+			if seq_key != "" and target is CharData:
+				_start_sequence(character, target, seq_key)
+
+	# EXECUTE
+	_apply_outcomes(character, target, event_def)
+
+	# ECHO
+	var summary: String = _echo(character, target, event_key, event_def, frame)
+
+	# No cooldown set — forced events are debug, shouldn't block normal firing
+	_event_counter += 1
+
+	if Settings.debug_console_logging:
+		print("[Sim] 🔧 FORCED → %s → %s" % [character.char_name, summary])
+
+	event_fired.emit(character.char_id, event_key, summary)
+	return summary
+
+# ─────────────────────────────────────────────────────────────
+# DEBUG QUERY (used by EventInspector)
+# Returns eligible events + final weights for a character.
+# Array of { "event_key": String, "weight": float }, sorted by weight desc.
+# ─────────────────────────────────────────────────────────────
+
+func get_eligible_with_weights(character: CharData) -> Array:
+	var result: Array = []
+	for event_key in Events.get_events_by_trigger("rolled"):
+		var event_def: Dictionary = Events.get_event(event_key)
+		if not _check_requirements(character, event_def.get("requirements", {})):
+			continue
+		var weight: float = event_def.get("base_weight", 10.0)
+		weight = _apply_weight_modifiers(character, event_def, weight)
+		if weight <= 0.0:
+			continue
+		var on_cd: bool = _is_on_cooldown(character, event_key)
+		result.append({
+			"event_key": event_key,
+			"weight": weight,
+			"on_cooldown": on_cd,
+		})
+	# Sort by weight descending
+	result.sort_custom(func(a, b): return a["weight"] > b["weight"])
+	return result
+
 
 # ─────────────────────────────────────────────────────────────
 # COOLDOWNS
