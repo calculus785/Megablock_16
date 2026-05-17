@@ -66,6 +66,9 @@ func call_action(action_name: String, character: CharData, target, args: Diction
 		"cook_meal":                return _cook_meal(character, target, args)
 		"study_together":           return _study_together(character, target, args)
 		"quiet_moment_together":    return _quiet_moment_together(character, target, args)
+		"reminisce_together":    return _reminisce_together(character, target, args)
+		"brood":                 return _brood(character, target, args)
+		"smile_at_memory":       return _smile_at_memory(character, target, args)
 		_:
 			push_warning("[Actions] Unknown action: '%s'" % action_name)
 			return DONE
@@ -103,16 +106,69 @@ func _wander(character: CharData, target, _args: Dictionary) -> String:
 	return DONE
 
 
-func _think_about(character: CharData, _target, _args: Dictionary) -> String:
-	# No memories yet — stub applies a small boredom reduction.
-	# Full implementation Phase 2 when Memory is built.
-	modify_stat(character, "boredom", -5.0)
+func _think_about(character: CharData, target, _args: Dictionary) -> String:
+	# Try to surface a real memory. If target is a CharData, Memory resolved one.
+	var result = Memory.pick_random_memorable(character)
+	if result == null:
+		# No memorable entries yet — generic daydream fallback
+		modify_stat(character, "boredom", -5.0)
+		return DONE
+
+	# Mark the memory as recalled
+	Memory.recall_entry(character, result["index"])
+
+	# Tone-based stat effects — remembering good things feels good, bad things hurt
+	var entry: Dictionary = result["entry"]
+	var tone: String = _get_memory_tone(entry)
+
+	match tone:
+		"positive":
+			modify_stat(character, "happiness", 5.0)
+			modify_stat(character, "loneliness", -5.0)
+		"negative":
+			modify_stat(character, "stress", 5.0)
+			modify_stat(character, "happiness", -3.0)
+		_:
+			modify_stat(character, "boredom", -5.0)
+
 	return DONE
 
 
+# Derives tone from a storybook entry. Checks the event definition's outcomes
+# to determine if the memory was positive, negative, or neutral.
+func _get_memory_tone(entry: Dictionary) -> String:
+	var event_key: String = entry.get("event_key", "")
+	var event_def: Dictionary = Events.get_event(event_key)
+	if event_def.is_empty():
+		return "neutral"
+	var outcomes: Dictionary = event_def.get("outcomes", {})
+	var stats: Dictionary = outcomes.get("stats", {})
+	var happiness: float = stats.get("happiness", 0.0)
+	var stress: float = stats.get("stress", 0.0)
+	var net: float = happiness - stress
+	if net > 0.0:
+		return "positive"
+	elif net < 0.0:
+		return "negative"
+	return "neutral"
+
+
 func _queue_intent_visit_bar(character: CharData, _target, _args: Dictionary) -> String:
-	# No intent queue yet — stub reduces boredom (anticipation effect).
-	# Full implementation Phase 2.
+	# Push an intent to order a drink once they reach the bar.
+	# Patience is trait-modified: STUBBORN waits longer, LAZY gives up fast.
+	var patience: int = 15
+	var my_traits: Array = character.get_all_active_traits()
+	if "STUBBORN" in my_traits:   patience += 10
+	if "LAZY" in my_traits:       patience -= 5
+	if "ALCOHOLIC" in my_traits:  patience += 15
+
+	Memory.push_intent(character, {
+		"intent_key": "ORDER_DRINK",
+		"priority": "normal",
+		"target_id": "",
+		"patience": patience,
+		"clearable": true,
+	})
 	modify_stat(character, "boredom", -5.0)
 	return DONE
 
@@ -222,7 +278,18 @@ func _deep_conversation(character: CharData, target, _args: Dictionary) -> Strin
 
 
 func _queue_intent_visit_library(character: CharData, _target, _args: Dictionary) -> String:
-	# Stub — same pattern as visit_bar until intent queue is built in Phase 2
+	var patience: int = 12
+	var my_traits: Array = character.get_all_active_traits()
+	if "STUBBORN" in my_traits:  patience += 8
+	if "LAZY" in my_traits:      patience -= 5
+
+	Memory.push_intent(character, {
+		"intent_key": "READ_BOOK",
+		"priority": "normal",
+		"target_id": "",
+		"patience": patience,
+		"clearable": true,
+	})
 	modify_stat(character, "boredom", -5.0)
 	return DONE
 
@@ -266,7 +333,19 @@ func _gossip(_character: CharData, _target, _args: Dictionary) -> String:
 	return DONE
 
 func _queue_intent_visit_cafe(character: CharData, _target, _args: Dictionary) -> String:
-	# Stub — full intent queue arrives in Phase 2
+	var patience: int = 12
+	var my_traits: Array = character.get_all_active_traits()
+	if "STUBBORN" in my_traits:    patience += 8
+	if "LAZY" in my_traits:        patience -= 5
+	if "BIG_APPETITE" in my_traits: patience += 5
+
+	Memory.push_intent(character, {
+		"intent_key": "ORDER_FOOD",
+		"priority": "normal",
+		"target_id": "",
+		"patience": patience,
+		"clearable": true,
+	})
 	modify_stat(character, "boredom", -5.0)
 	return DONE
 
@@ -353,4 +432,31 @@ func _play_pool_round(_character: CharData, _target, _args: Dictionary) -> Strin
 
 # Beats 2/3 — victory/loss feelings in beat definition.
 func _pool_victory(_character: CharData, _target, _args: Dictionary) -> String:
+	return DONE
+
+func _reminisce_together(character: CharData, _target, _args: Dictionary) -> String:
+	# Surface a memory and mark it recalled
+	var result = Memory.pick_random_memorable(character)
+	if result:
+		Memory.recall_entry(character, result["index"])
+	return DONE
+
+
+func _brood(character: CharData, _target, _args: Dictionary) -> String:
+	# Brooding surfaces a negative memory and makes things worse
+	var result = Memory.pick_random_memorable(character)
+	if result:
+		Memory.recall_entry(character, result["index"])
+	modify_stat(character, "stress", 5.0)
+	modify_stat(character, "happiness", -5.0)
+	return DONE
+
+
+func _smile_at_memory(character: CharData, _target, _args: Dictionary) -> String:
+	# Positive recall — the good kind of remembering
+	var result = Memory.pick_random_memorable(character)
+	if result:
+		Memory.recall_entry(character, result["index"])
+	modify_stat(character, "happiness", 5.0)
+	modify_stat(character, "stress", -3.0)
 	return DONE

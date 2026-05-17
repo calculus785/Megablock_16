@@ -75,6 +75,7 @@ func _ready() -> void:
 	_print_character_summary()
 
 
+
 func _print_character_summary() -> void:
 	print("\n── CHARACTER SUMMARY ──────────────────────────")
 	for character in Registry.get_all():

@@ -42,13 +42,26 @@ func _on_tick() -> void:
 			_try_wake(character)
 			continue
 		# Sequence advance — before is_actionable check.
-		# Initiator drives the sequence each tick. Responder is skipped (is_actionable false).
 		if character.active_sequence != "" and character.sequence_role == "initiator":
 			if not _check_and_interrupt(character):
 				_advance_sequence(character)
 			continue
 		if not character.is_actionable():
 			continue
+
+		# ── INTENT PROCESSING ───────────────────────────────
+		# Tick patience on all intents. Any that hit 0 fire GIVE_UP.
+		var expired: Array = Memory.tick_intents(character)
+		for expired_key in expired:
+			_fire_give_up(character, expired_key)
+
+		# If character still has intents, try to fire the top one.
+		# If it can't fire (requirements not met), fall through to normal pipeline.
+		if Memory.has_intents(character):
+			if _try_fire_intent(character):
+				continue
+
+		# ── NORMAL PIPELINE ─────────────────────────────────
 		if _run_auto_fire(character):
 			continue
 		_run_pipeline(character)
@@ -71,11 +84,11 @@ func _try_wake(character: CharData) -> void:
 	character.is_sleeping = false
 
 	var summary: String = "%s woke up." % character.char_name
-	character.storybook.append({
+	Memory.write_storybook(character, {
 		"event_key":         "WAKE",
 		"summary":           summary,
 		"at_tick":           Clock.get_total_days(),
-		"target_id":         null,
+		"target_id":         "",
 		"magnitude":         "minor",
 		"memorable":         false,
 		"memory_tags":       [],
@@ -218,6 +231,98 @@ func get_eligible_with_weights(character: CharData) -> Array:
 	result.sort_custom(func(a, b): return a["weight"] > b["weight"])
 	return result
 
+# ─────────────────────────────────────────────────────────────
+# INTENT PROCESSING
+# Tries to fire the top intent as an event. If the event's
+# requirements aren't met, leaves the intent in the queue and
+# returns false (fall through to normal pipeline).
+# ─────────────────────────────────────────────────────────────
+
+func _try_fire_intent(character: CharData) -> bool:
+	var intent: Dictionary = Memory.peek_intent(character)
+	if intent.is_empty():
+		return false
+
+	var event_key: String = intent.get("intent_key", "")
+	var event_def: Dictionary = Events.get_event(event_key)
+
+	# Unknown event — pop and discard the bad intent
+	if event_def.is_empty():
+		Memory.pop_intent(character)
+		push_warning("[Sim] Intent had unknown event_key: %s — discarded." % event_key)
+		return false
+
+	# Check requirements — if not met, leave intent in queue and skip
+	if not _check_requirements(character, event_def.get("requirements", {})):
+		return false
+
+	# Requirements met — pop the intent and fire the event
+	Memory.pop_intent(character)
+
+	var target = Context.resolve_target(character, event_def)
+
+	# If intent has a specific target_id, try to use that instead
+	var intent_target_id: String = intent.get("target_id", "")
+	if intent_target_id != "":
+		var specific_target: CharData = Registry.get_character(intent_target_id)
+		if specific_target:
+			target = specific_target
+
+	var frame: Dictionary = Context.build_frame(character, target, event_def)
+	var action_name: String = event_def.get("call_action", "")
+	if action_name != "":
+		var result: String = Actions.call_action(action_name, character, target, frame)
+		if result == Actions.LOCK_SEQUENCE:
+			var seq_key: String = event_def.get("sequence_key", "")
+			if seq_key != "" and target is CharData:
+				_start_sequence(character, target, seq_key)
+
+	_apply_outcomes(character, target, event_def)
+	var summary: String = _echo(character, target, event_key, event_def, frame)
+	_set_cooldown(character, event_key, event_def)
+	_event_counter += 1
+
+	if Settings.debug_console_logging:
+		print("[Sim] 📋 INTENT → %s → %s" % [character.char_name, summary])
+
+	event_fired.emit(character.char_id, event_key, summary)
+	return true
+
+
+# Fires a GIVE_UP storybook entry when an intent's patience runs out.
+func _fire_give_up(character: CharData, expired_key: String) -> void:
+	# Trait-modified reaction
+	var my_traits: Array = character.get_all_active_traits()
+	if "SHORT_TEMPERED" in my_traits:
+		FeelingDriver.push(character, "FRUSTRATED", {
+			"event_key": "give_up",
+			"at_tick": Clock.get_total_days(),
+			"summary": "gave up waiting to %s" % expired_key,
+		})
+	elif "STUBBORN" in my_traits:
+		Actions.modify_stat(character, "stress", 8.0)
+
+	Actions.modify_stat(character, "stress", 5.0)
+
+	var summary: String = "%s gave up on %s." % [character.char_name, expired_key]
+
+	Memory.write_storybook(character, {
+		"event_key":         "GIVE_UP",
+		"summary":           summary,
+		"at_tick":           Clock.get_total_days(),
+		"target_id":         "",
+		"magnitude":         "minor",
+		"memorable":         false,
+		"memory_tags":       [],
+		"times_recalled":    0,
+		"last_recalled_day": 0,
+		"pinned_to_story":   false,
+	})
+
+	if Settings.debug_console_logging:
+		print("[Sim] ❌ %s → %s" % [character.char_name, summary])
+
+	event_fired.emit(character.char_id, "GIVE_UP", summary)
 
 # ─────────────────────────────────────────────────────────────
 # COOLDOWNS
@@ -347,6 +452,12 @@ func _check_requirements(character: CharData, reqs: Dictionary) -> bool:
 				break
 		if not others_present:
 			return false
+	
+	# has_memorable_entries — character must have at least one memorable storybook entry
+	if reqs.has("has_memorable_entries") and reqs["has_memorable_entries"]:
+		var memorable: Array = Memory.get_memorable_entries(character)
+		if memorable.is_empty():
+			return false
 
 	return true
 
@@ -441,18 +552,26 @@ func _echo(character: CharData, _target, event_key: String,
 		var template: String = templates[randi() % templates.size()]
 		summary = Context.fill_template(template, frame)
 
-	character.storybook.append({
+	# Target ID for memory lookups
+	var target_id: String = ""
+	if _target is CharData:
+		target_id = _target.char_id
+
+	Memory.write_storybook(character, {
 		"event_key":         event_key,
 		"summary":           summary,
 		"at_tick":           Clock.get_total_days(),
-		"target_id":         null,
+		"target_id":         target_id,
 		"magnitude":         event_def.get("magnitude", "minor"),
-		"memorable":         event_def.get("magnitude", "minor") in ["major", "huge"],
+		"memorable": event_def.get("magnitude", "minor") in ["moderate", "major", "huge"],
 		"memory_tags":       [],
 		"times_recalled":    0,
 		"last_recalled_day": 0,
 		"pinned_to_story":   false,
 	})
+
+	# Write short-term memory — auto-maps event category to memory category
+	Memory.write_short_term_from_event(character, event_key, event_def, summary, target_id)
 
 	return summary
 
@@ -574,7 +693,7 @@ func _advance_sequence(character: CharData) -> void:
 		var template: String  = templates[randi() % templates.size()]
 		var summary: String   = Context.fill_template(template, frame)
 
-		character.storybook.append({
+		Memory.write_storybook(character, {
 			"event_key":         seq_key + "_B" + str(beat_id),
 			"summary":           summary,
 			"at_tick":           Clock.get_total_days(),
@@ -710,9 +829,9 @@ func _check_and_interrupt(character: CharData) -> bool:
 			"last_recalled_day": 0,
 			"pinned_to_story":   false,
 		}
-		character.storybook.append(trace)
+		Memory.write_storybook(character, trace)
 		if partner:
-			partner.storybook.append(trace.duplicate())
+			Memory.write_storybook(partner, trace.duplicate())
 
 		# Clear both
 		_clear_sequence(character)

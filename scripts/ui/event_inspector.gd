@@ -1,7 +1,7 @@
 # event_inspector.gd
 # Debug overlay — toggled with F2, cycle characters with Tab.
 # Shows stats, traits, feelings, states, eligible events + weights,
-# and last 5 storybook entries for the selected character.
+# short-term memory, intent queue, and last 5 storybook entries.
 
 extends CanvasLayer
 
@@ -116,13 +116,46 @@ func _refresh() -> void:
 		lines.append("  persistent: (none)")
 	lines.append("")
 
+	# ── INTENT QUEUE ────────────────────────────────────────
+	lines.append("── INTENT QUEUE ────────────────────────────────")
+	if character.intent_queue.is_empty():
+		lines.append("  (empty)")
+	else:
+		for intent in character.intent_queue:
+			var clearable_tag: String = "" if intent.get("clearable", true) else " [fixed]"
+			lines.append("  %-20s  prio:%s  patience:%d%s" % [
+				intent.get("intent_key", "?"),
+				intent.get("priority", "normal"),
+				intent.get("patience", 0),
+				clearable_tag,
+			])
+	lines.append("")
+
+	# ── SHORT-TERM MEMORY ───────────────────────────────────
+	lines.append("── SHORT-TERM MEMORY ───────────────────────────")
+	var has_any_memory: bool = false
+	for category in character.short_term_memory:
+		var entries: Array = character.short_term_memory[category]
+		if entries.is_empty():
+			continue
+		has_any_memory = true
+		for entry in entries:
+			var tone_tag: String = entry.get("tone", "neutral")[0].to_upper()
+			lines.append("  [%s] %s: %s" % [
+				tone_tag,
+				category,
+				entry.get("summary", "?"),
+			])
+	if not has_any_memory:
+		lines.append("  (empty)")
+	lines.append("")
+
 	# ── ELIGIBLE EVENTS + WEIGHTS ───────────────────────────
 	lines.append("── ELIGIBLE EVENTS ─────────────────────────────")
 	var eligible: Array = Sim.get_eligible_with_weights(character)
 	if eligible.is_empty():
 		lines.append("  (none eligible)")
 	else:
-		# Calculate total weight for percentage display
 		var total_weight: float = 0.0
 		for entry in eligible:
 			if not entry["on_cooldown"]:

@@ -93,7 +93,7 @@ const EVENTS: Dictionary = {
 	"magnitude": "minor",
 	"cooldown_events": 2,
 	"requirements": {
-		# Will check memory.long_term.size() > 0 once Memory is built
+		"has_memorable_entries": true,
 	},
 	"weight_modifiers": [
 		{ "condition": { "has_state": ["LONELY"] }, "multiply": 1.6 },
@@ -1069,7 +1069,92 @@ const EVENTS: Dictionary = {
 	],
 },
 
+"REMINISCE_TOGETHER": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 3,
+	"category": "social",
+	"magnitude": "moderate",
+	"cooldown_events": 20,
+	"requirements": {
+		"other_character_in_room": true,
+		"has_memorable_entries": true,
+		"time_of_day": ["evening", "night"],
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 1.5 },
+		{ "condition": { "has_state": ["LONELY"] }, "multiply": 2.0 },
+		{ "condition": { "stats_above": { "loneliness": 40 } }, "multiply": 1.5 },
+	],
+	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room", "exclude_robots": true },
+	"call_action": "reminisce_together",
+	"outcomes": {
+		"stats": { "loneliness": -15, "stress": -5, "happiness": 5 },
+		"target_stats": { "loneliness": -10, "stress": -3 },
+	},
+	"storybook_templates": [
+		"{name} and {target} talked about something that happened a while back.",
+		"\"Remember when—\" {name} started. {target} already knew.",
+		"{name} brought up an old memory. {target} had a different version of it.",
+	],
+},
 
+"BROOD": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 5,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 6,
+	"requirements": {
+		"has_memorable_entries": true,
+		"stats_above": { "stress": 40 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_state": ["MISERABLE"] }, "multiply": 2.5 },
+		{ "condition": { "has_trait": ["PARANOID"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["PESSIMISTIC"] }, "multiply": 1.8 },
+		{ "condition": { "stats_above": { "stress": 70 } }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "memory" },
+	"call_action": "brood",
+	"outcomes": {
+		"stats": { "stress": 5, "happiness": -5 },
+	},
+	"storybook_templates": [
+		"{name} kept turning it over. What {target} did. What it meant.",
+		"It was eating at {name}. The thing with {target}.",
+		"{name} couldn't let it go. Not yet.",
+	],
+},
+
+"SMILE_AT_MEMORY": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 4,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 8,
+	"requirements": {
+		"has_memorable_entries": true,
+		"stats_above": { "happiness": 40 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_state": ["CONTENT"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["OPTIMISTIC"] }, "multiply": 1.8 },
+		{ "condition": { "stats_above": { "happiness": 65 } }, "multiply": 1.5 },
+	],
+	"target_resolution": { "type": "memory" },
+	"call_action": "smile_at_memory",
+	"outcomes": {
+		"stats": { "happiness": 5, "stress": -3 },
+	},
+	"storybook_templates": [
+		"{name} smiled, thinking about {target}. Just for a second.",
+		"Something about {target} came back to {name}. The good kind.",
+		"{name} caught {themself} smiling. {target}. That was why.",
+	],
+},
 }
 # ─────────────────────────────────────────────────────────────
 # CATEGORIES

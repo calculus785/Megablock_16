@@ -90,6 +90,18 @@ func resolve_target(character: CharData, event_def: Dictionary):
 				return null
 			return candidates[randi() % candidates.size()]
 		"memory":
+			# Pick a random memorable storybook entry and return the target character.
+			# If the memory has no target, or the target is gone, return null
+			# (template will use "someone" fallback).
+			var result = Memory.pick_random_memorable(character)
+			if result == null:
+				return null
+			var entry: Dictionary = result["entry"]
+			var target_id: String = entry.get("target_id", "")
+			if target_id != "":
+				var remembered: CharData = Registry.get_character(target_id)
+				if remembered:
+					return remembered
 			return null
 		_:
 			return null
