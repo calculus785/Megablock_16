@@ -220,9 +220,11 @@ func pop_intent(character: CharData):
 
 # Remove all intents marked as clearable (e.g. fire alarm interrupts).
 func clear_clearable_intents(character: CharData) -> void:
-	character.intent_queue = character.intent_queue.filter(
-		func(intent): return not intent.get("clearable", true)
-	)
+	var surviving: Array = []
+	for intent in character.intent_queue:
+		if not intent.get("clearable", true):
+			surviving.append(intent)
+	character.intent_queue = surviving
 
 
 # True if the character has any pending intents.
@@ -245,6 +247,87 @@ func tick_intents(character: CharData) -> Array:
 
 	character.intent_queue = surviving
 	return expired
+
+# ─────────────────────────────────────────────────────────────
+# OBJECT IMPRESSIONS
+# Per-character scores for notable interactables.
+# Stored in CharData.object_impressions as { interactable_key: int }
+# Two paths: passive (room arrival, interest-gated) and active (event use, ungated).
+# ─────────────────────────────────────────────────────────────
+
+# Called when a character enters a room. Checks notable objects in that room
+# and gives a small passive bump for each one the character has interests in.
+func tick_passive_impressions(character: CharData, room_id: String) -> void:
+	# Extract room type from room_id (e.g. "bar_f1_s1" → "bar")
+	var f_index: int = room_id.find("_f")
+	var room_type: String
+	if f_index > 0:
+		room_type = room_id.substr(0, f_index)
+	else:
+		room_type = room_id
+
+	var notables: Array = Interactables.get_notable_for_room(room_type)
+	if notables.is_empty():
+		return
+
+	var char_interests: Array = character.interests
+
+	for obj_key in notables:
+		var interest_tags: Array = Interactables.get_interest_tags(obj_key)
+
+		# Check if any of the character's interests match
+		var has_match: bool = false
+		for interest in char_interests:
+			if interest in interest_tags:
+				has_match = true
+				break
+
+		if not has_match:
+			continue
+
+		# 50% chance — not every visit registers consciously
+		if randf() > 0.5:
+			continue
+
+		# Interest match — apply passive bump
+		var def: Dictionary = Interactables.get_interactable(obj_key)
+		var bump: int = def.get("passive_impression", 1)
+		_add_impression(character, obj_key, bump)
+
+
+# Called by action functions when a character directly interacts with an object.
+# NOT interest-gated — if you used it, it left a mark.
+func add_active_impression(character: CharData, interactable_key: String) -> void:
+	var def: Dictionary = Interactables.get_interactable(interactable_key)
+	var bump: int = def.get("active_impression", 5)
+	_add_impression(character, interactable_key, bump)
+
+
+# Core impression modifier. Positive = building attachment, negative = aversion.
+func _add_impression(character: CharData, interactable_key: String, delta: int) -> void:
+	var current: int = character.object_impressions.get(interactable_key, 0)
+	var old_tier: String = Interactables.get_impression_tier(current)
+
+	character.object_impressions[interactable_key] = current + delta
+
+	var new_tier: String = Interactables.get_impression_tier(current + delta)
+
+	# Log tier transitions
+	if new_tier != old_tier and Settings.debug_console_logging:
+		print("[Memory] %s → %s impression: %s (%d)" % [
+			character.char_name, interactable_key, new_tier, current + delta
+		])
+
+
+# Read the current impression score for an object. Returns 0 if no impression.
+func get_impression(character: CharData, interactable_key: String) -> int:
+	return character.object_impressions.get(interactable_key, 0)
+
+
+# Get the tier label for a character's impression of an object.
+func get_impression_tier(character: CharData, interactable_key: String) -> String:
+	var score: int = get_impression(character, interactable_key)
+	return Interactables.get_impression_tier(score)
 
 
 # ─────────────────────────────────────────────────────────────

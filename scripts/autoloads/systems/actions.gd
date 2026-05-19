@@ -102,6 +102,7 @@ func _wander(character: CharData, target, _args: Dictionary) -> String:
 	# target is a room_id string resolved by Context
 	if target is String and target != "":
 		character.current_room = target
+		Memory.tick_passive_impressions(character, target)
 	modify_stat(character, "boredom", -10.0)
 	return DONE
 
@@ -174,6 +175,7 @@ func _queue_intent_visit_bar(character: CharData, _target, _args: Dictionary) ->
 
 
 func _order_drink(character: CharData, _target, _args: Dictionary) -> String:
+	Memory.add_active_impression(character, "bar_counter")
 	modify_stat(character, "cash", -5.0)
 	modify_stat(character, "stress", -8.0)
 	modify_stat(character, "happiness", 5.0)
@@ -295,6 +297,7 @@ func _queue_intent_visit_library(character: CharData, _target, _args: Dictionary
 
 
 func _read_book(character: CharData, _target, _args: Dictionary) -> String:
+	Memory.add_active_impression(character, "bookshelf")
 	modify_stat(character, "boredom", -20.0)
 	modify_stat(character, "stress", -10.0)
 	modify_stat(character, "happiness", 5.0)
@@ -302,6 +305,7 @@ func _read_book(character: CharData, _target, _args: Dictionary) -> String:
 
 
 func _drink_alone(character: CharData, _target, _args: Dictionary) -> String:
+	Memory.add_active_impression(character, "bar_counter")
 	modify_stat(character, "stress", -5.0)
 	modify_stat(character, "loneliness", 8.0)
 	modify_stat(character, "cash", -5.0)
@@ -377,6 +381,7 @@ func _quiet_moment_together(_character: CharData, _target, _args: Dictionary) ->
 # Consent check. Rolls against target's traits/stats.
 # Returns LOCK_SEQUENCE if accepted, DONE if refused.
 func _start_pool_game(character: CharData, target, _args: Dictionary) -> String:
+	
 	if not target is CharData:
 		return DONE
 	if target.active_sequence != "": 
@@ -426,8 +431,11 @@ func _rack_pool_balls(_character: CharData, _target, _args: Dictionary) -> Strin
 
 
 # Beat 1 — play round. Winner decided by Sim's weighted branch roll.
-func _play_pool_round(_character: CharData, _target, _args: Dictionary) -> String:
-	return DONE
+func _play_pool_round(character: CharData, target, _args: Dictionary) -> String:
+	Memory.add_active_impression(character, "pool_table")
+	if target is CharData:
+		Memory.add_active_impression(target, "pool_table")
+	return DONE 
 
 
 # Beats 2/3 — victory/loss feelings in beat definition.

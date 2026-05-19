@@ -150,6 +150,19 @@ func _refresh() -> void:
 		lines.append("  (empty)")
 	lines.append("")
 
+	# ── OBJECT IMPRESSIONS ──────────────────────────────────
+	lines.append("── IMPRESSIONS ─────────────────────────────────")
+	if character.object_impressions.is_empty():
+		lines.append("  (none)")
+	else:
+		var sorted_keys: Array = character.object_impressions.keys()
+		sorted_keys.sort()
+		for obj_key in sorted_keys:
+			var score: int = character.object_impressions[obj_key]
+			var tier: String = Interactables.get_impression_tier(score)
+			lines.append("  %-20s %4d  (%s)" % [obj_key, score, tier])
+	lines.append("")
+
 	# ── ELIGIBLE EVENTS + WEIGHTS ───────────────────────────
 	lines.append("── ELIGIBLE EVENTS ─────────────────────────────")
 	var eligible: Array = Sim.get_eligible_with_weights(character)

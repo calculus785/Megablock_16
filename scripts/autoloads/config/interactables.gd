@@ -35,6 +35,10 @@ const INTERACTABLES: Dictionary = {
 	"carryable": false,
 	"aura_effects": {},
 	"aura_personality_match": [],
+	"notable": true,
+	"interest_tags": ["nightlife", "people_watching"],
+	"passive_impression": 1,
+	"active_impression": 3,
 },
 "pool_table": {
 	"label": "Pool Table",
@@ -46,6 +50,10 @@ const INTERACTABLES: Dictionary = {
 	"carryable": false,
 	"aura_effects": { "boredom": -1 },
 	"aura_personality_match": ["sports", "card_games"],
+	"notable": true,
+	"interest_tags": ["sports", "gambling", "card_games"],
+	"passive_impression": 1,
+	"active_impression": 5,
 },
 
 # ── CAFE ─────────────────────────────────────────────────────
@@ -59,6 +67,7 @@ const INTERACTABLES: Dictionary = {
 	"carryable": false,
 	"aura_effects": {},
 	"aura_personality_match": [],
+	"notable": false,
 },
 
 # ── LIBRARY ──────────────────────────────────────────────────
@@ -72,6 +81,10 @@ const INTERACTABLES: Dictionary = {
 	"carryable": false,
 	"aura_effects": { "boredom": -1, "stress": -1 },
 	"aura_personality_match": ["books", "history", "philosophy"],
+	"notable": true,
+	"interest_tags": ["books", "history", "philosophy"],
+	"passive_impression": 1,
+	"active_impression": 4,
 },
 
 # ── COMMON / DECOR ───────────────────────────────────────────
@@ -85,6 +98,10 @@ const INTERACTABLES: Dictionary = {
 	"carryable": false,
 	"aura_effects": { "happiness": 1 },
 	"aura_personality_match": ["art", "history"],
+	"notable": true,
+	"interest_tags": ["art", "history"],
+	"passive_impression": 2,
+	"active_impression": 6,
 },
 
 # ── APARTMENT ────────────────────────────────────────────────
@@ -98,6 +115,7 @@ const INTERACTABLES: Dictionary = {
 	"carryable": false,
 	"aura_effects": {},
 	"aura_personality_match": [],
+	"notable": false,
 },
 "shelf": {
 	"label": "Shelf",
@@ -109,6 +127,7 @@ const INTERACTABLES: Dictionary = {
 	"carryable": false,
 	"aura_effects": {},
 	"aura_personality_match": [],
+	"notable": false,
 },
 "decoration_spot": {
 	"label": "Decoration Spot",
@@ -120,6 +139,7 @@ const INTERACTABLES: Dictionary = {
 	"carryable": false,
 	"aura_effects": {},
 	"aura_personality_match": [],
+	"notable": false,
 },
 
 # ── BREAKABLE ITEMS (carryable) ──────────────────────────────
@@ -133,9 +153,55 @@ const INTERACTABLES: Dictionary = {
 	"carryable": true,
 	"aura_effects": {},
 	"aura_personality_match": [],
+	"notable": false,
 },
 }
 
+# Maps room type prefix to the notable interactables present in that room type.
+# Used by Memory for passive impression ticking on room arrival.
+const ROOM_NOTABLE_OBJECTS: Dictionary = {
+	"bar":     ["bar_counter", "pool_table"],
+	"cafe":    [],
+	"library": ["bookshelf"],
+	"hallway": ["statue"],
+}
+
+# Impression tier thresholds
+const IMPRESSION_TIERS: Dictionary = {
+	"Unaware":   0,
+	"Noticed":   10,
+	"Familiar":  30,
+	"Attached":  60,
+	"Connected": 100,
+}
+
+
+func get_notable_for_room(room_type: String) -> Array:
+	return ROOM_NOTABLE_OBJECTS.get(room_type, [])
+
+
+func is_notable(interactable_key: String) -> bool:
+	if not INTERACTABLES.has(interactable_key):
+		return false
+	return INTERACTABLES[interactable_key].get("notable", false)
+
+
+func get_interest_tags(interactable_key: String) -> Array:
+	if not INTERACTABLES.has(interactable_key):
+		return []
+	return INTERACTABLES[interactable_key].get("interest_tags", [])
+
+
+func get_impression_tier(score: int) -> String:
+	if score >= 100:
+		return "Connected"
+	elif score >= 60:
+		return "Attached"
+	elif score >= 30:
+		return "Familiar"
+	elif score >= 10:
+		return "Noticed"
+	return "Unaware"
 
 func _ready() -> void:
 	print("[Interactables] Loaded. %d interactable types defined." % INTERACTABLES.size())
