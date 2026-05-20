@@ -56,6 +56,24 @@ func get_rooms_by_type(room_type: String) -> Array:
 			result.append(room_id)
 	return result
 
+# ── POSITION LOOKUPS (Phase 3) ───────────────────────────────
+# World positions registered by building.gd during setup.
+
+func get_door_spot(room_id: String) -> Vector2:
+	if not _rooms.has(room_id):
+		return Vector2.ZERO
+	return _rooms[room_id].get("door_spot", Vector2.ZERO)
+
+func get_cutout_center(room_id: String) -> Vector2:
+	if not _rooms.has(room_id):
+		return Vector2.ZERO
+	return _rooms[room_id].get("spawn_pos", Vector2.ZERO)
+
+func get_floor_index(room_id: String) -> int:
+	if not _rooms.has(room_id):
+		return -1
+	return _rooms[room_id].get("floor_index", -1)
+
 
 # ── ZONE / SPOT (stub) ───────────────────────────────────────
 # Room → Zone → Spot hierarchy. Populated when rooms are built in Phase 3.

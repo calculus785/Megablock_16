@@ -1,13 +1,20 @@
 # bootstrap.gd
 # Attached to main.tscn root node.
-# Spawns test characters on startup so Phase 0 is testable.
-# Remove or gate behind a debug flag before Phase 1 ships.
+# Phase 3: builds the building, spawns characters with visual bodies.
 
 extends Node2D
 
-const TEST_ROOMS: Array = [
-	"apartment_f1_s1", "apartment_f1_s2", "apartment_f1_s3",
-	"apartment_f2_s1", "apartment_f2_s2", "apartment_f2_s3",
+# Container for character body nodes
+var _char_bodies: Dictionary = {}   # char_id → Node2D
+
+# Apartment IDs from the prototype building layout (6 total)
+const APARTMENT_IDS: Array = [
+	"apartment_f3_s0",
+	"apartment_f3_s1",
+	"apartment_f3_s2",
+	"apartment_f1_s1",
+	"apartment_f2_s1",
+	"apartment_f4_s0",
 ]
 
 const BESPOKE_CONFIGS: Array = [
@@ -51,45 +58,75 @@ const BESPOKE_CONFIGS: Array = [
 
 
 func _ready() -> void:
-	print("\n[Bootstrap] Spawning test characters...")
+	# Step 1: Build the building (registers all rooms in Rooms autoload)
+	_setup_building()
 
-	# Bespoke characters — generate_bespoke_character handles trait modifiers internally
+	# Step 2: Spawn characters into their apartments
+	_spawn_characters()
+
+	# Step 3: Create visual bodies
+	_create_character_bodies()
+
+	print("[Bootstrap] Done. %d characters, %d rooms." % [
+		Registry.get_count(),
+		Rooms.get_all_room_ids().size(),
+	])
+	_print_character_summary()
+
+
+func _setup_building() -> void:
+	# Load and instance the building script on a new Node2D
+	var building := Node2D.new()
+	building.name = "Building"
+	building.set_script(load("res://scripts/world/building.gd"))
+	add_child(building)  # triggers building._ready() → floors + rooms registered
+
+
+func _spawn_characters() -> void:
+	print("\n[Bootstrap] Spawning characters...")
+
+	# Bespoke characters → first 3 apartments
 	for i in BESPOKE_CONFIGS.size():
 		var config: Dictionary = BESPOKE_CONFIGS[i].duplicate()
-		config["home_room"] = TEST_ROOMS[i]
-		config["current_room"] = TEST_ROOMS[i]
-		config["apartment_id"] = TEST_ROOMS[i]
+		config["home_room"] = APARTMENT_IDS[i]
+		config["current_room"] = APARTMENT_IDS[i]
+		config["apartment_id"] = APARTMENT_IDS[i]
 		config["stats"] = Stats.get_default_stats()
 		Registry.generate_bespoke_character(config)
 
-	# Random characters for remaining slots
-	for i in range(3, TEST_ROOMS.size()):
-		Registry.generate_random_character(TEST_ROOMS[i])
+	# Random characters → remaining apartments
+	for i in range(BESPOKE_CONFIGS.size(), APARTMENT_IDS.size()):
+		Registry.generate_random_character(APARTMENT_IDS[i])
 
-	# Testing: put everyone in the same room so social events fire
-	# Remove this when movement is real (Phase 3)
+
+func _create_character_bodies() -> void:
+	# Container node keeps characters grouped in the scene tree
+	var container := Node2D.new()
+	container.name = "Characters"
+	# Add to Building so characters render in world space with floors
+	$Building.add_child(container)
+
+	var body_script = load("res://scripts/world/character_body.gd")
+
 	for character in Registry.get_all():
-		character.current_room = "bar_f1_s1"
+		var body := Node2D.new()
+		body.set_script(body_script)
+		body.char_data = character
+		body.name = "Char_%s" % character.char_id
+		container.add_child(body)  # triggers body._ready() → builds visuals + snaps to room
 
-	print("[Bootstrap] Done. %d characters in registry." % Registry.get_count())
-	_print_character_summary()
+		_char_bodies[character.char_id] = body
 
+		# Register occupant in Rooms autoload
+		Rooms.add_occupant(character.current_room, character.char_id)
 
 
 func _print_character_summary() -> void:
 	print("\n── CHARACTER SUMMARY ──────────────────────────")
 	for character in Registry.get_all():
-		print("  %s | age %.0f | arch: %s" % [
+		print("  %s | age %.0f | room: %s" % [
 			character.get_debug_label(),
 			character.internal_age,
-			character.life_arch,
-		])
-		print("    traits:  %s" % str(character.traits))
-		print("    hidden:  %s" % str(character.hidden_traits))
-		print("    stress:%.0f  happy:%.0f  energy:%.0f  cash:%.0f" % [
-			character.stats.get("stress", 0),
-			character.stats.get("happiness", 0),
-			character.stats.get("energy", 0),
-			character.stats.get("cash", 0),
+			character.current_room,
 		])
 	print("───────────────────────────────────────────────\n")

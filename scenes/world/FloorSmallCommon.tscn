@@ -1,0 +1,31 @@
+[gd_scene format=3 uid="uid://bf6ynj3cxf7fb"]
+
+[ext_resource type="Texture2D" uid="uid://5jrd0ay7lmu5" path="res://assets/textures/floors/Floor_small_commonroom.png" id="1_snw5d"]
+
+[node name="FloorLargeCommon" type="Node2D" unique_id=2018712318]
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1957812827]
+texture = ExtResource("1_snw5d")
+
+[node name="HallwayLine" type="Marker2D" parent="." unique_id=786242604]
+position = Vector2(-655, 186)
+
+[node name="ElevatorLeft" type="Marker2D" parent="." unique_id=1540213564]
+position = Vector2(-886, 186)
+
+[node name="ElevatorRight" type="Marker2D" parent="." unique_id=578137414]
+position = Vector2(939, 186)
+
+[node name="Spots" type="Node2D" parent="." unique_id=819462334]
+
+[node name="Room0_Spawn" type="Marker2D" parent="Spots" unique_id=1707929359]
+position = Vector2(-557, 128)
+
+[node name="Room0_Door" type="Marker2D" parent="Spots" unique_id=353997654]
+position = Vector2(-798, 189)
+
+[node name="Room1_Spawn" type="Marker2D" parent="Spots" unique_id=1205835870]
+position = Vector2(58, 150)
+
+[node name="Room1_Door" type="Marker2D" parent="Spots" unique_id=685681490]
+position = Vector2(-188, 187)
