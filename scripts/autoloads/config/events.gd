@@ -40,9 +40,9 @@ const EVENTS: Dictionary = {
 	"base_weight": 12,
 	"category": "psychology",
 	"magnitude": "minor",
-	"cooldown_events": 2,  
+	"cooldown_events": 8,  
 	"requirements": {
-		"stats_below": { "energy": 60 },
+		"stats_below": { "energy": 50 },
 	},
 	"weight_modifiers": [
 		{ "condition": { "stats_below": { "energy": 30 } }, "multiply": 2.0 },
@@ -1153,6 +1153,31 @@ const EVENTS: Dictionary = {
 		"{name} smiled, thinking about {target}. Just for a second.",
 		"Something about {target} came back to {name}. The good kind.",
 		"{name} caught {themself} smiling. {target}. That was why.",
+	],
+},
+
+"GO_HOME": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 15,
+	"category": "daily_life",
+	"magnitude": "minor",
+	"cooldown_events": 5,
+	"requirements": {
+		"not_in_home_room": true,
+	},
+	"weight_modifiers": [
+		{ "condition": { "stats_below": { "energy": 40 } }, "multiply": 3.0 },
+		{ "condition": { "has_state": ["TIRED"] }, "multiply": 3.0 },
+		{ "condition": { "stats_above": { "stress": 70 } }, "multiply": 2.0 },
+		{ "condition": { "stats_above": { "boredom": 60 } }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "go_home",
+	"outcomes": {},
+	"storybook_templates": [
+		"{name} headed home.",
+		"{name} decided to call it a day.",
 	],
 },
 }

@@ -74,6 +74,38 @@ func get_floor_index(room_id: String) -> int:
 		return -1
 	return _rooms[room_id].get("floor_index", -1)
 
+# ── FLOOR DATA (Phase 3) ─────────────────────────────────────
+# Registered by building.gd. Stores elevator + hallway positions per floor.
+
+var _floors: Dictionary = {}   # floor_id → Dictionary
+
+func register_floor(floor_id: String, data: Dictionary) -> void:
+	_floors[floor_id] = data
+
+func get_floor_data_by_index(floor_index: int) -> Dictionary:
+	for fid in _floors:
+		if _floors[fid].get("index", -1) == floor_index:
+			return _floors[fid]
+	return {}
+
+
+# ── FULL ROOM DATA GETTER ────────────────────────────────────
+
+func get_room_data(room_id: String) -> Dictionary:
+	if not _rooms.has(room_id):
+		return {}
+	return _rooms[room_id]
+
+func get_spawn_pos(room_id: String) -> Vector2:
+	if not _rooms.has(room_id):
+		return Vector2.ZERO
+	return _rooms[room_id].get("spawn_pos", Vector2.ZERO)
+
+func get_door_pos(room_id: String) -> Vector2:
+	if not _rooms.has(room_id):
+		return Vector2.ZERO
+	return _rooms[room_id].get("door_pos", Vector2.ZERO)
+
 
 # ── ZONE / SPOT (stub) ───────────────────────────────────────
 # Room → Zone → Spot hierarchy. Populated when rooms are built in Phase 3.

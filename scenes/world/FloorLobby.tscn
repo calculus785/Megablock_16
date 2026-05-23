@@ -1,0 +1,20 @@
+[gd_scene format=3 uid="uid://br08hrcm0gj74"]
+
+[ext_resource type="Texture2D" uid="uid://clvtdlbig5vut" path="res://assets/textures/floors/Floor_Apartments.png" id="1_rt3g8"]
+
+[node name="FloorLobby" type="Node2D" unique_id=1515501575]
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=921837174]
+texture = ExtResource("1_rt3g8")
+
+[node name="HallwayLine" type="Marker2D" parent="." unique_id=1238604597]
+position = Vector2(-583, 188)
+
+[node name="Shaft0_Pos" type="Marker2D" parent="." unique_id=1038734114]
+position = Vector2(-992, 187)
+
+[node name="Shaft1_Pos" type="Marker2D" parent="." unique_id=1892941408]
+position = Vector2(-928, 188)
+
+[node name="Shaft2_Pos" type="Marker2D" parent="." unique_id=1659125720]
+position = Vector2(992, 187)

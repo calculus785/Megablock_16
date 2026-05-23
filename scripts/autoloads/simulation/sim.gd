@@ -41,6 +41,8 @@ func _on_tick() -> void:
 		if character.is_sleeping:
 			_try_wake(character)
 			continue
+		if character.is_in_transit:
+			continue
 		# Sequence advance — before is_actionable check.
 		if character.active_sequence != "" and character.sequence_role == "initiator":
 			if not _check_and_interrupt(character):
@@ -67,11 +69,14 @@ func _on_tick() -> void:
 		_run_pipeline(character)
 
 func _on_half_hour() -> void:
-	# Restore energy for sleeping characters each half-hour tick
-	# 8 energy per tick × ~16 ticks in a night = full restore from empty
 	for character in Registry.get_all():
 		if character.is_sleeping:
 			Actions.modify_stat(character, "energy", 8.0)
+		else:
+			Actions.modify_stat(character, "boredom", 3.0)
+			Actions.modify_stat(character, "energy", -3.0)  
+		if character.is_in_transit:
+			continue
 
 
 func _try_wake(character: CharData) -> void:
@@ -156,6 +161,7 @@ func _run_pipeline(character: CharData) -> void:
 	# Set cooldown AFTER the event fires
 	_set_cooldown(character, event_key, event_def)
 	_event_counter += 1
+	_apply_repetition_boredom(character, event_key)
 
 	# ── LOG ─────────────────────────────────────────────────
 	if Settings.debug_console_logging:
@@ -440,14 +446,11 @@ func _check_requirements(character: CharData, reqs: Dictionary) -> bool:
 		if character.current_room == character.home_room:
 			return false
 
-	# other_character_in_room — at least one other character must share the room
-	# NOTE: uses Registry directly — Rooms.get_occupants() is a Phase 3 shell.
-	# Phase 3: replace this loop with Rooms.get_occupants(character.current_room)
 	if reqs.has("other_character_in_room") and reqs["other_character_in_room"]:
+		var occupants: Array = Rooms.get_occupants(character.current_room)
 		var others_present := false
-		for other in Registry.get_all():
-			if other.char_id != character.char_id and \
-					other.current_room == character.current_room:
+		for char_id in occupants:
+			if char_id != character.char_id:
 				others_present = true
 				break
 		if not others_present:
@@ -856,3 +859,45 @@ func _check_and_interrupt(character: CharData) -> bool:
 		return true
 
 	return false
+
+# ─────────────────────────────────────────────────────────────
+# REPETITION BOREDOM
+# If the same event appears in the last 4 storybook entries,
+# add boredom. Traits like GAMBLER/ALCOHOLIC are exempt for
+# their preferred activities.
+# ─────────────────────────────────────────────────────────────
+
+const BOREDOM_EXEMPT_PAIRS: Dictionary = {
+	"ORDER_DRINK":  ["ALCOHOLIC", "ADDICT_PRONE"],
+	"DRINK_ALONE":  ["ALCOHOLIC", "ADDICT_PRONE"],
+	"READ_BOOK":    ["BOOKWORM", "HOMEBODY"],
+	"ORDER_FOOD":   ["BIG_APPETITE"],
+	"PLAY_POOL_INVITE": ["COMPETITIVE", "GAMBLER"],
+}
+
+func _apply_repetition_boredom(character: CharData, event_key: String) -> void:
+	# Check trait exemptions
+	if BOREDOM_EXEMPT_PAIRS.has(event_key):
+		var exempt_traits: Array = BOREDOM_EXEMPT_PAIRS[event_key]
+		for trait_key in exempt_traits:
+			if trait_key in character.get_all_active_traits():
+				return  # exempt — no boredom penalty
+
+	# Count how many of the last 4 storybook entries are this same event
+	var recent: Array = character.storybook.slice(
+		max(0, character.storybook.size() - 4),
+		character.storybook.size()
+	)
+	var repeat_count: int = 0
+	for entry in recent:
+		if entry.get("event_key", "") == event_key:
+			repeat_count += 1
+
+	# Only penalise if they've done this at least twice recently
+	if repeat_count >= 2:
+		var boredom_delta: float = 5.0 * repeat_count
+		Actions.modify_stat(character, "boredom", boredom_delta)
+		if Settings.debug_console_logging:
+			print("[Sim] 😒 %s bored of %s (+%.0f boredom)" % [
+				character.char_name, event_key, boredom_delta
+			])

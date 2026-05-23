@@ -10,10 +10,10 @@ texture = ExtResource("1_6hwa5")
 [node name="HallwayLine" type="Marker2D" parent="." unique_id=786242604]
 position = Vector2(-655, 186)
 
-[node name="ElevatorLeft" type="Marker2D" parent="." unique_id=1540213564]
+[node name="ElevatorLeftWait" type="Marker2D" parent="." unique_id=1540213564]
 position = Vector2(-886, 186)
 
-[node name="ElevatorRight" type="Marker2D" parent="." unique_id=578137414]
+[node name="ElevatorRightWait" type="Marker2D" parent="." unique_id=578137414]
 position = Vector2(939, 186)
 
 [node name="Spots" type="Node2D" parent="." unique_id=819462334]

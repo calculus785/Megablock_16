@@ -5,10 +5,11 @@
 # The API for character memory. All storage lives ON CharData —
 # this autoload provides read/write/prune logic.
 #
-# Three systems:
+# Four systems:
 #   1. Short-term memory — 5 categories × 2 entries, newest pushes oldest out
 #   2. Storybook — long-term event log, memorable entries flagged
 #   3. Intent queue — pending actions in priority order
+#   4. Object impressions — per-character scores for notable interactables
 #
 # Connected to Clock.day_ticked for daily pruning.
 
@@ -119,7 +120,7 @@ func read_all_short_term(character: CharData) -> Array:
 # All events write a storybook entry. Memorable ones are flagged.
 # Sim calls write_storybook() instead of appending directly.
 #
-# Entry shape (unchanged from Phase 1):
+# Entry shape:
 #   { event_key, summary, at_tick, target_id, magnitude,
 #     memorable, memory_tags, times_recalled, last_recalled_day,
 #     pinned_to_story }
@@ -227,6 +228,13 @@ func clear_clearable_intents(character: CharData) -> void:
 	character.intent_queue = surviving
 
 
+# Remove ALL intents regardless of clearable flag.
+# Called when a character commits to a new destination (e.g. visiting bar
+# wipes any old food intent from a previous cafe trip).
+func clear_intents(character: CharData) -> void:
+	character.intent_queue.clear()
+
+
 # True if the character has any pending intents.
 func has_intents(character: CharData) -> bool:
 	return not character.intent_queue.is_empty()
@@ -247,6 +255,7 @@ func tick_intents(character: CharData) -> Array:
 
 	character.intent_queue = surviving
 	return expired
+
 
 # ─────────────────────────────────────────────────────────────
 # OBJECT IMPRESSIONS
@@ -358,16 +367,12 @@ func daily_prune(character: CharData) -> void:
 		var age: int = today - entry.get("at_tick", today)
 
 		if is_pinned:
-			# Never prune pinned entries
 			kept.append(entry)
 		elif is_memorable:
-			# Keep all memorable for now (capped below)
 			kept.append(entry)
 		elif age <= PRUNE_AGE_DAYS:
-			# Recent non-memorable — keep
 			kept.append(entry)
 		else:
-			# Old non-memorable — prune
 			pruned_count += 1
 
 	character.storybook = kept
@@ -397,7 +402,6 @@ func daily_prune(character: CharData) -> void:
 	# Pass 3 — hard cap safety net
 	if character.storybook.size() > STORYBOOK_HARD_CAP:
 		var overflow: int = character.storybook.size() - STORYBOOK_HARD_CAP
-		# Remove from front (oldest), but skip pinned
 		var removed: int = 0
 		var final: Array = []
 		for entry in character.storybook:
@@ -425,7 +429,6 @@ func _derive_tone(event_def: Dictionary) -> String:
 	var happiness: float = stats.get("happiness", 0.0)
 	var stress: float = stats.get("stress", 0.0)
 
-	# Happiness up or stress down = positive
 	var net: float = happiness - stress
 	if net > 0.0:
 		return "positive"

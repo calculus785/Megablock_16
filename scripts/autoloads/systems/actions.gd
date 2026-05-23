@@ -86,6 +86,29 @@ func modify_stat(character: CharData, stat_key: String, delta: float) -> void:
 		character.stats[stat_key] + delta
 	)
 
+# ── MOVEMENT HELPER ──────────────────────────────────────────
+# Any action that needs to send a character somewhere calls this.
+# Sets CharData fields — character_body.gd polls and executes.
+
+func start_movement(character: CharData, dest_room: String) -> void:
+	if dest_room == character.current_room:
+		return  # already there
+
+	var waypoints: Array = Pathfinder.plan_route(character.current_room, dest_room)
+	if waypoints.is_empty():
+		push_warning("[Actions] No route: %s → %s" % [character.current_room, dest_room])
+		return
+
+	character.is_in_transit = true
+	character.movement_target_room = dest_room
+	character.waypoints = waypoints
+	character.waypoint_index = 0
+
+	if Settings.debug_console_logging:
+		print("[Actions] %s moving: %s → %s" % [
+			character.char_name, character.current_room, dest_room
+		])
+
 
 # ─────────────────────────────────────────────────────────────
 # ACTION IMPLEMENTATIONS
@@ -97,14 +120,40 @@ func _rest(character: CharData, _target, _args: Dictionary) -> String:
 	modify_stat(character, "boredom", 5.0)
 	return DONE
 
+func _go_home(character: CharData, _target, _args: Dictionary) -> String:
+	print("[Debug] %s go_home called. current: %s home: %s" % [
+		character.char_name, character.current_room, character.home_room
+	])
+	if character.current_room == character.home_room:
+		return DONE # Path 1: Returns if already home
+		
+	start_movement(character, character.home_room)
+	return DONE     # Path 2: MUST be completely unindented out of the 'if' block!
 
-func _wander(character: CharData, target, _args: Dictionary) -> String:
-	# target is a room_id string resolved by Context
-	if target is String and target != "":
-		character.current_room = target
-		Memory.tick_passive_impressions(character, target)
-	modify_stat(character, "boredom", -10.0)
-	return DONE
+func _wander(character: CharData, _target, _args: Dictionary) -> String:
+	var dest: String = _pick_wander_destination(character)
+	if dest == "":
+		return DONE # Path 1: Returns if no destination
+		
+	start_movement(character, dest)
+	return DONE     # Path 2: MUST be completely unindented out of the 'if' block!
+
+func _pick_wander_destination(character: CharData) -> String:
+	var options: Array = []
+	for room_id in Rooms.get_all_room_ids():
+		if room_id == character.current_room:
+			continue
+		var room_type: String = Rooms.get_room_type(room_id)
+		# Skip lobby (prototype placeholder)
+		if room_type == "lobby":
+			continue
+		# Skip other people's apartments — only your own home
+		if room_type == "apartment" and room_id != character.home_room:
+			continue
+		options.append(room_id)
+	if options.is_empty():
+		return ""
+	return options[randi() % options.size()]
 
 
 func _think_about(character: CharData, target, _args: Dictionary) -> String:
@@ -155,8 +204,11 @@ func _get_memory_tone(entry: Dictionary) -> String:
 
 
 func _queue_intent_visit_bar(character: CharData, _target, _args: Dictionary) -> String:
-	# Push an intent to order a drink once they reach the bar.
-	# Patience is trait-modified: STUBBORN waits longer, LAZY gives up fast.
+	# Find the bar room and start walking there
+	var bar_rooms: Array = Rooms.get_rooms_by_type("bar")
+	if not bar_rooms.is_empty():
+		start_movement(character, bar_rooms[0])
+	Memory.clear_intents(character)
 	var patience: int = 15
 	var my_traits: Array = character.get_all_active_traits()
 	if "STUBBORN" in my_traits:   patience += 10
@@ -337,6 +389,10 @@ func _gossip(_character: CharData, _target, _args: Dictionary) -> String:
 	return DONE
 
 func _queue_intent_visit_cafe(character: CharData, _target, _args: Dictionary) -> String:
+	var cafe_rooms: Array = Rooms.get_rooms_by_type("cafe")
+	if not cafe_rooms.is_empty():
+		start_movement(character, cafe_rooms[0])
+	Memory.clear_intents(character)
 	var patience: int = 12
 	var my_traits: Array = character.get_all_active_traits()
 	if "STUBBORN" in my_traits:    patience += 8

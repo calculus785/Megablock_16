@@ -1,19 +1,19 @@
 [gd_scene format=3 uid="uid://csy6wcjq7osf6"]
 
-[ext_resource type="Texture2D" uid="uid://clvtdlbig5vut" path="res://assets/textures/floors/Floor_Apartments.png" id="1_6qgkj"]
+[ext_resource type="Texture2D" uid="uid://clvtdlbig5vut" path="res://assets/textures/floors/Floor_Apartments.png" id="1_mou2k"]
 
 [node name="FloorApartments" type="Node2D" unique_id=1515501575]
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=921837174]
-texture = ExtResource("1_6qgkj")
+texture = ExtResource("1_mou2k")
 
 [node name="HallwayLine" type="Marker2D" parent="." unique_id=1238604597]
 position = Vector2(-583, 188)
 
-[node name="ElevatorLeft" type="Marker2D" parent="." unique_id=1038734114]
+[node name="ElevatorLeftWait" type="Marker2D" parent="." unique_id=1038734114]
 position = Vector2(-870, 186)
 
-[node name="ElevatorRight" type="Marker2D" parent="." unique_id=1128694911]
+[node name="ElevatorRightWait" type="Marker2D" parent="." unique_id=1128694911]
 position = Vector2(929, 186)
 
 [node name="Spots" type="Node2D" parent="." unique_id=2022886776]

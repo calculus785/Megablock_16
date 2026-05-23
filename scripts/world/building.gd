@@ -10,6 +10,7 @@ var _camera: Camera2D
 func _ready() -> void:
 	_build_floors()
 	_setup_camera()
+	_setup_elevators()
 	print("[Building] %d floors built. %d rooms registered." % [
 		BuildingData.FLOORS.size(),
 		Rooms.get_all_room_ids().size(),
@@ -38,6 +39,8 @@ func _build_floors() -> void:
 
 		# Now register each room using Marker2D global positions
 		_register_floor_rooms(floor_node, floor_def, type_def, i)
+
+		_register_floor_info(floor_node, floor_def, i)
 
 
 func _register_floor_rooms(
@@ -78,6 +81,18 @@ func _register_floor_rooms(
 			"room_size": slot["room_size"],
 		})
 
+func _register_floor_info(floor_node: Node2D, floor_def: Dictionary, floor_index: int) -> void:
+	var hallway = floor_node.get_node_or_null("HallwayLine")
+	var el_left = floor_node.get_node_or_null("ElevatorLeftWait")
+	var el_right = floor_node.get_node_or_null("ElevatorRightWait")
+
+	Rooms.register_floor(floor_def["floor_id"], {
+		"index": floor_index,
+		"hallway_y": hallway.global_position.y if hallway else 0.0,
+		"elevator_left_wait": el_left.global_position if el_left else Vector2.ZERO,
+		"elevator_right_wait": el_right.global_position if el_right else Vector2.ZERO,
+	})
+
 
 # ─── CAMERA ──────────────────────────────────────────────────
 
@@ -110,3 +125,56 @@ func _unhandled_input(event: InputEvent) -> void:
 			_camera.zoom = (_camera.zoom * 1.1).clamp(Vector2(0.15, 0.15), Vector2(3.0, 3.0))
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			_camera.zoom = (_camera.zoom * 0.9).clamp(Vector2(0.15, 0.15), Vector2(3.0, 3.0))
+
+# ─── ELEVATOR CARS ───────────────────────────────────────────
+# Two elevator sprites, one per shaft. Start at floor 0 (bottom).
+# Pathfinder owns the logic, we just create the visuals.
+
+func _setup_elevators() -> void:
+	var car_texture: Texture2D = load("res://assets/textures/floors/elevator_car.png")
+	if car_texture == null:
+		push_error("[Building] Can't load elevator_car.png")
+		return
+
+	# Load shaft position scene
+	var shaft_scene: PackedScene = load("res://scenes/world/FloorLobby.tscn")
+	if shaft_scene == null:
+		push_error("[Building] Can't load FloorLobby.tscn")
+		return
+
+	var shaft_node: Node2D = shaft_scene.instantiate()
+	add_child(shaft_node)  # add to tree so global_position resolves
+
+	var shaft0_x: float = shaft_node.get_node("Shaft0_Pos").global_position.x
+	var shaft2_x: float = shaft_node.get_node("Shaft2_Pos").global_position.x
+
+	# Remove shaft node — we only needed the positions
+	shaft_node.queue_free()
+
+	var tex_h: float = car_texture.get_height()
+	var tex_w: float = car_texture.get_width()
+	var floor0_data: Dictionary = Rooms.get_floor_data_by_index(0)
+	var initial_y: float = floor0_data.get("hallway_y", 0.0) - tex_h
+
+	# Car 0 — left shaft
+	var car0 := Sprite2D.new()
+	car0.texture = car_texture
+	car0.centered = false
+	car0.name = "ElevatorCar0"
+	car0.position = Vector2(shaft0_x - tex_w / 2.0, initial_y)
+	add_child(car0)
+	Pathfinder.register_car_node(0, car0, tex_h)
+
+	# Car 1 — right shaft
+	var car1 := Sprite2D.new()
+	car1.texture = car_texture
+	car1.centered = false
+	car1.name = "ElevatorCar1"
+	car1.position = Vector2(shaft2_x - tex_w / 2.0, initial_y)
+	add_child(car1)
+	Pathfinder.register_car_node(1, car1, tex_h)
+
+	# Store shaft X positions for Pathfinder car tweening
+	Pathfinder.register_shaft_positions(shaft0_x, shaft2_x)
+
+	print("[Building] 2 elevator cars placed at shafts.")
