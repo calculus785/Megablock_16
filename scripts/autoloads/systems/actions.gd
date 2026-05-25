@@ -29,6 +29,7 @@ func _ready() -> void:
 func call_action(action_name: String, character: CharData, target, args: Dictionary) -> String:
 	match action_name:
 		"rest":                    return _rest(character, target, args)
+		"go_home":                 return _go_home(character, target, args) 
 		"wander":                  return _wander(character, target, args)
 		"think_about":             return _think_about(character, target, args)
 		"queue_intent_visit_bar":  return _queue_intent_visit_bar(character, target, args)
@@ -332,6 +333,10 @@ func _deep_conversation(character: CharData, target, _args: Dictionary) -> Strin
 
 
 func _queue_intent_visit_library(character: CharData, _target, _args: Dictionary) -> String:
+	var library_rooms: Array = Rooms.get_rooms_by_type("library")
+	if not library_rooms.is_empty():
+		start_movement(character, library_rooms[0])
+	Memory.clear_intents(character)
 	var patience: int = 12
 	var my_traits: Array = character.get_all_active_traits()
 	if "STUBBORN" in my_traits:  patience += 8

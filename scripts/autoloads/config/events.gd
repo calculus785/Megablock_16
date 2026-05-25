@@ -66,6 +66,7 @@ const EVENTS: Dictionary = {
 	"category": "psychology",
 	"magnitude": "minor",
 	"cooldown_events": 3,
+	"boredom_exempt": true,
 	"requirements": {
 		"stats_above": { "boredom": 25 },
 		"not_has_persistent_state": ["IN_HOSPITAL", "IN_JAIL", "IN_VR_POD"],
@@ -123,6 +124,7 @@ const EVENTS: Dictionary = {
 	"category": "social",
 	"magnitude": "minor",
 	"cooldown_events": 8,
+	"boredom_exempt": true,
 	"requirements": {
 		"not_in_room": ["bar"],
 		"not_has_persistent_state": ["BANNED_FROM_BAR", "IN_HOSPITAL", "IN_JAIL"],
@@ -151,6 +153,7 @@ const EVENTS: Dictionary = {
 	"category": "social",
 	"magnitude": "minor",
 	"cooldown_events": 0,
+	"boredom_exempt_traits": ["ALCOHOLIC", "ADDICT_PRONE"],
 	"requirements": {
 		"in_room": ["bar"],
 		"stats_above": { "cash": 5 },
@@ -304,8 +307,8 @@ const EVENTS: Dictionary = {
 	},
 	"storybook_templates": [
 		"{name} looked in the mirror for a long moment.",
-		"{name} caught their own reflection. Looked away first.",
-		"The mirror again. {name} wasn't sure what they were looking for.",
+		"{name} caught {their} own reflection. Looked away first.",
+		"The mirror again. {name} wasn't sure what {they} {were_was} looking for.",
 	],
 },
 
@@ -468,6 +471,7 @@ const EVENTS: Dictionary = {
 	"requirements": {
 		"stats_below": { "energy": 40 },
 		"time_of_day": ["night", "evening"],
+		"in_home_room": true,
 	},
 	"weight_modifiers": [
 		{ "condition": { "stats_below": { "energy": 20 } }, "multiply": 3.0 },
@@ -479,7 +483,7 @@ const EVENTS: Dictionary = {
 	"outcomes": {},
 	"storybook_templates": [
 		"{name} went to sleep.",
-		"{name} couldn't keep their eyes open any longer.",
+		"{name} couldn't keep {their} eyes open any longer.",
 		"That was enough for one day. {name} slept.",
 	],
 },
@@ -493,7 +497,7 @@ const EVENTS: Dictionary = {
 	"magnitude": "moderate",
 	"cooldown_events": 20,
 	"requirements": {
-		"stats_below": { "energy": 10 },
+		"stats_below": { "energy": 5 },
 	},
 	"weight_modifiers": [],
 	"target_resolution": { "type": "self" },
@@ -501,8 +505,8 @@ const EVENTS: Dictionary = {
 	"outcomes": {},
 	"storybook_templates": [
 		"{name} crashed. Couldn't keep going.",
-		"{name}'s body gave out. They slept wherever they were.",
-		"That was all {name} had. They were out.",
+		"{name}'s body gave out. {They} slept wherever they were.",
+		"That was all {name} had. {They} {were_was} out.",
 	],
 },
 
@@ -581,6 +585,7 @@ const EVENTS: Dictionary = {
 	"category": "psychology",
 	"magnitude": "minor",
 	"cooldown_events": 10,
+	"boredom_exempt": true,
 	"requirements": {
 		"not_in_room": ["library"],
 		"stats_above": { "boredom": 30 },
@@ -608,6 +613,7 @@ const EVENTS: Dictionary = {
 	"category": "psychology",
 	"magnitude": "minor",
 	"cooldown_events": 2,
+	"boredom_exempt_traits": ["BOOKWORM", "HOMEBODY"],
 	"requirements": {
 		"in_room": ["library"],
 	},
@@ -635,6 +641,7 @@ const EVENTS: Dictionary = {
 	"category": "psychology",
 	"magnitude": "minor",
 	"cooldown_events": 4,
+	"boredom_exempt_traits": ["ALCOHOLIC", "ADDICT_PRONE"],
 	"requirements": {
 		"in_room": ["bar"],
 		"stats_below": { "happiness": 35 },
@@ -698,6 +705,7 @@ const EVENTS: Dictionary = {
 	"category": "social",
 	"magnitude": "minor",
 	"cooldown_events": 10,
+	"boredom_exempt_traits": ["COMPETITIVE", "GAMBLER"],
 	"sequence_key": "PLAY_POOL_SEQ",
 	"requirements": {
 		"in_room": ["bar"],
@@ -852,6 +860,7 @@ const EVENTS: Dictionary = {
 	"category": "social",
 	"magnitude": "minor",
 	"cooldown_events": 10,
+	"boredom_exempt": true,
 	"requirements": {
 		"not_in_room": ["cafe"],
 		"not_has_persistent_state": ["IN_HOSPITAL", "IN_JAIL"],
@@ -879,6 +888,7 @@ const EVENTS: Dictionary = {
 	"category": "social",
 	"magnitude": "minor",
 	"cooldown_events": 1,
+	"boredom_exempt_traits": ["BIG_APPETITE"],
 	"requirements": {
 		"in_room": ["cafe"],
 		"stats_above": { "cash": 8, "hunger": 20 },
@@ -1163,6 +1173,7 @@ const EVENTS: Dictionary = {
 	"category": "daily_life",
 	"magnitude": "minor",
 	"cooldown_events": 5,
+	"boredom_exempt": true,
 	"requirements": {
 		"not_in_home_room": true,
 	},

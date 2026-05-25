@@ -867,23 +867,19 @@ func _check_and_interrupt(character: CharData) -> bool:
 # their preferred activities.
 # ─────────────────────────────────────────────────────────────
 
-const BOREDOM_EXEMPT_PAIRS: Dictionary = {
-	"ORDER_DRINK":  ["ALCOHOLIC", "ADDICT_PRONE"],
-	"DRINK_ALONE":  ["ALCOHOLIC", "ADDICT_PRONE"],
-	"READ_BOOK":    ["BOOKWORM", "HOMEBODY"],
-	"ORDER_FOOD":   ["BIG_APPETITE"],
-	"PLAY_POOL_INVITE": ["COMPETITIVE", "GAMBLER"],
-}
-
 func _apply_repetition_boredom(character: CharData, event_key: String) -> void:
-	# Check trait exemptions
-	if BOREDOM_EXEMPT_PAIRS.has(event_key):
-		var exempt_traits: Array = BOREDOM_EXEMPT_PAIRS[event_key]
-		for trait_key in exempt_traits:
-			if trait_key in character.get_all_active_traits():
-				return  # exempt — no boredom penalty
+	var event_def: Dictionary = Events.get_event(event_key)
 
-	# Count how many of the last 4 storybook entries are this same event
+	# Always-exempt events (navigation, one-offs) — never generate boredom
+	if event_def.get("boredom_exempt", false):
+		return
+
+	# Trait-conditional exemptions — exempt if character has any listed trait
+	var exempt_traits: Array = event_def.get("boredom_exempt_traits", [])
+	for trait_key in exempt_traits:
+		if trait_key in character.get_all_active_traits():
+			return
+
 	var recent: Array = character.storybook.slice(
 		max(0, character.storybook.size() - 4),
 		character.storybook.size()
@@ -893,7 +889,6 @@ func _apply_repetition_boredom(character: CharData, event_key: String) -> void:
 		if entry.get("event_key", "") == event_key:
 			repeat_count += 1
 
-	# Only penalise if they've done this at least twice recently
 	if repeat_count >= 2:
 		var boredom_delta: float = 5.0 * repeat_count
 		Actions.modify_stat(character, "boredom", boredom_delta)
