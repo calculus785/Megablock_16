@@ -170,3 +170,9 @@ func _find_feeling(character, feeling_key: String, target_id = null) -> Dictiona
 			continue
 		return instance
 	return {}
+
+func get_active_feelings(character: CharData) -> Array:
+	var result: Array = []
+	for instance in character.feelings:
+		result.append(instance["feeling_key"])
+	return result

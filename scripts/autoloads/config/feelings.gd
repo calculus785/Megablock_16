@@ -51,7 +51,7 @@ const FEELINGS: Dictionary = {
 "HAPPY": {
 	"label": "Happy",
 	"description": "Something good happened. Life feels a bit brighter right now.",
-	"duration_hours": 3,
+	"duration_hours": 24,
 	"drift_modifiers": { "happiness": 3, "stress": -2, "loneliness": -1 },
 	"conflicting": ["MISERABLE", "HUMILIATED", "HEARTBROKEN", "GRIEVING"],
 	"can_be_hidden": false,
@@ -60,7 +60,7 @@ const FEELINGS: Dictionary = {
 "ELATED": {
 	"label": "Elated",
 	"description": "Something really good happened. Hard to wipe the smile off.",
-	"duration_hours": 4,
+	"duration_hours": 24,
 	"drift_modifiers": { "happiness": 6, "stress": -4, "loneliness": -3, "boredom": -5 },
 	"conflicting": ["MISERABLE", "HUMILIATED", "HEARTBROKEN", "ANXIOUS", "GRIEVING"],
 	"can_be_hidden": false,
@@ -69,7 +69,7 @@ const FEELINGS: Dictionary = {
 "AFFECTIONATE": {
 	"label": "Affectionate",
 	"description": "Warm and open. Drawn toward the people they like.",
-	"duration_hours": 2,
+	"duration_hours": 24,
 	"drift_modifiers": { "horniness": 3, "loneliness": -4, "happiness": 2 },
 	"conflicting": ["HUMILIATED", "FURIOUS", "HEARTBROKEN", "DISGUSTED"],
 	"can_be_hidden": true,
@@ -78,7 +78,7 @@ const FEELINGS: Dictionary = {
 "FLIRTY": {
 	"label": "Flirty",
 	"description": "In the mood. Noticing people. Making eye contact a beat too long.",
-	"duration_hours": 2,
+	"duration_hours": 24,
 	"drift_modifiers": { "horniness": 5, "loneliness": -3 },
 	"conflicting": ["HEARTBROKEN", "HUMILIATED", "GRIEVING"],
 	"can_be_hidden": false,
@@ -87,7 +87,7 @@ const FEELINGS: Dictionary = {
 "CONFIDENT": {
 	"label": "Confident",
 	"description": "Feeling good about themselves. Walking taller than usual.",
-	"duration_hours": 3,
+	"duration_hours": 24,
 	"drift_modifiers": { "stress": -3, "happiness": 2, "global_reputation": 1 },
 	"conflicting": ["HUMILIATED", "ANXIOUS", "PARANOID_FEELING"],
 	"can_be_hidden": false,
@@ -96,7 +96,7 @@ const FEELINGS: Dictionary = {
 "INSPIRED": {
 	"label": "Inspired",
 	"description": "Something sparked something. Energy and motivation are both up.",
-	"duration_hours": 3,
+	"duration_hours": 24,
 	"drift_modifiers": { "energy": 4, "boredom": -6, "happiness": 2 },
 	"conflicting": ["EXHAUSTED_FEELING", "MISERABLE"],
 	"can_be_hidden": false,
@@ -105,7 +105,7 @@ const FEELINGS: Dictionary = {
 "GRATEFUL": {
 	"label": "Grateful",
 	"description": "Someone did something for them. Quietly touched by it.",
-	"duration_hours": 4,
+	"duration_hours": 24,
 	"drift_modifiers": { "happiness": 3, "stress": -2, "loneliness": -3 },
 	"conflicting": ["FURIOUS", "BITTER"],
 	"can_be_hidden": true,
@@ -114,7 +114,7 @@ const FEELINGS: Dictionary = {
 "EXCITED": {
 	"label": "Excited",
 	"description": "Something is coming. Anticipation is making them restless in a good way.",
-	"duration_hours": 2,
+	"duration_hours": 24,
 	"drift_modifiers": { "energy": 3, "boredom": -8, "happiness": 4 },
 	"conflicting": ["MISERABLE", "EXHAUSTED_FEELING", "ANXIOUS"],
 	"can_be_hidden": false,
@@ -123,7 +123,7 @@ const FEELINGS: Dictionary = {
 "SATISFIED": {
 	"label": "Satisfied",
 	"description": "A need was met. Content in the quiet way that doesn't ask for more.",
-	"duration_hours": 3,
+	"duration_hours": 24,
 	"drift_modifiers": { "happiness": 2, "stress": -3, "boredom": -2 },
 	"conflicting": ["MISERABLE", "BITTER"],
 	"can_be_hidden": false,
@@ -132,7 +132,7 @@ const FEELINGS: Dictionary = {
 "AMOROUS": {
 	"label": "Amorous",
 	"description": "Deeply romantically charged. Something or someone has got under their skin.",
-	"duration_hours": 5,
+	"duration_hours": 24,
 	"drift_modifiers": { "horniness": 6, "loneliness": -6, "happiness": 3 },
 	"conflicting": ["HEARTBROKEN", "HUMILIATED", "FURIOUS"],
 	"can_be_hidden": true,
@@ -143,7 +143,7 @@ const FEELINGS: Dictionary = {
 "MISERABLE": {
 	"label": "Miserable",
 	"description": "Something knocked them down hard. Not dealing with it well.",
-	"duration_hours": 5,
+	"duration_hours": 24,
 	"drift_modifiers": { "happiness": -5, "stress": 3, "loneliness": 3, "energy": -2 },
 	"conflicting": ["HAPPY", "ELATED", "EXCITED", "INSPIRED", "GRATEFUL"],
 	"can_be_hidden": false,
@@ -152,7 +152,7 @@ const FEELINGS: Dictionary = {
 "HUMILIATED": {
 	"label": "Humiliated",
 	"description": "Something embarrassing happened. They can't stop thinking about it.",
-	"duration_hours": 4,
+	"duration_hours": 24,
 	"drift_modifiers": { "happiness": -4, "stress": 5, "global_reputation": -1 },
 	"conflicting": ["CONFIDENT", "HAPPY", "ELATED", "AFFECTIONATE", "FLIRTY"],
 	"can_be_hidden": true,
@@ -161,7 +161,7 @@ const FEELINGS: Dictionary = {
 "FURIOUS": {
 	"label": "Furious",
 	"description": "Properly angry. Something or someone has crossed a line.",
-	"duration_hours": 2,
+	"duration_hours": 24,
 	"drift_modifiers": { "stress": 8, "happiness": -5, "criminal_inclination": 2 },
 	"conflicting": ["HAPPY", "AFFECTIONATE", "GRATEFUL", "CONTENT_FEELING"],
 	"can_be_hidden": false,
@@ -170,7 +170,7 @@ const FEELINGS: Dictionary = {
 "ANXIOUS": {
 	"label": "Anxious",
 	"description": "Something has them on edge. Hard to relax. Watching the door.",
-	"duration_hours": 3,
+	"duration_hours": 24,
 	"drift_modifiers": { "stress": 5, "happiness": -3, "energy": -2 },
 	"conflicting": ["CONFIDENT", "ELATED", "EXCITED"],
 	"can_be_hidden": true,
@@ -179,7 +179,7 @@ const FEELINGS: Dictionary = {
 "HEARTBROKEN": {
 	"label": "Heartbroken",
 	"description": "Romantic loss. The kind that changes how they move through the world for a while.",
-	"duration_hours": 8,
+	"duration_hours": 24,
 	"drift_modifiers": { "happiness": -6, "stress": 4, "loneliness": 6, "horniness": -5 },
 	"conflicting": ["HAPPY", "ELATED", "FLIRTY", "AMOROUS", "AFFECTIONATE"],
 	"can_be_hidden": false,
@@ -188,7 +188,7 @@ const FEELINGS: Dictionary = {
 "GRIEVING": {
 	"label": "Grieving",
 	"description": "Someone is gone. The absence is loud.",
-	"duration_hours": 12,
+	"duration_hours": 32,
 	"drift_modifiers": { "happiness": -5, "stress": 3, "loneliness": 5, "energy": -3 },
 	"conflicting": ["HAPPY", "ELATED", "EXCITED", "FLIRTY"],
 	"can_be_hidden": false,
@@ -197,7 +197,7 @@ const FEELINGS: Dictionary = {
 "BITTER": {
 	"label": "Bitter",
 	"description": "Resentment sitting just below the surface. Something wasn't fair.",
-	"duration_hours": 6,
+	"duration_hours": 24,
 	"drift_modifiers": { "happiness": -3, "stress": 3, "criminal_inclination": 1 },
 	"conflicting": ["GRATEFUL", "HAPPY", "ELATED"],
 	"can_be_hidden": true,
@@ -206,7 +206,7 @@ const FEELINGS: Dictionary = {
 "DISGUSTED": {
 	"label": "Disgusted",
 	"description": "Something turned their stomach. Moral or physical — either way it lingers.",
-	"duration_hours": 2,
+	"duration_hours": 12,
 	"drift_modifiers": { "happiness": -3, "stress": 3 },
 	"conflicting": ["AFFECTIONATE", "AMOROUS", "FLIRTY"],
 	"can_be_hidden": false,
@@ -215,7 +215,7 @@ const FEELINGS: Dictionary = {
 "PARANOID_FEELING": {
 	"label": "Paranoid",
 	"description": "Convinced something is wrong. Watching everyone. Trusting nobody.",
-	"duration_hours": 3,
+	"duration_hours": 24,
 	"drift_modifiers": { "stress": 6, "happiness": -4, "loneliness": 3 },
 	"conflicting": ["CONFIDENT", "HAPPY", "GRATEFUL"],
 	"can_be_hidden": true,
@@ -226,7 +226,7 @@ const FEELINGS: Dictionary = {
 "EXHAUSTED_FEELING": {
 	"label": "Exhausted",
 	"description": "Pushed past their limit. Everything is slower and harder.",
-	"duration_hours": 2,
+	"duration_hours": 10,
 	"drift_modifiers": { "energy": -5, "happiness": -2, "stress": 3 },
 	"conflicting": ["EXCITED", "INSPIRED", "ELATED"],
 	"can_be_hidden": false,
@@ -235,7 +235,7 @@ const FEELINGS: Dictionary = {
 "WELL_FED": {
 	"label": "Well Fed",
 	"description": "A good meal lands well. Comfortable and settled.",
-	"duration_hours": 1,
+	"duration_hours": 5,
 	"drift_modifiers": { "hunger": -8, "happiness": 2, "stress": -1 },
 	"conflicting": [],
 	"can_be_hidden": false,
@@ -244,7 +244,7 @@ const FEELINGS: Dictionary = {
 "HUNGOVER": {
 	"label": "Hungover",
 	"description": "Last night caught up with them. Regretting most of it.",
-	"duration_hours": 4,
+	"duration_hours": 24,
 	"drift_modifiers": { "energy": -5, "stress": 4, "happiness": -4, "health": -2 },
 	"conflicting": ["ELATED", "EXCITED", "INSPIRED"],
 	"can_be_hidden": false,
@@ -253,7 +253,7 @@ const FEELINGS: Dictionary = {
 "CRAVING": {
 	"label": "Craving",
 	"description": "The habit is calling. Hard to think about much else right now.",
-	"duration_hours": 3,
+	"duration_hours": 32,
 	"drift_modifiers": { "stress": 5, "happiness": -3, "addiction": 2, "boredom": 3 },
 	"conflicting": ["SATISFIED", "CONTENT_FEELING"],
 	"can_be_hidden": true,
@@ -262,7 +262,7 @@ const FEELINGS: Dictionary = {
 "RELIEVED": {
 	"label": "Relieved",
 	"description": "Something they were dreading didn't happen — or something bad resolved.",
-	"duration_hours": 2,
+	"duration_hours": 24,
 	"drift_modifiers": { "stress": -6, "happiness": 3 },
 	"conflicting": ["ANXIOUS", "FURIOUS"],
 	"can_be_hidden": false,
@@ -273,7 +273,7 @@ const FEELINGS: Dictionary = {
 "CONTENT_FEELING": {
 	"label": "Content",
 	"description": "Quietly okay. No complaints. Sometimes that's enough.",
-	"duration_hours": 2,
+	"duration_hours": 24,
 	"drift_modifiers": { "stress": -2, "happiness": 1 },
 	"conflicting": ["MISERABLE", "FURIOUS", "ANXIOUS", "HEARTBROKEN"],
 	"can_be_hidden": false,
@@ -284,7 +284,7 @@ const FEELINGS: Dictionary = {
 "FRUSTRATED": {
 	"label": "Frustrated",
 	"description": "Something is in the way. Patience is wearing thin.",
-	"duration_hours": 2,
+	"duration_hours": 24,
 	"drift_modifiers": { "stress": 4, "happiness": -2 },
 	"conflicting": ["SATISFIED", "CONTENT_FEELING"],
 	"can_be_hidden": true,
@@ -293,7 +293,7 @@ const FEELINGS: Dictionary = {
 "COCKY": {
 	"label": "Cocky",
 	"description": "On a streak. Starting to believe their own hype.",
-	"duration_hours": 3,
+	"duration_hours": 24,
 	"drift_modifiers": { "happiness": 3, "stress": -2 },
 	"conflicting": ["HUMILIATED", "ANXIOUS"],
 	"can_be_hidden": false,
@@ -302,7 +302,7 @@ const FEELINGS: Dictionary = {
 "COMPETITIVE": {
 	"label": "Competitive",
 	"description": "Someone else's success is personal. They need to win.",
-	"duration_hours": 3,
+	"duration_hours": 24,
 	"drift_modifiers": { "stress": 3, "energy": 2 },
 	"conflicting": ["CONTENT_FEELING", "SATISFIED"],
 	"can_be_hidden": true,
@@ -311,7 +311,7 @@ const FEELINGS: Dictionary = {
 "RECKLESS": {
 	"label": "Reckless",
 	"description": "Consequences aren't real right now. Something bad is probably coming.",
-	"duration_hours": 2,
+	"duration_hours": 224,
 	"drift_modifiers": { "criminal_inclination": 3, "stress": -2 },
 	"conflicting": ["ANXIOUS"],
 	"can_be_hidden": false,
@@ -366,3 +366,4 @@ func can_be_hidden(feeling_key: String) -> bool:
 
 func can_be_targeted(feeling_key: String) -> bool:
 	return FEELINGS[feeling_key].get("can_be_targeted", false)
+

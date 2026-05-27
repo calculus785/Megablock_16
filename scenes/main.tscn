@@ -4,9 +4,19 @@
 [ext_resource type="PackedScene" uid="uid://qjc5y4r31msg" path="res://scenes/debug/event_inspector.tscn" id="2_0wfyh"]
 [ext_resource type="PackedScene" uid="uid://dy2mm6cvxxmsp" path="res://scenes/debug/force_event.tscn" id="3_sugp2"]
 
-[node name="main" type="Node2D" unique_id=435215768]
+[sub_resource type="Environment" id="Environment_sugp2"]
+background_mode = 1
+background_color = Color(0.24780053, 0.22091639, 0.2716998, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.42358288, 0.42358288, 0.46135613, 1)
+ambient_light_energy = 3.0
+
+[node name="main" type="Node3D" unique_id=46537340]
 script = ExtResource("1_o5qli")
 
 [node name="EventInspector" parent="." unique_id=1917008883 instance=ExtResource("2_0wfyh")]
 
 [node name="ForceEvent" parent="." unique_id=109504296 instance=ExtResource("3_sugp2")]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1260510131]
+environment = SubResource("Environment_sugp2")

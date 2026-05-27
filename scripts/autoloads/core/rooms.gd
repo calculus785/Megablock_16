@@ -11,6 +11,8 @@ extends Node
 
 # room_id → Dictionary with occupants, zones, interactables, etc.
 var _rooms: Dictionary = {}
+var _hallway_doors: Dictionary = {}  # room_id → door Node3D
+var _room_doors: Dictionary = {}     # room_id → door Node3D
 
 
 func _ready() -> void:
@@ -59,15 +61,15 @@ func get_rooms_by_type(room_type: String) -> Array:
 # ── POSITION LOOKUPS (Phase 3) ───────────────────────────────
 # World positions registered by building.gd during setup.
 
-func get_door_spot(room_id: String) -> Vector2:
+func get_door_spot(room_id: String) -> Vector3:
 	if not _rooms.has(room_id):
-		return Vector2.ZERO
-	return _rooms[room_id].get("door_spot", Vector2.ZERO)
+		return Vector3.ZERO
+	return _rooms[room_id].get("door_spot", Vector3.ZERO)
 
-func get_cutout_center(room_id: String) -> Vector2:
+func get_cutout_center(room_id: String) -> Vector3:
 	if not _rooms.has(room_id):
-		return Vector2.ZERO
-	return _rooms[room_id].get("spawn_pos", Vector2.ZERO)
+		return Vector3.ZERO
+	return _rooms[room_id].get("spawn_pos", Vector3.ZERO)
 
 func get_floor_index(room_id: String) -> int:
 	if not _rooms.has(room_id):
@@ -96,15 +98,15 @@ func get_room_data(room_id: String) -> Dictionary:
 		return {}
 	return _rooms[room_id]
 
-func get_spawn_pos(room_id: String) -> Vector2:
+func get_spawn_pos(room_id: String) -> Vector3:
 	if not _rooms.has(room_id):
-		return Vector2.ZERO
-	return _rooms[room_id].get("spawn_pos", Vector2.ZERO)
+		return Vector3.ZERO
+	return _rooms[room_id].get("spawn_pos", Vector3.ZERO)
 
-func get_door_pos(room_id: String) -> Vector2:
+func get_door_pos(room_id: String) -> Vector3:
 	if not _rooms.has(room_id):
-		return Vector2.ZERO
-	return _rooms[room_id].get("door_pos", Vector2.ZERO)
+		return Vector3.ZERO
+	return _rooms[room_id].get("door_pos", Vector3.ZERO)
 
 
 # ── ZONE / SPOT (stub) ───────────────────────────────────────
@@ -142,3 +144,42 @@ func register_room(room_id: String, room_data: Dictionary) -> void:
 
 func has_room(room_id: String) -> bool:
 	return _rooms.has(room_id)
+
+func register_hallway_door(room_id: String, door_node: Node3D) -> void:
+	_hallway_doors[room_id] = door_node
+
+func register_room_door(room_id: String, door_node: Node3D) -> void:
+	_room_doors[room_id] = door_node
+
+func get_hallway_door(room_id: String) -> Node3D:
+	return _hallway_doors.get(room_id, null)
+
+func get_room_door(room_id: String) -> Node3D:
+	return _room_doors.get(room_id, null)
+
+func get_doorway_pos(room_id: String) -> Vector3:
+	if not _rooms.has(room_id):
+		return Vector3.ZERO
+	return _rooms[room_id].get("doorway_pos", Vector3.ZERO)
+
+func set_room_door_wait_pos(room_id: String, pos: Vector3) -> void:
+	if _rooms.has(room_id):
+		_rooms[room_id]["room_door_wait_pos"] = pos
+
+func set_room_doorway_pos(room_id: String, pos: Vector3) -> void:
+	if _rooms.has(room_id):
+		_rooms[room_id]["room_doorway_pos"] = pos
+
+func get_room_door_wait_pos(room_id: String) -> Vector3:
+	if not _rooms.has(room_id):
+		return Vector3.ZERO
+	return _rooms[room_id].get("room_door_wait_pos", Vector3.ZERO)
+
+func get_room_doorway_pos(room_id: String) -> Vector3:
+	if not _rooms.has(room_id):
+		return Vector3.ZERO
+	return _rooms[room_id].get("room_doorway_pos", Vector3.ZERO)
+
+func set_spawn_pos(room_id: String, pos: Vector3) -> void:
+	if _rooms.has(room_id):
+		_rooms[room_id]["spawn_pos"] = pos

@@ -1,0 +1,66 @@
+[gd_scene format=3 uid="uid://cnyqvd1qb7v33"]
+
+[ext_resource type="Script" uid="uid://c1ju6e857uen6" path="res://scripts/building/room_bar.gd" id="1_yl6xi"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_yl6xi"]
+albedo_color = Color(0.14901961, 0.101960786, 0.078431375, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_yl6xi"]
+material = SubResource("StandardMaterial3D_yl6xi")
+size = Vector3(24, 0.1, 4)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fu6jm"]
+albedo_color = Color(0.2, 0.14509805, 0.1764706, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_fu6jm"]
+material = SubResource("StandardMaterial3D_fu6jm")
+size = Vector3(24, 10, 0.1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fmmpj"]
+albedo_color = Color(0.2, 0.14509805, 0.1764706, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_fmmpj"]
+material = SubResource("StandardMaterial3D_fmmpj")
+size = Vector3(0.1, 10, 4)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ig3mw"]
+albedo_color = Color(0.2, 0.14509805, 0.1764706, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_ig3mw"]
+material = SubResource("StandardMaterial3D_ig3mw")
+size = Vector3(0.1, 10, 4)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gvxdr"]
+albedo_color = Color(0.101960786, 0.078431375, 0.101960786, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_gvxdr"]
+material = SubResource("StandardMaterial3D_gvxdr")
+size = Vector3(24, 0.1, 4)
+
+[node name="RoomBar" type="Node3D" unique_id=1734949190]
+script = ExtResource("1_yl6xi")
+
+[node name="OmniLight3D" type="OmniLight3D" parent="." unique_id=1631145067]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.563474, 0)
+
+[node name="Geometry" type="Node3D" parent="." unique_id=786345582]
+
+[node name="Floor" type="MeshInstance3D" parent="Geometry" unique_id=398930505]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -2)
+mesh = SubResource("BoxMesh_yl6xi")
+
+[node name="BackWall" type="MeshInstance3D" parent="Geometry" unique_id=2109856683]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, -4)
+mesh = SubResource("BoxMesh_fu6jm")
+
+[node name="WallLeft" type="MeshInstance3D" parent="Geometry" unique_id=1983685834]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 5, -2)
+mesh = SubResource("BoxMesh_fmmpj")
+
+[node name="WallRight" type="MeshInstance3D" parent="Geometry" unique_id=2144935596]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 5, -2)
+mesh = SubResource("BoxMesh_ig3mw")
+
+[node name="Ceiling" type="MeshInstance3D" parent="Geometry" unique_id=525943491]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, -2)
+mesh = SubResource("BoxMesh_gvxdr")

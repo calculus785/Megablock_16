@@ -1,0 +1,50 @@
+[gd_scene format=3 uid="uid://xq61coixx2nm"]
+
+[ext_resource type="Texture2D" uid="uid://clvtdlbig5vut" path="res://assets/textures/floors/Floor_Apartments.png" id="1_4a8iu"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_4a8iu"]
+size = Vector3(58, 2, 4)
+
+[node name="FloorTemplate" type="Node3D" unique_id=461787972]
+
+[node name="Sprite2D" type="Sprite3D" parent="." unique_id=205469565]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1)
+centered = false
+pixel_size = 0.03125
+texture = ExtResource("1_4a8iu")
+
+[node name="HallwayLine" type="Marker3D" parent="." unique_id=799764684]
+transform = Transform3D(0.9999619, -0.008726535, 0, 0.008726535, 0.9999619, 0, 0, 0, 1, 7.393, 2, 0)
+
+[node name="ElevatorLeftWait" type="Marker3D" parent="." unique_id=66981089]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.759, 2, 0.5)
+
+[node name="ElevatorRightWait" type="Marker3D" parent="." unique_id=200179739]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 61.29926, 2, 0.5)
+
+[node name="Room0_Origin" type="Marker3D" parent="." unique_id=974216492]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15.529789, 3.0017982, 0)
+
+[node name="Spots" type="Node3D" parent="." unique_id=410461415]
+
+[node name="Room0_Spawn" type="Marker3D" parent="Spots" unique_id=669011914]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.338914, 3.1832113, 0.5)
+
+[node name="Room0_Door" type="Marker3D" parent="Spots" unique_id=1724822910]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.0540066, 2, 0.5)
+
+[node name="Room1_Spawn" type="Marker3D" parent="Spots" unique_id=1418424822]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28.769966, 3.1832113, 0.5)
+
+[node name="Room1_Door" type="Marker3D" parent="Spots" unique_id=1089599632]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25.058142, 2, 0.5)
+
+[node name="Room2_Spawn" type="Marker3D" parent="Spots" unique_id=1090442832]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 47.9624, 3.1832113, 0.5)
+
+[node name="Room_Door" type="Marker3D" parent="Spots" unique_id=1570232040]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 43.94561, 2, 0.5)
+
+[node name="Floor" type="MeshInstance3D" parent="." unique_id=184746186]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33, 0.976, 3)
+mesh = SubResource("BoxMesh_4a8iu")

@@ -3,17 +3,16 @@
 # Polls CharData.is_in_transit and drives MovementController.
 # Updates Rooms occupancy on room enter/exit.
 
-extends Node2D
+extends Node3D
 
 var char_data: CharData
 
-const BODY_WIDTH: float = 24.0
-const BODY_HEIGHT: float = 48.0
-
-var _rect: ColorRect
-var _label: Label
+var _mesh: MeshInstance3D
+var _label: Label3D
 var _move_ctrl: Node  # MovementController
-var _movement_started: bool = false  # tracks whether we've kicked off this transit
+var _movement_started: bool = false
+var _bubble_container: Node3D
+var _storybook_display: Node3D
 
 
 func _ready() -> void:
@@ -28,8 +27,6 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if char_data == null:
 		return
-
-	# Poll: if sim set is_in_transit but we haven't started moving yet, go
 	if char_data.is_in_transit and not _movement_started:
 		if not char_data.waypoints.is_empty():
 			_movement_started = true
@@ -39,19 +36,50 @@ func _process(_delta: float) -> void:
 # ─── VISUALS ─────────────────────────────────────────────────
 
 func _build_visuals() -> void:
-	_rect = ColorRect.new()
-	_rect.size = Vector2(BODY_WIDTH, BODY_HEIGHT)
-	_rect.position = Vector2(-BODY_WIDTH / 2.0, -BODY_HEIGHT)
-	_rect.color = _resolve_color()
-	add_child(_rect)
+	_mesh = MeshInstance3D.new()
+	var quad := QuadMesh.new()
+	quad.size = Vector2(1.0, 2.0)  # 1 unit wide, 2 units tall
+	_mesh.mesh = quad
 
-	_label = Label.new()
-	_label.text = char_data.char_name.split(" ")[0]
-	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_label.position = Vector2(-50, -BODY_HEIGHT - 22)
-	_label.size = Vector2(100, 20)
-	_label.add_theme_font_size_override("font_size", 12)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = _resolve_color()
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_mesh.material_override = mat
+
+	# Offset up so feet sit at node origin
+	_mesh.position.y = 1.0
+	add_child(_mesh)
+
+	_label = Label3D.new()
+	_label.text = char_data.char_name.split(" ")[0]  # first name only
+	_label.font_size = 48
+	_label.pixel_size = 0.02
+	_label.position.y = 2.2  # above head
+	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_label.modulate = Color.WHITE
 	add_child(_label)
+
+	var bubble_script = load("res://scripts/world/bubble_container.gd")
+	_bubble_container = Node3D.new()
+	_bubble_container.set_script(bubble_script)
+	_bubble_container.position.y = 2.8  # above the name label
+	_bubble_container.name = "BubbleContainer"
+	add_child(_bubble_container)
+	_bubble_container.setup(char_data)
+
+	var sb_script = load("res://scripts/world/storybook_display.gd")
+	_storybook_display = Node3D.new()
+	_storybook_display.set_script(sb_script)
+	_storybook_display.position.y = 3.5  # above bubbles
+	_storybook_display.name = "StorybookDisplay"
+	add_child(_storybook_display)
+	_storybook_display.setup(char_data)
+
+# Add this function:
+func set_storybook_visible(show: bool) -> void:
+	if _storybook_display:
+		_storybook_display.set_visible_log(show)
 
 
 # ─── MOVEMENT ────────────────────────────────────────────────
@@ -70,18 +98,14 @@ func _setup_movement_controller() -> void:
 func _on_waypoint_reached(wp: Dictionary) -> void:
 	match wp["type"]:
 		"exit_room":
-			# Left the room — remove from old room's occupant list
 			Rooms.remove_occupant(char_data.current_room, char_data.char_id)
 		"enter_room":
-			# Arrived at destination door — not inside yet, just at the door
 			pass
 		"elevator":
-			# Teleported to new floor — nothing to update yet
 			pass
 
 
 func _on_movement_completed() -> void:
-	# Arrived at destination spawn point
 	_movement_started = false
 	char_data.is_in_transit = false
 
@@ -91,10 +115,7 @@ func _on_movement_completed() -> void:
 	char_data.waypoints.clear()
 	char_data.waypoint_index = 0
 
-	# Register in new room
 	Rooms.add_occupant(dest_room, char_data.char_id)
-
-	# Snap to exact position (fixes any float drift)
 	snap_to_room()
 
 	if Settings.debug_console_logging:
@@ -102,33 +123,30 @@ func _on_movement_completed() -> void:
 
 
 func snap_to_room() -> void:
-	var center: Vector2 = Rooms.get_spawn_pos(char_data.current_room)
-	if center == Vector2.ZERO:
-		# Fallback to old key name in case of mixed data
-		center = Rooms.get_cutout_center(char_data.current_room)
-	if center != Vector2.ZERO:
-		position = center
+	var pos: Vector3 = Rooms.get_spawn_pos(char_data.current_room)
+	if pos != Vector3.ZERO:
+		position = pos
 
 
 # ─── COLOR ───────────────────────────────────────────────────
 
 const COLOR_MAP: Dictionary = {
-	"red": Color.RED,
-	"blue": Color.BLUE,
-	"electric_blue": Color.DODGER_BLUE,
-	"green": Color.GREEN,
-	"yellow": Color.YELLOW,
-	"orange": Color.ORANGE,
-	"purple": Color.PURPLE,
-	"pink": Color.HOT_PINK,
-	"black": Color.DIM_GRAY,
-	"white": Color.WHITE_SMOKE,
-	"teal": Color.TEAL,
-	"gold": Color.GOLD,
-	"cyan": Color.CYAN,
-	"magenta": Color.MAGENTA,
-	"lime": Color.LIME_GREEN,
-	"brown": Color.SADDLE_BROWN,
+	"red":          Color.RED,
+	"blue":         Color.BLUE,
+	"electric_blue":Color.DODGER_BLUE,
+	"green":        Color.GREEN,
+	"yellow":       Color.YELLOW,
+	"orange":       Color.ORANGE,
+	"purple":       Color.PURPLE,
+	"pink":         Color.HOT_PINK,
+	"black":        Color.DIM_GRAY,
+	"white":        Color.WHITE_SMOKE,
+	"teal":         Color.TEAL,
+	"gold":         Color.GOLD,
+	"cyan":         Color.CYAN,
+	"magenta":      Color.MAGENTA,
+	"lime":         Color.LIME_GREEN,
+	"brown":        Color.SADDLE_BROWN,
 }
 
 func _resolve_color() -> Color:

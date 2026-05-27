@@ -8,6 +8,7 @@ const FLOOR_WIDTH: int = 2048
 const FLOOR_HEIGHT: int = 512
 
 
+
 # ─── FLOOR TYPE DEFINITIONS ──────────────────────────────────
 # scene_path: the PackedScene for this floor type
 # slots: maps each room slot to Marker2D node paths within the scene
@@ -19,23 +20,65 @@ const FLOOR_TYPES: Dictionary = {
 	"apartments": {
 		"scene_path": "res://scenes/world/FloorApartments.tscn",
 		"slots": [
-			{ "spawn_node": "Spots/Room0_Spawn", "door_node": "Spots/Room0_Door", "room_size": "apartment" },
-			{ "spawn_node": "Spots/Room1_Spawn", "door_node": "Spots/Room1_Door", "room_size": "apartment" },
-			{ "spawn_node": "Spots/Room2_Spawn", "door_node": "Spots/Room2_Door", "room_size": "apartment" },
+			{
+				"door_node": "Spots/Room0_Door",
+				"origin_node": "Spots/Room0_Origin",
+				"room_size": "apartment",
+				"room_scene": "res://scenes/rooms/room_apartment.tscn",
+				"doorway_node": "Spots/Room0_Doorway",
+			},
+			{
+				"door_node": "Spots/Room1_Door",
+				"origin_node": "Spots/Room1_Origin",
+				"room_size": "apartment",
+				"room_scene": "res://scenes/rooms/room_apartment.tscn",
+				"doorway_node": "Spots/Room1_Doorway",
+			},
+			{
+				"door_node": "Spots/Room2_Door",
+				"origin_node": "Spots/Room2_Origin",
+				"room_size": "apartment",
+				"room_scene": "res://scenes/rooms/room_apartment.tscn",
+				"doorway_node": "Spots/Room2_Doorway",
+			},
 		],
 	},
 	"large_common": {
 		"scene_path": "res://scenes/world/FloorLargeCommon.tscn",
 		"slots": [
-			{ "spawn_node": "Spots/Room0_Spawn", "door_node": "Spots/Room0_Door", "room_size": "large_common" },
-			{ "spawn_node": "Spots/Room1_Spawn", "door_node": "Spots/Room1_Door", "room_size": "apartment" },
+			{
+				"door_node": "Spots/Room0_Door",
+				"origin_node": "Spots/Room0_Origin",
+				"room_size": "large_common",
+				"room_scene": "res://scenes/rooms/room_large_common.tscn",
+				"doorway_node": "Spots/Room0_Doorway",
+			},
+			{
+				"door_node": "Spots/Room1_Door",
+				"origin_node": "Spots/Room1_Origin",
+				"room_size": "apartment",
+				"room_scene": "res://scenes/rooms/room_apartment.tscn",
+				"doorway_node": "Spots/Room1_Doorway",
+			},
 		],
 	},
 	"small_common": {
 		"scene_path": "res://scenes/world/FloorSmallCommon.tscn",
 		"slots": [
-			{ "spawn_node": "Spots/Room0_Spawn", "door_node": "Spots/Room0_Door", "room_size": "apartment" },
-			{ "spawn_node": "Spots/Room1_Spawn", "door_node": "Spots/Room1_Door", "room_size": "small_common" },
+			{
+				"door_node": "Spots/Room0_Door",
+				"origin_node": "Spots/Room0_Origin",
+				"room_size": "apartment",
+				"room_scene": "res://scenes/rooms/room_apartment.tscn",
+				"doorway_node": "Spots/Room0_Doorway",
+			},
+			{
+				"door_node": "Spots/Room1_Door",
+				"origin_node": "Spots/Room1_Origin",
+				"room_size": "small_common",
+				"room_scene": "res://scenes/rooms/room_small_common.tscn",
+				"doorway_node": "Spots/Room1_Doorway",
+			},
 		],
 	},
 }

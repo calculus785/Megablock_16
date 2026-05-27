@@ -2,19 +2,36 @@
 
 [ext_resource type="Texture2D" uid="uid://clvtdlbig5vut" path="res://assets/textures/floors/Floor_Apartments.png" id="1_rt3g8"]
 
-[node name="FloorLobby" type="Node2D" unique_id=1515501575]
+[sub_resource type="BoxMesh" id="BoxMesh_rt3g8"]
+size = Vector3(58, 2, 4)
 
-[node name="Sprite2D" type="Sprite2D" parent="." unique_id=921837174]
+[node name="FloorTemplate" type="Node3D" unique_id=461787972]
+
+[node name="Sprite2D" type="Sprite3D" parent="." unique_id=205469565]
+centered = false
+pixel_size = 0.03125
 texture = ExtResource("1_rt3g8")
 
-[node name="HallwayLine" type="Marker2D" parent="." unique_id=1238604597]
-position = Vector2(-583, 188)
+[node name="HallwayLine" type="Marker3D" parent="." unique_id=799764684]
+transform = Transform3D(0.9999619, -0.008726535, 0, 0.008726535, 0.9999619, 0, 0, 0, 1, 7.393, 2, 0)
 
-[node name="Shaft0_Pos" type="Marker2D" parent="." unique_id=1038734114]
-position = Vector2(-992, 187)
+[node name="ElevatorLeftWait" type="Marker3D" parent="." unique_id=66981089]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.759, 2, 0.5)
 
-[node name="Shaft1_Pos" type="Marker2D" parent="." unique_id=1892941408]
-position = Vector2(-928, 188)
+[node name="ElevatorRightWait" type="Marker3D" parent="." unique_id=200179739]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 61.29926, 2, 0.5)
 
-[node name="Shaft2_Pos" type="Marker2D" parent="." unique_id=1659125720]
-position = Vector2(992, 187)
+[node name="Spots" type="Node3D" parent="." unique_id=410461415]
+
+[node name="Shaft0_Pos" type="Marker3D" parent="Spots" unique_id=669011914]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.897, 3, 0.5)
+
+[node name="Shaft1_Pos" type="Marker3D" parent="Spots" unique_id=1724822910]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.9304647, 3, 0.5)
+
+[node name="Shaft2_Pos" type="Marker3D" parent="Spots" unique_id=1418424822]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 62.919384, 3, 0.5)
+
+[node name="Floor" type="MeshInstance3D" parent="." unique_id=1454843498]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33, 0.976, 2)
+mesh = SubResource("BoxMesh_rt3g8")

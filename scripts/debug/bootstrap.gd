@@ -2,10 +2,10 @@
 # Attached to main.tscn root node.
 # Phase 3: builds the building, spawns characters with visual bodies.
 
-extends Node2D
+extends Node3D
 
 # Container for character body nodes
-var _char_bodies: Dictionary = {}   # char_id → Node2D
+var _char_bodies: Dictionary = {}   # char_id → Node3D
 
 # Apartment IDs from the prototype building layout (6 total)
 const APARTMENT_IDS: Array = [
@@ -76,7 +76,7 @@ func _ready() -> void:
 
 func _setup_building() -> void:
 	# Load and instance the building script on a new Node2D
-	var building := Node2D.new()
+	var building := Node3D.new()
 	building.name = "Building"
 	building.set_script(load("res://scripts/world/building.gd"))
 	add_child(building)  # triggers building._ready() → floors + rooms registered
@@ -101,7 +101,7 @@ func _spawn_characters() -> void:
 
 func _create_character_bodies() -> void:
 	# Container node keeps characters grouped in the scene tree
-	var container := Node2D.new()
+	var container := Node3D.new()
 	container.name = "Characters"
 	# Add to Building so characters render in world space with floors
 	$Building.add_child(container)
@@ -109,7 +109,7 @@ func _create_character_bodies() -> void:
 	var body_script = load("res://scripts/world/character_body.gd")
 
 	for character in Registry.get_all():
-		var body := Node2D.new()
+		var body := Node3D.new()
 		body.set_script(body_script)
 		body.char_data = character
 		body.name = "Char_%s" % character.char_id

@@ -1,0 +1,17 @@
+[gd_scene format=3 uid="uid://xavdqpg4rjs3"]
+
+[ext_resource type="Script" uid="uid://m24vywukw8sj" path="res://scripts/world/door.gd" id="1_qatcg"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fnf2h"]
+albedo_color = Color(0.16470589, 0.16470589, 0.1882353, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_qatcg"]
+material = SubResource("StandardMaterial3D_fnf2h")
+size = Vector3(2, 3, 0.2)
+
+[node name="Door" type="Node3D" unique_id=540923242]
+script = ExtResource("1_qatcg")
+slide_direction = Vector3(1, 0, 0)
+
+[node name="DoorMesh" type="MeshInstance3D" parent="." unique_id=1238008946]
+mesh = SubResource("BoxMesh_qatcg")

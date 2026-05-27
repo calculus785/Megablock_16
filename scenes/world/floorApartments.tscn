@@ -1,37 +1,73 @@
 [gd_scene format=3 uid="uid://csy6wcjq7osf6"]
 
 [ext_resource type="Texture2D" uid="uid://clvtdlbig5vut" path="res://assets/textures/floors/Floor_Apartments.png" id="1_mou2k"]
+[ext_resource type="PackedScene" uid="uid://xavdqpg4rjs3" path="res://scenes/world/door.tscn" id="2_pj8bs"]
 
-[node name="FloorApartments" type="Node2D" unique_id=1515501575]
+[sub_resource type="BoxMesh" id="BoxMesh_mou2k"]
+size = Vector3(58, 2, 4)
 
-[node name="Sprite2D" type="Sprite2D" parent="." unique_id=921837174]
+[node name="FloorTemplate" type="Node3D" unique_id=461787972]
+
+[node name="Sprite2D" type="Sprite3D" parent="." unique_id=205469565]
+centered = false
+pixel_size = 0.03125
 texture = ExtResource("1_mou2k")
 
-[node name="HallwayLine" type="Marker2D" parent="." unique_id=1238604597]
-position = Vector2(-583, 188)
+[node name="HallwayLane0" type="Marker3D" parent="." unique_id=799764684]
+transform = Transform3D(0.9999619, -0.008726535, 0, 0.008726535, 0.9999619, 0, 0, 0, 1, 7.393, 2, 1)
 
-[node name="ElevatorLeftWait" type="Marker2D" parent="." unique_id=1038734114]
-position = Vector2(-870, 186)
+[node name="HallwayLane1" type="Marker3D" parent="." unique_id=1858457873]
+transform = Transform3D(0.9999619, -0.008726535, 0, 0.008726535, 0.9999619, 0, 0, 0, 1, 7.393, 2, 2)
 
-[node name="ElevatorRightWait" type="Marker2D" parent="." unique_id=1128694911]
-position = Vector2(929, 186)
+[node name="HallwayLane2" type="Marker3D" parent="." unique_id=544034217]
+transform = Transform3D(0.9999619, -0.008726535, 0, 0.008726535, 0.9999619, 0, 0, 0, 1, 7.393, 2, 3)
 
-[node name="Spots" type="Node2D" parent="." unique_id=2022886776]
+[node name="ElevatorLeftWait" type="Marker3D" parent="." unique_id=66981089]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.759, 2, 0.5)
 
-[node name="Room0_Spawn" type="Marker2D" parent="Spots" unique_id=1181296184]
-position = Vector2(-548, 140)
+[node name="ElevatorRightWait" type="Marker3D" parent="." unique_id=200179739]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 61.29926, 2, 0.5)
 
-[node name="Room0_Door" type="Marker2D" parent="Spots" unique_id=2098209333]
-position = Vector2(-799, 186)
+[node name="Spots" type="Node3D" parent="." unique_id=410461415]
 
-[node name="Room1_Spawn" type="Marker2D" parent="Spots" unique_id=869770635]
-position = Vector2(42, 148)
+[node name="Room0_Door" type="Marker3D" parent="Spots" unique_id=1724822910]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.0540066, 2, 0.5)
 
-[node name="Room1_Door" type="Marker2D" parent="Spots" unique_id=1647538584]
-position = Vector2(-224, 188)
+[node name="Room0_Doorway" type="Marker3D" parent="Spots" unique_id=1139123225]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.054, 2, -0.5)
 
-[node name="Room2_Spawn" type="Marker2D" parent="Spots" unique_id=1460316099]
-position = Vector2(680, 153)
+[node name="Room1_Door" type="Marker3D" parent="Spots" unique_id=1089599632]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25.058142, 2, 0.5)
 
-[node name="Room2_Door" type="Marker2D" parent="Spots" unique_id=1942617322]
-position = Vector2(384, 189)
+[node name="Room1_Doorway" type="Marker3D" parent="Spots" unique_id=1370594681]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25.058, 2, -0.5)
+
+[node name="Room2_Door" type="Marker3D" parent="Spots" unique_id=1570232040]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 43.94561, 2, 0.5)
+
+[node name="Room2_Doorway" type="Marker3D" parent="Spots" unique_id=1902655993]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 43.946, 2, -0.5)
+
+[node name="Room2_Origin" type="Marker3D" parent="Spots" unique_id=1293787866]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 53.553883, 3.0017982, 0)
+
+[node name="Room1_Origin" type="Marker3D" parent="Spots" unique_id=1307637020]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 34.503426, 3.0017982, 0)
+
+[node name="Room0_Origin" type="Marker3D" parent="Spots" unique_id=340596030]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15.529789, 3.0017982, 0)
+
+[node name="Floor" type="MeshInstance3D" parent="." unique_id=20506681]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33, 0.976, 2)
+mesh = SubResource("BoxMesh_mou2k")
+
+[node name="Doors" type="Node3D" parent="." unique_id=1231860278]
+
+[node name="Door0" parent="Doors" unique_id=540923242 instance=ExtResource("2_pj8bs")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.049, 3.502, -0.2)
+
+[node name="Door1" parent="Doors" unique_id=1239808361 instance=ExtResource("2_pj8bs")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.933163, 3.502, -0.2)
+
+[node name="Door2" parent="Doors" unique_id=728604394 instance=ExtResource("2_pj8bs")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 43.984337, 3.502, -0.2)

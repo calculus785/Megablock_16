@@ -1,0 +1,79 @@
+[gd_scene format=3 uid="uid://6q4q2ffdj5oo"]
+
+[ext_resource type="Script" uid="uid://c1ju6e857uen6" path="res://scripts/building/room_bar.gd" id="1_bx05y"]
+[ext_resource type="PackedScene" uid="uid://xavdqpg4rjs3" path="res://scenes/world/door.tscn" id="2_il3lf"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_o8g1y"]
+albedo_color = Color(0.23921569, 0.20784314, 0.16470589, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_yl6xi"]
+material = SubResource("StandardMaterial3D_o8g1y")
+size = Vector3(32, 0.1, 6)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_aacbg"]
+albedo_color = Color(0.2901961, 0.2509804, 0.20784314, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_fu6jm"]
+material = SubResource("StandardMaterial3D_aacbg")
+size = Vector3(32, 10, 0.1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8kjfs"]
+albedo_color = Color(0.2901961, 0.2509804, 0.20784314, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_fmmpj"]
+material = SubResource("StandardMaterial3D_8kjfs")
+size = Vector3(0.1, 10, 6)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lt0tw"]
+albedo_color = Color(0.2901961, 0.2509804, 0.20784314, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_ig3mw"]
+material = SubResource("StandardMaterial3D_lt0tw")
+size = Vector3(0.1, 10, 6)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_mf15j"]
+albedo_color = Color(0.1882353, 0.15686275, 0.1254902, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_gvxdr"]
+material = SubResource("StandardMaterial3D_mf15j")
+size = Vector3(32, 0.1, 6)
+
+[node name="RoomLargeCommon" type="Node3D" unique_id=1734949190]
+script = ExtResource("1_bx05y")
+
+[node name="OmniLight3D" type="OmniLight3D" parent="." unique_id=1631145067]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.3600316, 0)
+
+[node name="Geometry" type="Node3D" parent="." unique_id=786345582]
+
+[node name="Floor" type="MeshInstance3D" parent="Geometry" unique_id=398930505]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3)
+mesh = SubResource("BoxMesh_yl6xi")
+
+[node name="BackWall" type="MeshInstance3D" parent="Geometry" unique_id=2109856683]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, -6)
+mesh = SubResource("BoxMesh_fu6jm")
+
+[node name="WallLeft" type="MeshInstance3D" parent="Geometry" unique_id=1983685834]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 5, -3)
+mesh = SubResource("BoxMesh_fmmpj")
+
+[node name="WallRight" type="MeshInstance3D" parent="Geometry" unique_id=2144935596]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 5, -3)
+mesh = SubResource("BoxMesh_ig3mw")
+
+[node name="Ceiling" type="MeshInstance3D" parent="Geometry" unique_id=525943491]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, -3)
+mesh = SubResource("BoxMesh_gvxdr")
+
+[node name="Door0" parent="Geometry" unique_id=540923242 instance=ExtResource("2_il3lf")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -15.876428, 1.5217483, -1.6334488)
+
+[node name="DoorWaitPos" type="Marker3D" parent="." unique_id=390534872]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14.121836, 0.5, -1.6304507)
+
+[node name="DoorwayPos" type="Marker3D" parent="." unique_id=1362638735]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16.806503, 0.5, -1.6304507)
+
+[node name="SpawnPos" type="Marker3D" parent="." unique_id=802356485]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -2.116)
