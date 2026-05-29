@@ -837,3 +837,14 @@ characters\_with\_faction\_sentiment\_below (min\_count, in\_same\_room)
 has\_child\_with\_state  
 not\_in\_faction\_type  
 \`\`\`
+
+## Parking Lot
+
+- ForceEvent panel enhancement: add target/context selection (currently char + event only)
+- Context template variable guide: copy-paste reference for all {variable} options —
+  pronouns, conjugations, room names — for event authors and future sessions
+- Fast-forward / pause controls for the clock (noted in Session 6, still pending)
+- Lane obstacle system: characters check if lane is blocked and switch lanes or reroute
+  (Phase 5+ — needs zone/spot occupancy fully wired first)
+- Elevator interior as mini room context (events fire while riding — GDD 7.3)
+- Stairs as fallback route when elevator broken (GDD 7.3)

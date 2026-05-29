@@ -13,6 +13,7 @@ var _move_ctrl: Node  # MovementController
 var _movement_started: bool = false
 var _bubble_container: Node3D
 var _storybook_display: Node3D
+var _zone_tween: Tween = null
 
 
 func _ready() -> void:
@@ -27,10 +28,15 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if char_data == null:
 		return
+	# Room-to-room movement — start waypoint travel
 	if char_data.is_in_transit and not _movement_started:
 		if not char_data.waypoints.is_empty():
 			_movement_started = true
 			_move_ctrl.start_movement(char_data.waypoints)
+		return
+	# Zone movement — tween to spot inside the current room
+	if char_data.zone_target_pos != Vector3.ZERO:
+		_move_to_zone_target()
 
 
 # ─── VISUALS ─────────────────────────────────────────────────
@@ -97,12 +103,12 @@ func _setup_movement_controller() -> void:
 
 func _on_waypoint_reached(wp: Dictionary) -> void:
 	match wp["type"]:
-		"exit_room":
+		"exit_room", "wait_room_door_exit":
+			Rooms.release_all_spots(char_data.current_room, char_data.char_id)
 			Rooms.remove_occupant(char_data.current_room, char_data.char_id)
-		"enter_room":
-			pass
-		"elevator":
-			pass
+			char_data.zone_target_pos = Vector3.ZERO 
+			if _zone_tween and _zone_tween.is_valid():
+				_zone_tween.kill()                    
 
 
 func _on_movement_completed() -> void:
@@ -126,6 +132,24 @@ func snap_to_room() -> void:
 	var pos: Vector3 = Rooms.get_spawn_pos(char_data.current_room)
 	if pos != Vector3.ZERO:
 		position = pos
+
+func _move_to_zone_target() -> void:
+	var target: Vector3 = char_data.zone_target_pos
+	# Already there — clear and done
+	if position.distance_to(target) < 0.05:
+		position = target
+		char_data.zone_target_pos = Vector3.ZERO
+		return
+	# Tween already running — don't start another
+	if _zone_tween and _zone_tween.is_valid():
+		return
+	var dist: float = position.distance_to(target)
+	var duration: float = maxf(dist / 6.0, 0.1)
+	_zone_tween = create_tween()
+	_zone_tween.tween_property(self, "position", target, duration)
+	_zone_tween.finished.connect(func():
+		char_data.zone_target_pos = Vector3.ZERO
+	, CONNECT_ONE_SHOT)
 
 
 # ─── COLOR ───────────────────────────────────────────────────

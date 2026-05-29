@@ -191,6 +191,16 @@ Phases are sequential. Don't skip ahead. Each phase produces something testable 
 
 **Depends on:** Phase 3.
 
+## Phase 4 — Relationships (Next Phase)
+
+Core systems:
+- [ ] RelationshipRecord resource on CharData (bond, rivalry, familiarity per char_id)
+- [ ] Relationships autoload — get/set bond, rivalry, familiarity
+- [ ] Relationship requirement keys in sim.gd (bond_above, bond_below, familiarity_above)
+- [ ] Bond/familiarity drift from existing events (CHAT, COMPLIMENT, ARGUE etc already
+      have target_stats but no relationship deltas — wire those up)
+- [ ] THINK_ABOUT upgraded to use relationship data (good memories = bond boost)
+- [ ] AVOID_CHARACTER intent (pushed by AWKWARD_HALLWAY_PASS etc)
 ---
 
 ## Phase 5 — World Objects & Inventory

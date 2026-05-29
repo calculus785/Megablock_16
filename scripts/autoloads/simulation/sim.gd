@@ -462,8 +462,30 @@ func _check_requirements(character: CharData, reqs: Dictionary) -> bool:
 		if memorable.is_empty():
 			return false
 
-	return true
 
+
+		# in_zone — character must be in a specific zone
+	# e.g. "in_zone": "Zone_Counter"
+	if reqs.has("in_zone"):
+		var zone_name: String = reqs["in_zone"]
+		if not Rooms.is_in_zone(character.current_room, character.char_id, zone_name):
+			return false
+
+	# zone_has_space — a specific zone must have free spots
+	# e.g. "zone_has_space": "Zone_Pool"
+	if reqs.has("zone_has_space"):
+		var zone_name: String = reqs["zone_has_space"]
+		if not Rooms.zone_has_space(character.current_room, zone_name):
+			return false
+
+	# room_has_zone — the current room must have this zone at all
+	# e.g. "room_has_zone": "Zone_Counter"
+	if reqs.has("room_has_zone"):
+		var zone_name: String = reqs["room_has_zone"]
+		if Rooms.get_zone(character.current_room, zone_name).is_empty():
+			return false
+	
+	return true
 
 # ─────────────────────────────────────────────────────────────
 # STAGE 1 — WEIGHTED ROLL
@@ -896,3 +918,51 @@ func _apply_repetition_boredom(character: CharData, event_key: String) -> void:
 			print("[Sim] 😒 %s bored of %s (+%.0f boredom)" % [
 				character.char_name, event_key, boredom_delta
 			])
+
+# ─────────────────────────────────────────────────────────────
+# PROXIMITY EVENTS
+# Fired by movement_controller when two in-transit characters
+# pass each other in a hallway. Light events don't interrupt,
+# heavy events pause both briefly.
+# ─────────────────────────────────────────────────────────────
+
+func fire_proximity_event(actor: CharData, target: CharData) -> void:
+	# Pick from proximity-eligible events
+	var eligible: Array = _get_eligible_proximity_events(actor, target)
+	if eligible.is_empty():
+		return
+
+	var event_key: String = _weighted_roll(actor, eligible)
+	if event_key == "":
+		return
+
+	if _is_on_cooldown(actor, event_key):
+		return
+
+	var event_def: Dictionary = Events.get_event(event_key)
+	var frame: Dictionary = Context.build_frame(actor, target, event_def)
+
+	var action_name: String = event_def.get("call_action", "")
+	if action_name != "":
+		Actions.call_action(action_name, actor, target, frame)
+
+	_apply_outcomes(actor, target, event_def)
+	var summary: String = _echo(actor, target, event_key, event_def, frame)
+	_set_cooldown(actor, event_key, event_def)
+	_event_counter += 1
+
+	if Settings.debug_console_logging:
+		print("[Sim] 🚶 PROXIMITY → %s + %s → %s" % [
+			actor.char_name, target.char_name, summary
+		])
+
+	event_fired.emit(actor.char_id, event_key, summary)
+
+
+func _get_eligible_proximity_events(actor: CharData, _target: CharData) -> Array:
+	var eligible: Array = []
+	for event_key in Events.get_events_by_trigger("proximity"):
+		var event_def: Dictionary = Events.get_event(event_key)
+		if _check_requirements(actor, event_def.get("requirements", {})):
+			eligible.append(event_key)
+	return eligible

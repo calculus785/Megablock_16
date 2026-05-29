@@ -109,20 +109,6 @@ func get_door_pos(room_id: String) -> Vector3:
 	return _rooms[room_id].get("door_pos", Vector3.ZERO)
 
 
-# ── ZONE / SPOT (stub) ───────────────────────────────────────
-# Room → Zone → Spot hierarchy. Populated when rooms are built in Phase 3.
-
-func get_zones(room_id: String) -> Array:
-	if not _rooms.has(room_id):
-		return []
-	return _rooms[room_id].get("zones", [])
-
-func get_available_spot(room_id: String, zone_id: String) -> String:
-	# Returns the first unoccupied spot in a zone, or "" if full
-	push_warning("[Rooms] get_available_spot() not yet implemented.")
-	return ""
-
-
 # ── AURA TICKING (stub) ─────────────────────────────────────
 # Called on half_hour_ticked. Only ticks occupied rooms.
 
@@ -183,3 +169,83 @@ func get_room_doorway_pos(room_id: String) -> Vector3:
 func set_spawn_pos(room_id: String, pos: Vector3) -> void:
 	if _rooms.has(room_id):
 		_rooms[room_id]["spawn_pos"] = pos
+
+func set_zones(room_id: String, zone_data: Array) -> void:
+	if _rooms.has(room_id):
+		_rooms[room_id]["zones"] = zone_data
+
+func get_zones(room_id: String) -> Array:
+	if not _rooms.has(room_id):
+		return []
+	return _rooms[room_id].get("zones", [])
+
+func get_zone(room_id: String, zone_name: String) -> Dictionary:
+	for zone in get_zones(room_id):
+		if zone["zone_name"] == zone_name:
+			return zone
+	return {}
+
+# Returns the first unoccupied spot in a zone, or {} if full
+func get_available_spot(room_id: String, zone_name: String) -> Dictionary:
+	var zone: Dictionary = get_zone(room_id, zone_name)
+	if zone.is_empty():
+		return {}
+	for spot in zone["spots"]:
+		if spot["occupied_by"] == "":
+			return spot
+	return {}
+
+# Returns any available spot in ANY zone in the room
+func get_any_available_spot(room_id: String) -> Dictionary:
+	for zone in get_zones(room_id):
+		for spot in zone["spots"]:
+			if spot["occupied_by"] == "":
+				return spot
+	return {}
+
+# Claim a spot — sets occupied_by to char_id
+func claim_spot(room_id: String, zone_name: String, spot_name: String, char_id: String) -> void:
+	var zone: Dictionary = get_zone(room_id, zone_name)
+	if zone.is_empty():
+		return
+	for spot in zone["spots"]:
+		if spot["name"] == spot_name:
+			spot["occupied_by"] = char_id
+			return
+
+# Release a spot — called when character leaves zone or room
+func release_spot(room_id: String, char_id: String) -> void:
+	for zone in get_zones(room_id):
+		for spot in zone["spots"]:
+			if spot["occupied_by"] == char_id:
+				spot["occupied_by"] = ""
+				return
+
+# Release all spots held by a character (safety — called on room exit)
+func release_all_spots(room_id: String, char_id: String) -> void:
+	for zone in get_zones(room_id):
+		for spot in zone["spots"]:
+			if spot["occupied_by"] == char_id:
+				spot["occupied_by"] = ""
+
+# Check if a specific zone has any free spots
+func zone_has_space(room_id: String, zone_name: String) -> bool:
+	return not get_available_spot(room_id, zone_name).is_empty()
+
+# Check if character is in a specific zone
+func is_in_zone(room_id: String, char_id: String, zone_name: String) -> bool:
+	var zone: Dictionary = get_zone(room_id, zone_name)
+	if zone.is_empty():
+		return false
+	for spot in zone["spots"]:
+		if spot["occupied_by"] == char_id:
+			return true
+	return false
+
+# Get zone name a character is currently in
+func get_character_zone(room_id: String, char_id: String) -> String:
+	for zone in get_zones(room_id):
+		for spot in zone["spots"]:
+			if spot["occupied_by"] == char_id:
+				return zone["zone_name"]
+	return ""

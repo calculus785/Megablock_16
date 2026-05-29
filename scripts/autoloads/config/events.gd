@@ -2,37 +2,19 @@
 # Autoload — available globally as Events
 # Tier 1 Config — pure data, no dependencies
 #
-# Defines every event in the game.
-# Each event is one beat of simulation. Sim reads from here, evaluates
+# Defines every event in the game. Sim reads from here, evaluates
 # eligibility, rolls weighted picks, and calls Actions to execute outcomes.
 #
-# Data shape (full reference in MEGABLOCK16_EVENT_DESIGN_BIBLE.md):
-#
-#   scope:                "character" | "building"
-#   trigger_mode:         "rolled" | "auto_fire"
-#   priority:             0-100 (auto_fire only — higher fires first)
-#   bypass_architect:     true bypasses Architect approval
-#   base_weight:          starting probability
-#   requirements:         dict of conditions that must all be true
-#   weight_modifiers:     list of {condition, multiply} pairs
-#   target_resolution:    {type, filter, scope, exclude_robots}
-#   call_action:          name of function in Actions to execute
-#   outcomes:             stat/feeling/state/relationship deltas
-#   magnitude:            "minor" | "moderate" | "major" | "huge"
-#   cooldown_events:      number of other events that must fire before this can fire again
-#   ticker_worthy:        appears in news ticker if true
-#   player_choice:        triggers Decisions popup if actor is player
-#   storybook_templates:  array of narrative variants
-#   category:             tag for Architect tracking, ticker colour, etc.
+# Sorted by location: Universal → Home → Bar → Cafe → Library → Grocery → Social
 
 extends Node
 
 
 const EVENTS: Dictionary = {
 
-# ─────────────────────────────────────────────────────────────
-# SOLO PLACEHOLDERS — fire for any character, anywhere
-# ─────────────────────────────────────────────────────────────
+# ═════════════════════════════════════════════════════════════
+# UNIVERSAL — fire for any character, anywhere
+# ═════════════════════════════════════════════════════════════
 
 "REST": {
 	"scope": "character",
@@ -40,7 +22,7 @@ const EVENTS: Dictionary = {
 	"base_weight": 12,
 	"category": "psychology",
 	"magnitude": "minor",
-	"cooldown_events": 8,  
+	"cooldown_events": 8,
 	"requirements": {
 		"stats_below": { "energy": 50 },
 	},
@@ -86,91 +68,31 @@ const EVENTS: Dictionary = {
 	],
 },
 
-"THINK_ABOUT": {
+"GO_HOME": {
 	"scope": "character",
 	"trigger_mode": "rolled",
-	"base_weight": 10,
-	"category": "psychology",
-	"magnitude": "minor",
-	"cooldown_events": 2,
-	"requirements": {
-		"has_memorable_entries": true,
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_state": ["LONELY"] }, "multiply": 1.6 },
-		{ "condition": { "has_state": ["RESTLESS"] }, "multiply": 1.3 },
-		{ "condition": { "stats_above": { "grief": 20 } }, "multiply": 2.0 },
-	],
-	"target_resolution": { "type": "memory" },
-	"call_action": "think_about",
-	"outcomes": {
-		# Resolved by the action — depends on memory tone
-	},
-	"storybook_templates": [
-		"{name} thought about {target}.",
-		"{target} crossed {name}'s mind again.",
-		"It came back to {name}. {target}. That whole thing.",
-	],
-},
-
-# ─────────────────────────────────────────────────────────────
-# LOCATION-GATED PLACEHOLDERS
-# ─────────────────────────────────────────────────────────────
-
-"VISIT_BAR": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 6,
-	"category": "social",
+	"base_weight": 5,
+	"category": "daily_life",
 	"magnitude": "minor",
 	"cooldown_events": 8,
 	"boredom_exempt": true,
 	"requirements": {
-		"not_in_room": ["bar"],
-		"not_has_persistent_state": ["BANNED_FROM_BAR", "IN_HOSPITAL", "IN_JAIL"],
+		"not_in_home_room": true,
 	},
 	"weight_modifiers": [
-		{ "condition": { "stats_above": { "loneliness": 50 } }, "multiply": 1.8 },
-		{ "condition": { "stats_above": { "stress": 50 } }, "multiply": 1.5 },
-		{ "condition": { "has_trait": ["ALCOHOLIC"] }, "multiply": 2.5 },
-		{ "condition": { "has_trait": ["RECOVERING_ALCOHOLIC"] }, "multiply": 0.1 },
-	],
-	"target_resolution": { "type": "room" },
-	"call_action": "queue_intent_visit_bar",
-	"outcomes": {
-		"stats": { "boredom": -5 },  # anticipation
-	},
-	"storybook_templates": [
-		"{name} headed to the bar.",
-		"{name} needed a drink. Or just somewhere to be.",
-	],
-},
-
-"ORDER_DRINK": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 14,
-	"category": "social",
-	"magnitude": "minor",
-	"cooldown_events": 0,
-	"boredom_exempt_traits": ["ALCOHOLIC", "ADDICT_PRONE"],
-	"requirements": {
-		"in_room": ["bar"],
-		"stats_above": { "cash": 5 },
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["ADDICT_PRONE"] }, "multiply": 1.5 },
-		{ "condition": { "has_trait": ["ALCOHOLIC"] }, "multiply": 2.5 },
-		{ "condition": { "has_trait": ["RECOVERING_ALCOHOLIC"] }, "multiply": 0.05 },
+		{ "condition": { "stats_below": { "energy": 40 } }, "multiply": 3.0 },
+		{ "condition": { "has_state": ["TIRED"] }, "multiply": 4.0 },
+		{ "condition": { "has_state": ["EXHAUSTED"] }, "multiply": 6.0 },
+		{ "condition": { "stats_above": { "stress": 70 } }, "multiply": 2.0 },
+		{ "condition": { "stats_above": { "boredom": 60 } }, "multiply": 2.5 },
+		{ "condition": { "stats_below": { "happiness": 25 } }, "multiply": 2.0 },
 	],
 	"target_resolution": { "type": "self" },
-	"call_action": "order_drink",
-	"outcomes": {
-		"stats": { "cash": -5, "stress": -8, "happiness": 5, "addiction": 2 },
-	},
+	"call_action": "go_home",
+	"outcomes": {},
 	"storybook_templates": [
-		"{name} ordered a drink.",
-		"{name} sat at the bar. The drink appeared.",
+		"{name} headed home.",
+		"{name} decided to call it a day.",
 	],
 },
 
@@ -198,6 +120,88 @@ const EVENTS: Dictionary = {
 		"{name} stared at nothing for a while.",
 		"{name} drifted somewhere else entirely. Just for a moment.",
 		"The room went quiet in {name}'s head.",
+	],
+},
+
+"THINK_ABOUT": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 10,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 2,
+	"requirements": {
+		"has_memorable_entries": true,
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_state": ["LONELY"] }, "multiply": 1.6 },
+		{ "condition": { "has_state": ["RESTLESS"] }, "multiply": 1.3 },
+		{ "condition": { "stats_above": { "grief": 20 } }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "memory" },
+	"call_action": "think_about",
+	"outcomes": {},
+	"storybook_templates": [
+		"{name} thought about {target}.",
+		"{target} crossed {name}'s mind again.",
+		"It came back to {name}. {target}. That whole thing.",
+	],
+},
+
+"BROOD": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 5,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 6,
+	"requirements": {
+		"has_memorable_entries": true,
+		"stats_above": { "stress": 40 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_state": ["MISERABLE"] }, "multiply": 2.5 },
+		{ "condition": { "has_trait": ["PARANOID"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["PESSIMISTIC"] }, "multiply": 1.8 },
+		{ "condition": { "stats_above": { "stress": 70 } }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "memory" },
+	"call_action": "brood",
+	"outcomes": {
+		"stats": { "stress": 5, "happiness": -5 },
+	},
+	"storybook_templates": [
+		"{name} kept turning it over. What {target} did. What it meant.",
+		"It was eating at {name}. The thing with {target}.",
+		"{name} couldn't let it go. Not yet.",
+	],
+},
+
+"SMILE_AT_MEMORY": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 4,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 8,
+	"requirements": {
+		"has_memorable_entries": true,
+		"stats_above": { "happiness": 40 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_state": ["CONTENT"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["OPTIMISTIC"] }, "multiply": 1.8 },
+		{ "condition": { "stats_above": { "happiness": 65 } }, "multiply": 1.5 },
+	],
+	"target_resolution": { "type": "memory" },
+	"call_action": "smile_at_memory",
+	"outcomes": {
+		"stats": { "happiness": 5, "stress": -3 },
+	},
+	"storybook_templates": [
+		"{name} smiled, thinking about {target}. Just for a second.",
+		"Something about {target} came back to {name}. The good kind.",
+		"{name} caught {themself} smiling. {target}. That was why.",
 	],
 },
 
@@ -285,6 +289,61 @@ const EVENTS: Dictionary = {
 	],
 },
 
+# ── Auto-fire events ────────────────────────────────────────
+
+"SLEEP": {
+	"scope": "character",
+	"trigger_mode": "auto_fire",
+	"base_weight": 15,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 0,
+	"requirements": {
+		"stats_below": { "energy": 40 },
+		"time_of_day": ["night", "evening"],
+		"in_home_room": true,
+	},
+	"weight_modifiers": [
+		{ "condition": { "stats_below": { "energy": 20 } }, "multiply": 3.0 },
+		{ "condition": { "has_state": ["EXHAUSTED"] }, "multiply": 4.0 },
+		{ "condition": { "has_trait": ["NIGHT_OWL"] }, "multiply": 0.3 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "sleep",
+	"outcomes": {},
+	"storybook_templates": [
+		"{name} went to sleep.",
+		"{name} couldn't keep {their} eyes open any longer.",
+		"That was enough for one day. {name} slept.",
+	],
+},
+
+"ENERGY_CRASH": {
+	"scope": "character",
+	"trigger_mode": "auto_fire",
+	"priority": 95,
+	"base_weight": 0,
+	"category": "health",
+	"magnitude": "moderate",
+	"cooldown_events": 20,
+	"requirements": {
+		"stats_below": { "energy": 5 },
+	},
+	"weight_modifiers": [],
+	"target_resolution": { "type": "self" },
+	"call_action": "sleep",
+	"outcomes": {},
+	"storybook_templates": [
+		"{name} crashed. Couldn't keep going.",
+		"{name}'s body gave out. {They} slept wherever they were.",
+		"That was all {name} had. {They} {were_was} out.",
+	],
+},
+
+# ═════════════════════════════════════════════════════════════
+# HOME — apartment events
+# ═════════════════════════════════════════════════════════════
+
 "LOOK_IN_MIRROR": {
 	"scope": "character",
 	"trigger_mode": "rolled",
@@ -309,6 +368,822 @@ const EVENTS: Dictionary = {
 		"{name} looked in the mirror for a long moment.",
 		"{name} caught {their} own reflection. Looked away first.",
 		"The mirror again. {name} wasn't sure what {they} {were_was} looking for.",
+	],
+},
+
+"LIE_IN_BED": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 8,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 3,
+	"requirements": {
+		"in_home_room": true,
+		"room_has_zone": "Zone_Bed",
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_state": ["TIRED"] }, "multiply": 2.5 },
+		{ "condition": { "has_state": ["MISERABLE"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["LAZY"] }, "multiply": 1.8 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "lie_in_bed",
+	"outcomes": {
+		"stats": { "energy": 8, "stress": -5, "boredom": 8 },
+	},
+	"storybook_templates": [
+		"{name} lay on the bed and stared at the ceiling.",
+		"{name} climbed into bed. Not to sleep. Just to stop.",
+		"The bed was the only thing that made sense right now.",
+	],
+},
+
+"COOK_MEAL": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 6,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 4,
+	"requirements": {
+		"in_home_room": true,
+		"stats_above": { "hunger": 30 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["BIG_APPETITE"] }, "multiply": 1.8 },
+		{ "condition": { "has_trait": ["STINGY"] }, "multiply": 1.5 },
+		{ "condition": { "stats_below": { "cash": 30 } }, "multiply": 1.6 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "cook_meal",
+	"outcomes": {
+		"stats": { "hunger": -50, "cash": -3, "happiness": 8, "boredom": -5 },
+		"feelings": ["WELL_FED", "SATISFIED"],
+	},
+	"storybook_templates": [
+		"{name} cooked for themselves. It wasn't bad.",
+		"{name} made something in the kitchen. The whole floor could smell it.",
+		"Dinner alone. {name} took their time with it.",
+	],
+},
+
+# ═════════════════════════════════════════════════════════════
+# BAR — travel, counter, lounge, pool
+# ═════════════════════════════════════════════════════════════
+
+"VISIT_BAR": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 6,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 8,
+	"boredom_exempt": true,
+	"requirements": {
+		"not_in_room": ["bar"],
+		"not_has_persistent_state": ["BANNED_FROM_BAR", "IN_HOSPITAL", "IN_JAIL"],
+	},
+	"weight_modifiers": [
+		{ "condition": { "stats_above": { "loneliness": 50 } }, "multiply": 1.8 },
+		{ "condition": { "stats_above": { "stress": 50 } }, "multiply": 1.5 },
+		{ "condition": { "has_trait": ["ALCOHOLIC"] }, "multiply": 2.5 },
+		{ "condition": { "has_trait": ["RECOVERING_ALCOHOLIC"] }, "multiply": 0.1 },
+	],
+	"target_resolution": { "type": "room" },
+	"call_action": "queue_intent_visit_bar",
+	"outcomes": {
+		"stats": { "boredom": -5 },
+	},
+	"storybook_templates": [
+		"{name} headed to the bar.",
+		"{name} needed a drink. Or just somewhere to be.",
+	],
+},
+
+# ── Bar — Counter zone events ───────────────────────────────
+
+"SIT_AT_BAR": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 12,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 2,
+	"boredom_exempt_traits": ["ALCOHOLIC"],
+	"requirements": {
+		"in_room": ["bar"],
+		"room_has_zone": "Zone_Counter",
+		"zone_has_space": "Zone_Counter",
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["ALCOHOLIC"] }, "multiply": 2.0 },
+		{ "condition": { "stats_above": { "stress": 50 } }, "multiply": 1.5 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "sit_at_bar",
+	"outcomes": {
+		"stats": { "stress": -5, "loneliness": -3 },
+	},
+	"storybook_templates": [
+		"{name} took a seat at the bar.",
+		"{name} claimed a barstool. Elbows on the counter.",
+	],
+},
+
+"ORDER_DRINK": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 14,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 0,
+	"boredom_exempt_traits": ["ALCOHOLIC", "ADDICT_PRONE"],
+	"requirements": {
+		"in_room": ["bar"],
+		"room_has_zone": "Zone_Counter",
+		"zone_has_space": "Zone_Counter",
+		"stats_above": { "cash": 5 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["ADDICT_PRONE"] }, "multiply": 1.5 },
+		{ "condition": { "has_trait": ["ALCOHOLIC"] }, "multiply": 2.5 },
+		{ "condition": { "has_trait": ["RECOVERING_ALCOHOLIC"] }, "multiply": 0.05 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "order_drink",
+	"outcomes": {
+		"stats": { "cash": -5, "stress": -8, "happiness": 5, "addiction": 2 },
+	},
+	"storybook_templates": [
+		"{name} ordered a drink.",
+		"{name} sat at the bar. The drink appeared.",
+	],
+},
+
+"DRINK_ALONE": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 6,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 4,
+	"boredom_exempt_traits": ["ALCOHOLIC", "ADDICT_PRONE"],
+	"requirements": {
+		"in_room": ["bar"],
+		"room_has_zone": "Zone_Counter",
+		"zone_has_space": "Zone_Counter",
+		"stats_below": { "happiness": 35 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_state": ["MISERABLE"] }, "multiply": 2.5 },
+		{ "condition": { "has_state": ["LONELY"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["ALCOHOLIC"] }, "multiply": 2.0 },
+		{ "condition": { "stats_below": { "happiness": 20 } }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "drink_alone",
+	"outcomes": {
+		"stats": { "stress": -5, "loneliness": 8, "cash": -5, "addiction": 2 },
+		"feelings": ["MELANCHOLY_FEELING"],
+	},
+	"storybook_templates": [
+		"{name} drank alone. Nobody sat next to them.",
+		"The bar was full. {name} was still alone in it.",
+		"{name} nursed their drink and didn't look up.",
+		"Another round. {name} wasn't counting.",
+	],
+},
+
+"LEAN_ON_COUNTER": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 6,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 5,
+	"requirements": {
+		"in_room": ["bar", "cafe"],
+		"in_zone": "Zone_Counter",
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_state": ["TIRED"] }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "lean_on_counter",
+	"outcomes": {
+		"stats": { "energy": 3, "stress": -3 },
+	},
+	"storybook_templates": [
+		"{name} leaned against the counter and watched the room.",
+		"{name} wasn't going anywhere. Not yet.",
+	],
+},
+
+"NURSE_DRINK": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 10,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 2,
+	"requirements": {
+		"in_room": ["bar"],
+		"in_zone": "Zone_Counter",
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_state": ["TIRED"] }, "multiply": 1.5 },
+		{ "condition": { "has_trait": ["ALCOHOLIC"] }, "multiply": 1.8 },
+		{ "condition": { "stats_above": { "stress": 40 } }, "multiply": 1.5 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "nurse_drink",
+	"outcomes": {
+		"stats": { "stress": -3, "boredom": -5 },
+	},
+	"storybook_templates": [
+		"{name} nursed {their} drink. No rush.",
+		"The glass was still half full. {name} made it last.",
+		"{name} turned the glass slowly. Thinking.",
+	],
+},
+
+# ── Bar — Lounge zone events ────────────────────────────────
+
+"HANG_AT_LOUNGE": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 8,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 4,
+	"requirements": {
+		"in_room": ["bar"],
+		"room_has_zone": "Zone_Lounge",
+		"zone_has_space": "Zone_Lounge",
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 1.5 },
+		{ "condition": { "stats_above": { "boredom": 30 } }, "multiply": 1.5 },
+		{ "condition": { "has_state": ["CONTENT"] }, "multiply": 1.4 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "hang_at_lounge",
+	"outcomes": {
+		"stats": { "stress": -5, "boredom": -8, "loneliness": -5 },
+	},
+	"storybook_templates": [
+		"{name} settled into the lounge area. Feet up, guard down.",
+		"{name} moved to the lounge. Better view from here.",
+		"The bar was loud. The lounge was just right.",
+	],
+},
+
+"WATCH_THE_ROOM": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 10,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 3,
+	"requirements": {
+		"in_room": ["bar", "cafe"],
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["NOSY"] }, "multiply": 1.8 },
+		{ "condition": { "has_trait": ["SHY"] }, "multiply": 1.5 },
+		{ "condition": { "stats_above": { "boredom": 30 } }, "multiply": 1.5 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "watch_the_room",
+	"outcomes": {
+		"stats": { "boredom": -8, "loneliness": -3 },
+	},
+	"storybook_templates": [
+		"{name} watched the room. Everyone had somewhere to be.",
+		"{name} sat and took it all in. The noise helped.",
+		"People came and went. {name} stayed.",
+	],
+},
+
+# ── Bar — Pool zone events ──────────────────────────────────
+
+"PLAY_POOL_INVITE": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 6,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 10,
+	"boredom_exempt_traits": ["COMPETITIVE", "GAMBLER"],
+	"sequence_key": "PLAY_POOL_SEQ",
+	"requirements": {
+		"in_room": ["bar"],
+		"other_character_in_room": true,
+		"stats_above": { "energy": 30 },
+		"room_has_zone": "Zone_Pool",
+		"zone_has_space": "Zone_Pool",
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["COMPETITIVE"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 1.5 },
+		{ "condition": { "stats_above": { "boredom": 50 } }, "multiply": 1.4 },
+	],
+	"target_resolution": {
+		"type": "character",
+		"filter": "same_room",
+		"scope": "same_room",
+		"exclude_robots": true,
+	},
+	"call_action": "start_pool_game",
+	"outcomes": {
+		"stats": { "boredom": -5 },
+	},
+	"storybook_templates": [
+		"{name} challenged {target} to a game of pool.",
+		"{name} picked up a cue and nodded at {target}.",
+	],
+},
+
+"SPILL_DRINK": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 1,
+	"category": "comedy",
+	"magnitude": "minor",
+	"cooldown_events": 25,
+	"requirements": {
+		"in_room": ["bar", "cafe"],
+		"other_character_in_room": true,
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["FORGETFUL"] }, "multiply": 3.0 },
+		{ "condition": { "has_trait": ["RECKLESS"] }, "multiply": 2.0 },
+		{ "condition": { "stats_below": { "energy": 30 } }, "multiply": 1.5 },
+	],
+	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
+	"call_action": "spill_drink",
+	"outcomes": {
+		"stats": { "happiness": -3 },
+		"feelings": ["HUMILIATED"],
+	},
+	"storybook_templates": [
+		"{name} knocked their drink over. The whole place noticed.",
+		"It went everywhere. {name} pretended it didn't.",
+		"{name} spilled it. Right in front of {target}.",
+	],
+},
+
+# ═════════════════════════════════════════════════════════════
+# CAFE
+# ═════════════════════════════════════════════════════════════
+
+"VISIT_CAFE": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 5,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 10,
+	"boredom_exempt": true,
+	"requirements": {
+		"not_in_room": ["cafe"],
+		"not_has_persistent_state": ["IN_HOSPITAL", "IN_JAIL"],
+	},
+	"weight_modifiers": [
+		{ "condition": { "stats_above": { "hunger": 40 } }, "multiply": 1.8 },
+		{ "condition": { "stats_above": { "loneliness": 40 } }, "multiply": 1.5 },
+		{ "condition": { "stats_above": { "boredom": 40 } }, "multiply": 1.3 },
+	],
+	"target_resolution": { "type": "room" },
+	"call_action": "queue_intent_visit_cafe",
+	"outcomes": {
+		"stats": { "boredom": -5 },
+	},
+	"storybook_templates": [
+		"{name} headed to the cafe.",
+		"{name} needed something warm. And somewhere to sit.",
+	],
+},
+
+"ORDER_FOOD": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 10,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 1,
+	"boredom_exempt_traits": ["BIG_APPETITE"],
+	"requirements": {
+		"in_room": ["cafe"],
+		"stats_above": { "cash": 8, "hunger": 20 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "stats_above": { "hunger": 60 } }, "multiply": 2.5 },
+		{ "condition": { "has_trait": ["BIG_APPETITE"] }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "order_food",
+	"outcomes": {
+		"stats": { "cash": -8, "hunger": -40, "happiness": 5 },
+		"feelings": ["WELL_FED"],
+	},
+	"storybook_templates": [
+		"{name} ordered something. It was warm and that was enough.",
+		"{name} ate. Not gourmet, but it didn't need to be.",
+	],
+},
+
+"ORDER_COFFEE": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 8,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 2,
+	"requirements": {
+		"in_room": ["cafe"],
+		"stats_above": { "cash": 3 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "stats_below": { "energy": 50 } }, "multiply": 1.8 },
+		{ "condition": { "has_state": ["TIRED"] }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "order_coffee",
+	"outcomes": {
+		"stats": { "cash": -3, "energy": 10, "stress": -3, "boredom": -5 },
+	},
+	"storybook_templates": [
+		"{name} got a coffee. The day could begin now.",
+		"{name} wrapped their hands around the cup. Warmer.",
+	],
+},
+
+"SIT_ALONE_CAFE": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 5,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 4,
+	"requirements": {
+		"in_room": ["cafe"],
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["RECLUSIVE"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["SHY"] }, "multiply": 1.6 },
+		{ "condition": { "stats_above": { "boredom": 40 } }, "multiply": 1.5 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "sit_alone_cafe",
+	"outcomes": {
+		"stats": { "boredom": -10, "loneliness": -3, "stress": -5 },
+	},
+	"storybook_templates": [
+		"{name} sat in the corner and watched the cafe move around them.",
+		"{name} didn't want to talk. Just wanted to be near people.",
+		"A coffee, a window seat, an hour. {name} took the long way through it.",
+	],
+},
+
+"SHARE_MEAL": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 5,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 12,
+	"requirements": {
+		"in_room": ["cafe"],
+		"other_character_in_room": true,
+		"stats_above": { "cash": 6 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 1.8 },
+		{ "condition": { "has_trait": ["GENEROUS"] }, "multiply": 2.0 },
+		{ "condition": { "stats_above": { "hunger": 40 } }, "multiply": 1.6 },
+	],
+	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room", "exclude_robots": true },
+	"call_action": "share_meal",
+	"outcomes": {
+		"stats": { "hunger": -30, "cash": -6, "loneliness": -15 },
+		"target_stats": { "hunger": -30, "loneliness": -15 },
+		"feelings": ["WELL_FED"],
+		"target_feelings": ["WELL_FED"],
+	},
+	"storybook_templates": [
+		"{name} and {target} ate together. The food wasn't the point.",
+		"Lunch with {target}. {name} couldn't remember the last time someone sat with them.",
+		"{name} and {target} split a meal. Neither said much. Both ate slowly.",
+	],
+},
+
+"WINDOW_WATCH": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 6,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 5,
+	"requirements": {
+		"in_room": ["cafe"],
+		"room_has_zone": "Zone_Window",
+		"zone_has_space": "Zone_Window",
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_state": ["LONELY"] }, "multiply": 2.0 },
+		{ "condition": { "has_state": ["CONTENT"] }, "multiply": 1.5 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "window_watch",
+	"outcomes": {
+		"stats": { "stress": -8, "boredom": -10, "loneliness": -3 },
+	},
+	"storybook_templates": [
+		"{name} watched the city from the window. Nothing was happening. Everything was.",
+		"The window seat. {name} could sit there for hours.",
+	],
+},
+
+# ═════════════════════════════════════════════════════════════
+# LIBRARY
+# ═════════════════════════════════════════════════════════════
+
+"VISIT_LIBRARY": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 5,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 10,
+	"boredom_exempt": true,
+	"requirements": {
+		"not_in_room": ["library"],
+		"stats_above": { "boredom": 30 },
+		"not_has_persistent_state": ["IN_HOSPITAL", "IN_JAIL"],
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["HOMEBODY"] }, "multiply": 0.5 },
+		{ "condition": { "stats_above": { "boredom": 60 } }, "multiply": 1.8 },
+	],
+	"target_resolution": { "type": "room" },
+	"call_action": "queue_intent_visit_library",
+	"outcomes": {
+		"stats": { "boredom": -5 },
+	},
+	"storybook_templates": [
+		"{name} headed to the library.",
+		"{name} needed somewhere quiet.",
+	],
+},
+
+"READ_BOOK": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 14,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 2,
+	"boredom_exempt_traits": ["BOOKWORM", "HOMEBODY"],
+	"requirements": {
+		"in_room": ["library"],
+	},
+	"weight_modifiers": [
+		{ "condition": { "stats_above": { "boredom": 40 } }, "multiply": 1.8 },
+		{ "condition": { "has_state": ["RESTLESS"] }, "multiply": 1.5 },
+		{ "condition": { "stats_above": { "stress": 50 } }, "multiply": 1.6 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "read_book",
+	"outcomes": {
+		"stats": { "boredom": -20, "stress": -10, "happiness": 5 },
+	},
+	"storybook_templates": [
+		"{name} found a book and disappeared into it.",
+		"{name} read for hours. The building kept going without them.",
+		"The library was quiet. {name} was exactly where they needed to be.",
+	],
+},
+
+"BROWSE_SHELVES": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 10,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 3,
+	"requirements": {
+		"in_room": ["library"],
+		"room_has_zone": "Zone_Shelves",
+		"zone_has_space": "Zone_Shelves",
+	},
+	"weight_modifiers": [
+		{ "condition": { "stats_above": { "boredom": 40 } }, "multiply": 1.8 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "browse_shelves",
+	"outcomes": {
+		"stats": { "boredom": -15, "stress": -5 },
+	},
+	"storybook_templates": [
+		"{name} ran {their} fingers along the spines. Looking for something.",
+		"{name} browsed the shelves. Nothing jumped out. Everything did.",
+	],
+},
+
+"STUDY_TOGETHER": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 6,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 5,
+	"requirements": {
+		"in_room": ["library"],
+		"other_character_in_room": true,
+	},
+	"weight_modifiers": [
+		{ "condition": { "stats_above": { "boredom": 40 } }, "multiply": 1.5 },
+		{ "condition": { "has_trait": ["MOTIVATED"] }, "multiply": 1.8 },
+	],
+	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room", "exclude_robots": true },
+	"call_action": "study_together",
+	"outcomes": {
+		"stats": { "boredom": -15, "loneliness": -8, "stress": -3 },
+		"target_stats": { "boredom": -15, "loneliness": -8, "stress": -3 },
+	},
+	"storybook_templates": [
+		"{name} and {target} studied together. Someone turned a page too loudly.",
+		"They sat across from each other, books open, occasionally looking up.",
+		"{name} and {target} worked in parallel. Neither needed to talk much.",
+	],
+},
+
+"QUIET_MOMENT_TOGETHER": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 3,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 15,
+	"requirements": {
+		"in_room": ["library"],
+		"other_character_in_room": true,
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_state": ["CONTENT"] }, "multiply": 2.0 },
+		{ "condition": { "stats_above": { "loneliness": 40 } }, "multiply": 1.5 },
+	],
+	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room", "exclude_robots": true },
+	"call_action": "quiet_moment_together",
+	"outcomes": {
+		"stats": { "loneliness": -12, "stress": -5 },
+		"target_stats": { "loneliness": -12, "stress": -5 },
+	},
+	"storybook_templates": [
+		"{name} and {target} sat near each other. Neither spoke.",
+		"They didn't talk. They didn't have to.",
+		"{name} and {target} shared the silence. It was easier this way.",
+	],
+},
+
+# ═════════════════════════════════════════════════════════════
+# GROCERY
+# ═════════════════════════════════════════════════════════════
+
+"CHECK_SUPPLIES": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 5,
+	"category": "daily_life",
+	"magnitude": "minor",
+	"cooldown_events": 15,
+	"boredom_exempt": true,
+	"requirements": {
+		"in_room": ["grocery"],
+		"room_has_zone": "Zone_Aisles",
+	},
+	"weight_modifiers": [
+		{ "condition": { "stats_above": { "hunger": 40 } }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "check_supplies",
+	"outcomes": {
+		"stats": { "boredom": -5 },
+	},
+	"storybook_templates": [
+		"{name} checked what was left on the shelves. Not much.",
+		"{name} wandered the aisles. Mostly out of habit.",
+	],
+},
+
+# ═════════════════════════════════════════════════════════════
+# SOCIAL — any room with other characters present
+# ═════════════════════════════════════════════════════════════
+
+"HALLWAY_NOD": {
+	"scope": "character",
+	"trigger_mode": "proximity",
+	"proximity_type": "light",  # doesn't pause movement
+	"base_weight": 15,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 6,
+	"requirements": {},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["SHY"] }, "multiply": 1.8 },
+		{ "condition": { "has_trait": ["ANTISOCIAL"] }, "multiply": 1.5 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "hallway_nod",
+	"outcomes": {
+		"stats": { "loneliness": -2 },
+		"target_stats": { "loneliness": -2 },
+	},
+	"storybook_templates": [
+		"{name} and {target} passed in the hall.",
+		"A nod. Nothing more needed.",
+	],
+},
+
+"HALLWAY_CHAT": {
+	"scope": "character",
+	"trigger_mode": "proximity",
+	"proximity_type": "heavy",  # pauses both characters briefly
+	"base_weight": 5,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 12,
+	"requirements": {
+		"stats_above": { "happiness": 40 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 2.5 },
+		{ "condition": { "has_trait": ["ANTISOCIAL"] }, "multiply": 0.1 },
+		{ "condition": { "has_trait": ["SHY"] }, "multiply": 0.3 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "hallway_chat",
+	"outcomes": {
+		"stats": { "loneliness": -5, "boredom": -3 },
+		"target_stats": { "loneliness": -5, "boredom": -3 },
+	},
+	"storybook_templates": [
+		"{name} stopped {target} in the hallway. {They} talked for a minute.",
+		"{name} and {target} ran into each other. The elevator could wait.",
+	],
+},
+
+"AWKWARD_HALLWAY_PASS": {
+	"scope": "character",
+	"trigger_mode": "proximity",
+	"proximity_type": "light",
+	"base_weight": 4,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 10,
+	"requirements": {
+		"stats_above": { "stress": 40 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_state": ["ANXIOUS"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["SHY"] }, "multiply": 2.5 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "awkward_pass",
+	"outcomes": {
+		"stats": { "stress": 3 },
+		"target_stats": { "stress": 2 },
+	},
+	"storybook_templates": [
+		"{name} and {target} passed each other. Neither looked up.",
+		"The hallway wasn't wide enough for both of them.",
+	],
+},
+
+"HALLWAY_BUMP": {
+	"scope": "character",
+	"trigger_mode": "proximity",
+	"proximity_type": "light",
+	"base_weight": 2,
+	"category": "comedy",
+	"magnitude": "minor",
+	"cooldown_events": 20,
+	"requirements": {},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["FORGETFUL"] }, "multiply": 3.0 },
+		{ "condition": { "has_trait": ["RECKLESS"] }, "multiply": 2.0 },
+		{ "condition": { "stats_below": { "energy": 30 } }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "hallway_bump",
+	"outcomes": {
+		"stats": { "stress": 2 },
+	},
+	"storybook_templates": [
+		"{name} bumped into {target} coming around the corner.",
+		"{They} collided. {name} said sorry first.",
 	],
 },
 
@@ -461,55 +1336,6 @@ const EVENTS: Dictionary = {
 	],
 },
 
-"SLEEP": {
-	"scope": "character",
-	"trigger_mode": "auto_fire",
-	"base_weight": 15,
-	"category": "psychology",
-	"magnitude": "minor",
-	"cooldown_events": 0,
-	"requirements": {
-		"stats_below": { "energy": 40 },
-		"time_of_day": ["night", "evening"],
-		"in_home_room": true,
-	},
-	"weight_modifiers": [
-		{ "condition": { "stats_below": { "energy": 20 } }, "multiply": 3.0 },
-		{ "condition": { "has_state": ["EXHAUSTED"] }, "multiply": 4.0 },
-		{ "condition": { "has_trait": ["NIGHT_OWL"] }, "multiply": 0.3 },
-	],
-	"target_resolution": { "type": "self" },
-	"call_action": "sleep",
-	"outcomes": {},
-	"storybook_templates": [
-		"{name} went to sleep.",
-		"{name} couldn't keep {their} eyes open any longer.",
-		"That was enough for one day. {name} slept.",
-	],
-},
-
-"ENERGY_CRASH": {
-	"scope": "character",
-	"trigger_mode": "auto_fire",
-	"priority": 95,
-	"base_weight": 0,
-	"category": "health",
-	"magnitude": "moderate",
-	"cooldown_events": 20,
-	"requirements": {
-		"stats_below": { "energy": 5 },
-	},
-	"weight_modifiers": [],
-	"target_resolution": { "type": "self" },
-	"call_action": "sleep",
-	"outcomes": {},
-	"storybook_templates": [
-		"{name} crashed. Couldn't keep going.",
-		"{name}'s body gave out. {They} slept wherever they were.",
-		"That was all {name} had. {They} {were_was} out.",
-	],
-},
-
 "ARGUE": {
 	"scope": "character",
 	"trigger_mode": "rolled",
@@ -578,94 +1404,6 @@ const EVENTS: Dictionary = {
 	],
 },
 
-"VISIT_LIBRARY": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 5,
-	"category": "psychology",
-	"magnitude": "minor",
-	"cooldown_events": 10,
-	"boredom_exempt": true,
-	"requirements": {
-		"not_in_room": ["library"],
-		"stats_above": { "boredom": 30 },
-		"not_has_persistent_state": ["IN_HOSPITAL", "IN_JAIL"],
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["HOMEBODY"] }, "multiply": 0.5 },
-		{ "condition": { "stats_above": { "boredom": 60 } }, "multiply": 1.8 },
-	],
-	"target_resolution": { "type": "room" },
-	"call_action": "queue_intent_visit_library",
-	"outcomes": {
-		"stats": { "boredom": -5 },
-	},
-	"storybook_templates": [
-		"{name} headed to the library.",
-		"{name} needed somewhere quiet.",
-	],
-},
-
-"READ_BOOK": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 14,
-	"category": "psychology",
-	"magnitude": "minor",
-	"cooldown_events": 2,
-	"boredom_exempt_traits": ["BOOKWORM", "HOMEBODY"],
-	"requirements": {
-		"in_room": ["library"],
-	},
-	"weight_modifiers": [
-		{ "condition": { "stats_above": { "boredom": 40 } }, "multiply": 1.8 },
-		{ "condition": { "has_state": ["RESTLESS"] }, "multiply": 1.5 },
-		{ "condition": { "stats_above": { "stress": 50 } }, "multiply": 1.6 },
-	],
-	"target_resolution": { "type": "self" },
-	"call_action": "read_book",
-	"outcomes": {
-		"stats": { "boredom": -20, "stress": -10, "happiness": 5 },
-	},
-	"storybook_templates": [
-		"{name} found a book and disappeared into it.",
-		"{name} read for hours. The building kept going without them.",
-		"The library was quiet. {name} was exactly where they needed to be.",
-	],
-},
-
-"DRINK_ALONE": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 6,
-	"category": "psychology",
-	"magnitude": "minor",
-	"cooldown_events": 4,
-	"boredom_exempt_traits": ["ALCOHOLIC", "ADDICT_PRONE"],
-	"requirements": {
-		"in_room": ["bar"],
-		"stats_below": { "happiness": 35 },
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_state": ["MISERABLE"] }, "multiply": 2.5 },
-		{ "condition": { "has_state": ["LONELY"] }, "multiply": 2.0 },
-		{ "condition": { "has_trait": ["ALCOHOLIC"] }, "multiply": 2.0 },
-		{ "condition": { "stats_below": { "happiness": 20 } }, "multiply": 2.0 },
-	],
-	"target_resolution": { "type": "self" },
-	"call_action": "drink_alone",
-	"outcomes": {
-		"stats": { "stress": -5, "loneliness": 8, "cash": -5, "addiction": 2 },
-		"feelings": ["MELANCHOLY_FEELING"],
-	},
-	"storybook_templates": [
-		"{name} drank alone. Nobody sat next to them.",
-		"The bar was full. {name} was still alone in it.",
-		"{name} nursed their drink and didn't look up.",
-		"Another round. {name} wasn't counting.",
-	],
-},
-
 "FLIRT": {
 	"scope": "character",
 	"trigger_mode": "rolled",
@@ -695,102 +1433,6 @@ const EVENTS: Dictionary = {
 		"{name} said something to {target} that wasn't quite a compliment.",
 		"{target} caught {name} looking. {name} didn't look away.",
 		"{name} turned the charm on. {target} noticed.",
-	],
-},
-
-"PLAY_POOL_INVITE": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 6,
-	"category": "social",
-	"magnitude": "minor",
-	"cooldown_events": 10,
-	"boredom_exempt_traits": ["COMPETITIVE", "GAMBLER"],
-	"sequence_key": "PLAY_POOL_SEQ",
-	"requirements": {
-		"in_room": ["bar"],
-		"other_character_in_room": true,
-		"stats_above": { "energy": 30 },
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["COMPETITIVE"] },      "multiply": 2.0 },
-		{ "condition": { "has_trait": ["SOCIAL"] },           "multiply": 1.5 },
-		{ "condition": { "stats_above": { "boredom": 50 } }, "multiply": 1.4 },
-	],
-	"target_resolution": {
-		"type": "character",
-		"filter": "same_room",
-		"scope": "same_room",
-		"exclude_robots": true,
-	},
-	"call_action": "start_pool_game",
-	"outcomes": {
-		"stats": { "boredom": -5 },
-	},
-	"storybook_templates": [
-		"{name} challenged {target} to a game of pool.",
-		"{name} picked up a cue and nodded at {target}.",
-	],
-},
-
-"SPILL_DRINK": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 1,
-	"category": "comedy",
-	"magnitude": "minor",
-	"cooldown_events": 25,
-	"requirements": {
-		"in_room": ["bar", "cafe"],
-		"other_character_in_room": true,
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["FORGETFUL"] }, "multiply": 3.0 },
-		{ "condition": { "has_trait": ["RECKLESS"] }, "multiply": 2.0 },
-		{ "condition": { "stats_below": { "energy": 30 } }, "multiply": 1.5 },
-	],
-	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
-	"call_action": "spill_drink",
-	"outcomes": {
-		"stats": { "happiness": -3 },
-		"feelings": ["HUMILIATED"],
-	},
-	"storybook_templates": [
-		"{name} knocked their drink over. The whole place noticed.",
-		"It went everywhere. {name} pretended it didn't.",
-		"{name} spilled it. Right in front of {target}.",
-	],
-},
-
-"PHYSICAL_FIGHT": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 1,
-	"category": "violence",
-	"magnitude": "major",
-	"cooldown_events": 30,
-	"requirements": {
-		"other_character_in_room": true,
-		"stats_above": { "stress": 75 },
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_feeling": ["FURIOUS"] }, "multiply": 3.0 },
-		{ "condition": { "has_trait": ["VIOLENT"] }, "multiply": 4.0 },
-		{ "condition": { "has_trait": ["SHORT_TEMPERED"] }, "multiply": 2.5 },
-		{ "condition": { "stats_above": { "stress": 90 } }, "multiply": 2.0 },
-	],
-	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
-	"call_action": "physical_fight",
-	"outcomes": {
-		"stats": { "stress": 25, "happiness": -10, "health": -10 },
-		"target_stats": { "stress": 25, "happiness": -10, "health": -12 },
-		"feelings": ["COCKY"],
-		"target_feelings": ["HUMILIATED", "FURIOUS"],
-	},
-	"storybook_templates": [
-		"{name} hit {target}. The room went quiet.",
-		"It happened fast. {name} and {target}. Blood on the floor.",
-		"Someone was always going to throw the first punch. {name} did.",
 	],
 },
 
@@ -853,232 +1495,6 @@ const EVENTS: Dictionary = {
 	],
 },
 
-"VISIT_CAFE": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 5,
-	"category": "social",
-	"magnitude": "minor",
-	"cooldown_events": 10,
-	"boredom_exempt": true,
-	"requirements": {
-		"not_in_room": ["cafe"],
-		"not_has_persistent_state": ["IN_HOSPITAL", "IN_JAIL"],
-	},
-	"weight_modifiers": [
-		{ "condition": { "stats_above": { "hunger": 40 } }, "multiply": 1.8 },
-		{ "condition": { "stats_above": { "loneliness": 40 } }, "multiply": 1.5 },
-		{ "condition": { "stats_above": { "boredom": 40 } }, "multiply": 1.3 },
-	],
-	"target_resolution": { "type": "room" },
-	"call_action": "queue_intent_visit_cafe",
-	"outcomes": {
-		"stats": { "boredom": -5 },
-	},
-	"storybook_templates": [
-		"{name} headed to the cafe.",
-		"{name} needed something warm. And somewhere to sit.",
-	],
-},
-
-"ORDER_FOOD": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 10,
-	"category": "social",
-	"magnitude": "minor",
-	"cooldown_events": 1,
-	"boredom_exempt_traits": ["BIG_APPETITE"],
-	"requirements": {
-		"in_room": ["cafe"],
-		"stats_above": { "cash": 8, "hunger": 20 },
-	},
-	"weight_modifiers": [
-		{ "condition": { "stats_above": { "hunger": 60 } }, "multiply": 2.5 },
-		{ "condition": { "has_trait": ["BIG_APPETITE"] }, "multiply": 2.0 },
-	],
-	"target_resolution": { "type": "self" },
-	"call_action": "order_food",
-	"outcomes": {
-		"stats": { "cash": -8, "hunger": -40, "happiness": 5 },
-		"feelings": ["WELL_FED"],
-	},
-	"storybook_templates": [
-		"{name} ordered something. It was warm and that was enough.",
-		"{name} ate. Not gourmet, but it didn't need to be.",
-	],
-},
-
-"ORDER_COFFEE": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 8,
-	"category": "social",
-	"magnitude": "minor",
-	"cooldown_events": 2,
-	"requirements": {
-		"in_room": ["cafe"],
-		"stats_above": { "cash": 3 },
-	},
-	"weight_modifiers": [
-		{ "condition": { "stats_below": { "energy": 50 } }, "multiply": 1.8 },
-		{ "condition": { "has_state": ["TIRED"] }, "multiply": 2.0 },
-	],
-	"target_resolution": { "type": "self" },
-	"call_action": "order_coffee",
-	"outcomes": {
-		"stats": { "cash": -3, "energy": 10, "stress": -3, "boredom": -5 },
-	},
-	"storybook_templates": [
-		"{name} got a coffee. The day could begin now.",
-		"{name} wrapped their hands around the cup. Warmer.",
-	],
-},
-
-"SIT_ALONE_CAFE": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 5,
-	"category": "social",
-	"magnitude": "minor",
-	"cooldown_events": 4,
-	"requirements": {
-		"in_room": ["cafe"],
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["RECLUSIVE"] }, "multiply": 2.0 },
-		{ "condition": { "has_trait": ["SHY"] }, "multiply": 1.6 },
-		{ "condition": { "stats_above": { "boredom": 40 } }, "multiply": 1.5 },
-	],
-	"target_resolution": { "type": "self" },
-	"call_action": "sit_alone_cafe",
-	"outcomes": {
-		"stats": { "boredom": -10, "loneliness": -3, "stress": -5 },
-	},
-	"storybook_templates": [
-		"{name} sat in the corner and watched the cafe move around them.",
-		"{name} didn't want to talk. Just wanted to be near people.",
-		"A coffee, a window seat, an hour. {name} took the long way through it.",
-	],
-},
-
-"SHARE_MEAL": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 5,
-	"category": "social",
-	"magnitude": "minor",
-	"cooldown_events": 12,
-	"requirements": {
-		"in_room": ["cafe"],
-		"other_character_in_room": true,
-		"stats_above": { "cash": 6 },
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 1.8 },
-		{ "condition": { "has_trait": ["GENEROUS"] }, "multiply": 2.0 },
-		{ "condition": { "stats_above": { "hunger": 40 } }, "multiply": 1.6 },
-	],
-	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room", "exclude_robots": true },
-	"call_action": "share_meal",
-	"outcomes": {
-		"stats": { "hunger": -30, "cash": -6, "loneliness": -15 },
-		"target_stats": { "hunger": -30, "loneliness": -15 },
-		"feelings": ["WELL_FED"],
-		"target_feelings": ["WELL_FED"],
-	},
-	"storybook_templates": [
-		"{name} and {target} ate together. The food wasn't the point.",
-		"Lunch with {target}. {name} couldn't remember the last time someone sat with them.",
-		"{name} and {target} split a meal. Neither said much. Both ate slowly.",
-	],
-},
-
-"COOK_MEAL": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 6,
-	"category": "psychology",
-	"magnitude": "minor",
-	"cooldown_events": 4,
-	"requirements": {
-		"in_home_room": true,
-		"stats_above": { "hunger": 30 },
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["BIG_APPETITE"] }, "multiply": 1.8 },
-		{ "condition": { "has_trait": ["STINGY"] }, "multiply": 1.5 },
-		{ "condition": { "stats_below": { "cash": 30 } }, "multiply": 1.6 },
-	],
-	"target_resolution": { "type": "self" },
-	"call_action": "cook_meal",
-	"outcomes": {
-		"stats": { "hunger": -50, "cash": -3, "happiness": 8, "boredom": -5 },
-		"feelings": ["WELL_FED", "SATISFIED"],
-	},
-	"storybook_templates": [
-		"{name} cooked for themselves. It wasn't bad.",
-		"{name} made something in the kitchen. The whole floor could smell it.",
-		"Dinner alone. {name} took their time with it.",
-	],
-},
-
-"STUDY_TOGETHER": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 6,
-	"category": "psychology",
-	"magnitude": "minor",
-	"cooldown_events": 5,
-	"requirements": {
-		"in_room": ["library"],
-		"other_character_in_room": true,
-	},
-	"weight_modifiers": [
-		{ "condition": { "stats_above": { "boredom": 40 } }, "multiply": 1.5 },
-		{ "condition": { "has_trait": ["MOTIVATED"] }, "multiply": 1.8 },
-	],
-	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room", "exclude_robots": true },
-	"call_action": "study_together",
-	"outcomes": {
-		"stats": { "boredom": -15, "loneliness": -8, "stress": -3 },
-		"target_stats": { "boredom": -15, "loneliness": -8, "stress": -3 },
-	},
-	"storybook_templates": [
-		"{name} and {target} studied together. Someone turned a page too loudly.",
-		"They sat across from each other, books open, occasionally looking up.",
-		"{name} and {target} worked in parallel. Neither needed to talk much.",
-	],
-},
-
-"QUIET_MOMENT_TOGETHER": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 3,
-	"category": "psychology",
-	"magnitude": "minor",
-	"cooldown_events": 15,
-	"requirements": {
-		"in_room": ["library"],
-		"other_character_in_room": true,
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_state": ["CONTENT"] }, "multiply": 2.0 },
-		{ "condition": { "stats_above": { "loneliness": 40 } }, "multiply": 1.5 },
-	],
-	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room", "exclude_robots": true },
-	"call_action": "quiet_moment_together",
-	"outcomes": {
-		"stats": { "loneliness": -12, "stress": -5 },
-		"target_stats": { "loneliness": -12, "stress": -5 },
-	},
-	"storybook_templates": [
-		"{name} and {target} sat near each other. Neither spoke.",
-		"They didn't talk. They didn't have to.",
-		"{name} and {target} shared the silence. It was easier this way.",
-	],
-},
-
 "REMINISCE_TOGETHER": {
 	"scope": "character",
 	"trigger_mode": "rolled",
@@ -1109,99 +1525,49 @@ const EVENTS: Dictionary = {
 	],
 },
 
-"BROOD": {
+"PHYSICAL_FIGHT": {
 	"scope": "character",
 	"trigger_mode": "rolled",
-	"base_weight": 5,
-	"category": "psychology",
-	"magnitude": "minor",
-	"cooldown_events": 6,
+	"base_weight": 1,
+	"category": "violence",
+	"magnitude": "major",
+	"cooldown_events": 30,
 	"requirements": {
-		"has_memorable_entries": true,
-		"stats_above": { "stress": 40 },
+		"other_character_in_room": true,
+		"stats_above": { "stress": 75 },
 	},
 	"weight_modifiers": [
-		{ "condition": { "has_state": ["MISERABLE"] }, "multiply": 2.5 },
-		{ "condition": { "has_trait": ["PARANOID"] }, "multiply": 2.0 },
-		{ "condition": { "has_trait": ["PESSIMISTIC"] }, "multiply": 1.8 },
-		{ "condition": { "stats_above": { "stress": 70 } }, "multiply": 2.0 },
+		{ "condition": { "has_feeling": ["FURIOUS"] }, "multiply": 3.0 },
+		{ "condition": { "has_trait": ["VIOLENT"] }, "multiply": 4.0 },
+		{ "condition": { "has_trait": ["SHORT_TEMPERED"] }, "multiply": 2.5 },
+		{ "condition": { "stats_above": { "stress": 90 } }, "multiply": 2.0 },
 	],
-	"target_resolution": { "type": "memory" },
-	"call_action": "brood",
+	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
+	"call_action": "physical_fight",
 	"outcomes": {
-		"stats": { "stress": 5, "happiness": -5 },
+		"stats": { "stress": 25, "happiness": -10, "health": -10 },
+		"target_stats": { "stress": 25, "happiness": -10, "health": -12 },
+		"feelings": ["COCKY"],
+		"target_feelings": ["HUMILIATED", "FURIOUS"],
 	},
 	"storybook_templates": [
-		"{name} kept turning it over. What {target} did. What it meant.",
-		"It was eating at {name}. The thing with {target}.",
-		"{name} couldn't let it go. Not yet.",
-	],
-},
-
-"SMILE_AT_MEMORY": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 4,
-	"category": "psychology",
-	"magnitude": "minor",
-	"cooldown_events": 8,
-	"requirements": {
-		"has_memorable_entries": true,
-		"stats_above": { "happiness": 40 },
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_state": ["CONTENT"] }, "multiply": 2.0 },
-		{ "condition": { "has_trait": ["OPTIMISTIC"] }, "multiply": 1.8 },
-		{ "condition": { "stats_above": { "happiness": 65 } }, "multiply": 1.5 },
-	],
-	"target_resolution": { "type": "memory" },
-	"call_action": "smile_at_memory",
-	"outcomes": {
-		"stats": { "happiness": 5, "stress": -3 },
-	},
-	"storybook_templates": [
-		"{name} smiled, thinking about {target}. Just for a second.",
-		"Something about {target} came back to {name}. The good kind.",
-		"{name} caught {themself} smiling. {target}. That was why.",
-	],
-},
-
-"GO_HOME": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 15,
-	"category": "daily_life",
-	"magnitude": "minor",
-	"cooldown_events": 5,
-	"boredom_exempt": true,
-	"requirements": {
-		"not_in_home_room": true,
-	},
-	"weight_modifiers": [
-		{ "condition": { "stats_below": { "energy": 40 } }, "multiply": 3.0 },
-		{ "condition": { "has_state": ["TIRED"] }, "multiply": 3.0 },
-		{ "condition": { "stats_above": { "stress": 70 } }, "multiply": 2.0 },
-		{ "condition": { "stats_above": { "boredom": 60 } }, "multiply": 2.0 },
-	],
-	"target_resolution": { "type": "self" },
-	"call_action": "go_home",
-	"outcomes": {},
-	"storybook_templates": [
-		"{name} headed home.",
-		"{name} decided to call it a day.",
+		"{name} hit {target}. The room went quiet.",
+		"It happened fast. {name} and {target}. Blood on the floor.",
+		"Someone was always going to throw the first punch. {name} did.",
 	],
 },
 }
+
+
 # ─────────────────────────────────────────────────────────────
 # CATEGORIES
-# Used for Architect tracking, news ticker colour, weight modifier
-# conditions ("category_above": 5 means 5 events of this category recently).
 # ─────────────────────────────────────────────────────────────
 
 const CATEGORIES: Array = [
 	"social", "romantic", "violence", "crime", "police", "death",
 	"family", "comedy", "work", "building", "management", "gang",
 	"homeless", "health", "psychology", "object", "seasonal", "calendar",
+	"daily_life",
 ]
 
 
@@ -1225,8 +1591,6 @@ func is_valid(event_key: String) -> bool:
 func get_category(event_key: String) -> String:
 	return EVENTS[event_key].get("category", "uncategorised")
 
-# Returns events filtered by scope. Sim uses this to split per-character
-# events from building-scope events on each tick.
 func get_events_by_scope(scope: String) -> Array:
 	var result: Array = []
 	for key in EVENTS:
@@ -1234,8 +1598,6 @@ func get_events_by_scope(scope: String) -> Array:
 			result.append(key)
 	return result
 
-# Returns events filtered by trigger_mode. Sim splits these between
-# the auto-fire pass and the rolled weighted-pick pass.
 func get_events_by_trigger(trigger_mode: String) -> Array:
 	var result: Array = []
 	for key in EVENTS:

@@ -133,6 +133,8 @@ extends Resource
 
 @export var is_sleeping: bool = false
 
+@export var zone_target_pos: Vector3 = Vector3.ZERO
+
 
 # ═════════════════════════════════════════════════════════════
 # SEQUENCE STATE

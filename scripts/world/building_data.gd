@@ -81,6 +81,47 @@ const FLOOR_TYPES: Dictionary = {
 			},
 		],
 	},
+	# Replace the single "large_common" entry with two specific ones:
+
+	"large_common_bar": {
+		"scene_path": "res://scenes/world/FloorLargeCommon.tscn",
+		"slots": [
+			{
+				"door_node": "Spots/Room0_Door",
+				"origin_node": "Spots/Room0_Origin",
+				"room_size": "large_common",
+				"room_scene": "res://scenes/rooms/room_bar.tscn",  # ← bar scene
+				"doorway_node": "Spots/Room0_Doorway",
+			},
+			{
+				"door_node": "Spots/Room1_Door",
+				"origin_node": "Spots/Room1_Origin",
+				"room_size": "apartment",
+				"room_scene": "res://scenes/rooms/room_apartment.tscn",
+				"doorway_node": "Spots/Room1_Doorway",
+			},
+		],
+	},
+
+	"large_common_grocery": {
+		"scene_path": "res://scenes/world/FloorLargeCommon.tscn",
+		"slots": [
+			{
+				"door_node": "Spots/Room0_Door",
+				"origin_node": "Spots/Room0_Origin",
+				"room_size": "large_common",
+				"room_scene": "res://scenes/rooms/room_grocery.tscn",  # ← grocery scene
+				"doorway_node": "Spots/Room0_Doorway",
+			},
+			{
+				"door_node": "Spots/Room1_Door",
+				"origin_node": "Spots/Room1_Origin",
+				"room_size": "apartment",
+				"room_scene": "res://scenes/rooms/room_apartment.tscn",
+				"doorway_node": "Spots/Room1_Doorway",
+			},
+		],
+	},
 }
 
 
@@ -99,7 +140,7 @@ const FLOORS: Array = [
 	},
 	{
 		"floor_id": "F01",
-		"floor_type": "large_common",
+		"floor_type": "large_common_bar",
 		"rooms": [
 			{ "room_id": "bar_f1_s0", "type": "bar", "slot": 0 },
 			{ "room_id": "apartment_f1_s1", "type": "apartment", "slot": 1 },

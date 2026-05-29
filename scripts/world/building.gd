@@ -225,6 +225,29 @@ func _instance_room_scene(floor_node: Node3D, slot: Dictionary, room_id: String)
 	room_node.position = origin_marker.position
 	floor_node.add_child(room_node)
 
+		# Read zones and spots from the room scene
+	var zones_node = room_node.get_node_or_null("Zones")
+	if zones_node:
+		var zone_data: Array = []
+		for zone in zones_node.get_children():
+			if not zone.name.begins_with("Zone_"):
+				continue
+			var zone_name: String = zone.name
+			var spots: Array = []
+			for spot in zone.get_children():
+				if not spot.name.begins_with("Spot_"):
+					continue
+				spots.append({
+					"name": spot.name,
+					"pos": spot.global_position,
+					"occupied_by": "",  # char_id or empty
+				})
+			zone_data.append({
+				"zone_name": zone_name,
+				"spots": spots,
+			})
+		Rooms.set_zones(room_id, zone_data)
+
 	# Override spawn_pos with the room's internal SpawnPos marker
 	var spawn_marker = room_node.get_node_or_null("SpawnPos")
 	if spawn_marker:
