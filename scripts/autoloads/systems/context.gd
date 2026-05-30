@@ -79,16 +79,44 @@ func resolve_target(character: CharData, event_def: Dictionary):
 				return null
 			return all_rooms[randi() % all_rooms.size()]
 		"character":
-			# NOTE: uses Registry directly — Rooms.get_occupants() is a Phase 3 shell.
-			# Phase 3: replace this with Rooms.get_occupants(character.current_room)
+			var exclude_robots: bool = resolution.get("exclude_robots", false)
 			var candidates: Array = []
-			for other in Registry.get_all():
-				if other.char_id != character.char_id and \
-						other.current_room == character.current_room:
-					candidates.append(other)
+			for char_id in Rooms.get_occupants(character.current_room):
+				if char_id == character.char_id:
+					continue
+				var other: CharData = Registry.get_character(char_id)
+				if not other:
+					continue
+				if exclude_robots and other is RobotData:
+					continue
+				candidates.append(other)
+ 
 			if candidates.is_empty():
 				return null
-			return candidates[randi() % candidates.size()]
+ 
+			# Filter by relationship requirements from the event definition
+			var reqs: Dictionary = event_def.get("requirements", {})
+			candidates = _filter_by_relationship(character, candidates, reqs)
+ 
+			if candidates.is_empty():
+				return null
+ 
+			# Pick from filtered pool
+			var filter_key: String = resolution.get("filter", "same_room")
+			match filter_key:
+				"highest_affection":
+					candidates.sort_custom(func(a, b):
+						return Relationships.get_bond(character.char_id, a.char_id) > \
+							   Relationships.get_bond(character.char_id, b.char_id))
+					return candidates[0]
+				"lowest_affection":
+					candidates.sort_custom(func(a, b):
+						return Relationships.get_bond(character.char_id, a.char_id) < \
+							   Relationships.get_bond(character.char_id, b.char_id))
+					return candidates[0]
+				_:
+					# "same_room", "random_known", default — pick random
+					return candidates[randi() % candidates.size()]
 		"memory":
 			# Pick a random memorable storybook entry and return the target character.
 			# If the memory has no target, or the target is gone, return null
@@ -200,3 +228,45 @@ func _pretty_room(room_id: String) -> String:
 		room_type = room_id
 
 	return ROOM_DISPLAY_NAMES.get(room_type, room_id)
+
+func _filter_by_relationship(actor: CharData, candidates: Array,
+		reqs: Dictionary) -> Array:
+	var filtered: Array = candidates.duplicate()
+ 
+	if reqs.has("relationship_bond_above"):
+		var threshold: float = float(reqs["relationship_bond_above"])
+		filtered = filtered.filter(func(c):
+			return Relationships.get_bond(actor.char_id, c.char_id) > threshold)
+ 
+	if reqs.has("relationship_bond_below"):
+		var threshold: float = float(reqs["relationship_bond_below"])
+		filtered = filtered.filter(func(c):
+			return Relationships.get_bond(actor.char_id, c.char_id) < threshold)
+ 
+	if reqs.has("relationship_tier_at_least"):
+		var min_tier: String = reqs["relationship_tier_at_least"]
+		filtered = filtered.filter(func(c):
+			return Relationships.tier_at_least(
+				Relationships.get_tier(actor.char_id, c.char_id), min_tier))
+ 
+	if reqs.has("relationship_tier_at_most"):
+		var max_tier: String = reqs["relationship_tier_at_most"]
+		filtered = filtered.filter(func(c):
+			return Relationships.tier_at_most(
+				Relationships.get_tier(actor.char_id, c.char_id), max_tier))
+ 
+	if reqs.has("relationship_familiarity_above"):
+		var threshold: float = float(reqs["relationship_familiarity_above"])
+		filtered = filtered.filter(func(c):
+			return Relationships.get_familiarity(actor.char_id, c.char_id) > threshold)
+ 
+	if reqs.has("compatible_sexuality") and reqs["compatible_sexuality"]:
+		filtered = filtered.filter(func(c):
+			return not (c is RobotData) and \
+				Identity.is_attracted_to(actor.preference, c.pronouns))
+ 
+	if reqs.has("no_existing_relationship") and reqs["no_existing_relationship"]:
+		filtered = filtered.filter(func(c):
+			return not Relationships.has_record(actor.char_id, c.char_id))
+ 
+	return filtered

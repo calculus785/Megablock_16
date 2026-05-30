@@ -72,6 +72,14 @@ func _refresh() -> void:
 		i += 2
 	lines.append("")
 
+	# ── RELATIONSHIPS ───────────────────────────────────────
+	lines.append("── RELATIONSHIPS ──────────────────────────────")
+	var rel_lines: Array = Relationships.get_debug_lines(character.char_id)
+	lines.append_array(rel_lines)
+	if Relationships.is_partnered(character.char_id):
+		lines.append("  ★ PARTNERED")
+	lines.append("")
+
 	# ── TRAITS ──────────────────────────────────────────────
 	lines.append("── TRAITS ─────────────────────────────────────")
 	if character.traits.size() > 0:
@@ -209,3 +217,4 @@ func _refresh() -> void:
 	])
 
 	_label.text = "\n".join(lines)
+

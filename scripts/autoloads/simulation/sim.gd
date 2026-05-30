@@ -361,6 +361,14 @@ func _get_eligible_events(character: CharData) -> Array:
 			eligible.append(event_key)
 	return eligible
 
+func _get_room_others(character: CharData) -> Array:
+	var others: Array = []
+	for char_id in Rooms.get_occupants(character.current_room):
+		if char_id != character.char_id:
+			var other: CharData = Registry.get_character(char_id)
+			if other:
+				others.append(other)
+	return others
 
 func _check_requirements(character: CharData, reqs: Dictionary) -> bool:
 	# stats_above — stat must be >= value
@@ -485,6 +493,92 @@ func _check_requirements(character: CharData, reqs: Dictionary) -> bool:
 		if Rooms.get_zone(character.current_room, zone_name).is_empty():
 			return false
 	
+	# relationship_bond_above — at least one room occupant has bond > value
+	if reqs.has("relationship_bond_above"):
+		var threshold: float = float(reqs["relationship_bond_above"])
+		var found: bool = false
+		for other in _get_room_others(character):
+			if Relationships.get_bond(character.char_id, other.char_id) > threshold:
+				found = true
+				break
+		if not found:
+			return false
+ 
+	# relationship_bond_below — at least one room occupant has bond < value
+	if reqs.has("relationship_bond_below"):
+		var threshold: float = float(reqs["relationship_bond_below"])
+		var found: bool = false
+		for other in _get_room_others(character):
+			if Relationships.get_bond(character.char_id, other.char_id) < threshold:
+				found = true
+				break
+		if not found:
+			return false
+ 
+	# relationship_tier_at_least — at least one room occupant at or above tier
+	if reqs.has("relationship_tier_at_least"):
+		var min_tier: String = reqs["relationship_tier_at_least"]
+		var found: bool = false
+		for other in _get_room_others(character):
+			if Relationships.tier_at_least(
+				Relationships.get_tier(character.char_id, other.char_id), min_tier
+			):
+				found = true
+				break
+		if not found:
+			return false
+ 
+	# relationship_tier_at_most — at least one room occupant at or below tier
+	if reqs.has("relationship_tier_at_most"):
+		var max_tier: String = reqs["relationship_tier_at_most"]
+		var found: bool = false
+		for other in _get_room_others(character):
+			if Relationships.tier_at_most(
+				Relationships.get_tier(character.char_id, other.char_id), max_tier
+			):
+				found = true
+				break
+		if not found:
+			return false
+ 
+	# relationship_familiarity_above — at least one room occupant with familiarity > value
+	if reqs.has("relationship_familiarity_above"):
+		var threshold: float = float(reqs["relationship_familiarity_above"])
+		var found: bool = false
+		for other in _get_room_others(character):
+			if Relationships.get_familiarity(character.char_id, other.char_id) > threshold:
+				found = true
+				break
+		if not found:
+			return false
+ 
+	# is_partnered — actor is / isn't in PARTNER+ tier with anyone (building-wide)
+	if reqs.has("is_partnered"):
+		var wants_partner: bool = reqs["is_partnered"]
+		if Relationships.is_partnered(character.char_id) != wants_partner:
+			return false
+ 
+	# compatible_sexuality — actor is attracted to at least one room occupant
+	if reqs.has("compatible_sexuality") and reqs["compatible_sexuality"]:
+		var found: bool = false
+		for other in _get_room_others(character):
+			if other is RobotData:
+				continue
+			if Identity.is_attracted_to(character.preference, other.pronouns):
+				found = true
+				break
+		if not found:
+			return false
+ 
+	# no_existing_relationship — at least one room occupant has no record yet
+	if reqs.has("no_existing_relationship") and reqs["no_existing_relationship"]:
+		var found: bool = false
+		for other in _get_room_others(character):
+			if not Relationships.has_record(character.char_id, other.char_id):
+				found = true
+				break
+		if not found:
+			return false
 	return true
 
 # ─────────────────────────────────────────────────────────────
@@ -559,6 +653,46 @@ func _apply_outcomes(character: CharData, target, event_def: Dictionary) -> void
 					event_def.get("call_action", "event"), character.char_name
 				],
 			})
+	# Relationship deltas (bond, trust, rivalry, familiarity)
+	if outcomes.has("relationship") and target is CharData:
+		var rel: Dictionary = outcomes["relationship"]
+		if rel.has("bond"):
+			Relationships.modify_bond(
+				character.char_id, target.char_id, float(rel["bond"]))
+		if rel.has("trust"):
+			Relationships.modify_trust(
+				character.char_id, target.char_id, float(rel["trust"]))
+		if rel.has("rivalry"):
+			Relationships.modify_rivalry(
+				character.char_id, target.char_id, float(rel["rivalry"]))
+		if rel.has("familiarity"):
+			Relationships.modify_familiarity(
+				character.char_id, target.char_id, float(rel["familiarity"]))
+	
+	# Inside _apply_outcomes(), after the Relationships.modify_* calls:
+	if outcomes.has("relationship") and target is CharData:
+		var rel: Dictionary = outcomes["relationship"]
+		# ... existing modify calls ...
+		
+		# Debug log
+		if Settings.debug_console_logging:
+			var bond_now: float = Relationships.get_bond(
+				character.char_id, target.char_id)
+			var tier: String = Relationships.get_tier(
+				character.char_id, target.char_id)
+			var parts: PackedStringArray = []
+			if rel.has("bond"):
+				parts.append("bond %+.0f" % rel["bond"])
+			if rel.has("trust"):
+				parts.append("trust %+.0f" % rel["trust"])
+			if rel.has("rivalry"):
+				parts.append("rivalry %+.0f" % rel["rivalry"])
+			if rel.has("familiarity"):
+				parts.append("fam %+.0f" % rel["familiarity"])
+			print("[Sim] 💛 %s ↔ %s: %s (→%.0f %s)" % [
+				character.char_name, target.char_name,
+				", ".join(parts), bond_now, tier
+			])
 
 
 # ─────────────────────────────────────────────────────────────

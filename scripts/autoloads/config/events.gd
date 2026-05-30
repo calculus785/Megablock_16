@@ -331,7 +331,7 @@ const EVENTS: Dictionary = {
 	},
 	"weight_modifiers": [],
 	"target_resolution": { "type": "self" },
-	"call_action": "sleep",
+	"call_action": "energy_crash",
 	"outcomes": {},
 	"storybook_templates": [
 		"{name} crashed. Couldn't keep going.",
@@ -816,6 +816,7 @@ const EVENTS: Dictionary = {
 	"outcomes": {
 		"stats": { "happiness": -3 },
 		"feelings": ["HUMILIATED"],
+		"relationship": { "familiarity": 1 },
 	},
 	"storybook_templates": [
 		"{name} knocked their drink over. The whole place noticed.",
@@ -961,6 +962,7 @@ const EVENTS: Dictionary = {
 		"target_stats": { "hunger": -30, "loneliness": -15 },
 		"feelings": ["WELL_FED"],
 		"target_feelings": ["WELL_FED"],
+		"relationship": { "bond": 4, "trust": 2, "familiarity": 2 },
 	},
 	"storybook_templates": [
 		"{name} and {target} ate together. The food wasn't the point.",
@@ -1102,6 +1104,7 @@ const EVENTS: Dictionary = {
 	"outcomes": {
 		"stats": { "boredom": -15, "loneliness": -8, "stress": -3 },
 		"target_stats": { "boredom": -15, "loneliness": -8, "stress": -3 },
+		"relationship": { "bond": 3, "trust": 2, "familiarity": 2 },
 	},
 	"storybook_templates": [
 		"{name} and {target} studied together. Someone turned a page too loudly.",
@@ -1130,6 +1133,7 @@ const EVENTS: Dictionary = {
 	"outcomes": {
 		"stats": { "loneliness": -12, "stress": -5 },
 		"target_stats": { "loneliness": -12, "stress": -5 },
+		"relationship": { "bond": 2, "trust": 1, "familiarity": 1 },
 	},
 	"storybook_templates": [
 		"{name} and {target} sat near each other. Neither spoke.",
@@ -1139,32 +1143,32 @@ const EVENTS: Dictionary = {
 },
 
 "ADMIRE_STATUE": {
-    "scope": "character",
-    "trigger_mode": "rolled",
-    "base_weight": 4,
-    "category": "psychology",
-    "magnitude": "minor",
-    "cooldown_events": 10,
-    "requirements": {
-        "in_room": ["library"],
-        "room_has_zone": "Zone_Statue",
-        "zone_has_space": "Zone_Statue",
-    },
-    "weight_modifiers": [
-        { "condition": { "has_trait": ["ROMANTIC"] }, "multiply": 2.0 },
-        { "condition": { "has_state": ["CONTENT"] }, "multiply": 1.5 },
-        { "condition": { "stats_above": { "boredom": 30 } }, "multiply": 1.5 },
-    ],
-    "target_resolution": { "type": "self" },
-    "call_action": "admire_statue",
-    "outcomes": {
-        "stats": { "happiness": 5, "stress": -5, "boredom": -8 },
-    },
-    "storybook_templates": [
-        "{name} stood in front of the statue for a while. Something about it.",
-        "{name} kept coming back to the statue. Couldn't say why.",
-        "The statue didn't move. Neither did {name}. Not for a minute.",
-    ],
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 4,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 10,
+	"requirements": {
+		"in_room": ["library"],
+		"room_has_zone": "Zone_Statue",
+		"zone_has_space": "Zone_Statue",
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["ROMANTIC"] }, "multiply": 2.0 },
+		{ "condition": { "has_state": ["CONTENT"] }, "multiply": 1.5 },
+		{ "condition": { "stats_above": { "boredom": 30 } }, "multiply": 1.5 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "admire_statue",
+	"outcomes": {
+		"stats": { "happiness": 5, "stress": -5, "boredom": -8 },
+	},
+	"storybook_templates": [
+		"{name} stood in front of the statue for a while. Something about it.",
+		"{name} kept coming back to the statue. Couldn't say why.",
+		"The statue didn't move. Neither did {name}. Not for a minute.",
+	],
 },
 
 # ═════════════════════════════════════════════════════════════
@@ -1172,31 +1176,31 @@ const EVENTS: Dictionary = {
 # ═════════════════════════════════════════════════════════════
 
 "VISIT_GROCERY": {
-    "scope": "character",
-    "trigger_mode": "rolled",
-    "base_weight": 4,
-    "category": "daily_life",
-    "magnitude": "minor",
-    "cooldown_events": 12,
-    "boredom_exempt": true,
-    "requirements": {
-        "not_in_room": ["grocery"],
-        "not_has_persistent_state": ["IN_HOSPITAL", "IN_JAIL"],
-    },
-    "weight_modifiers": [
-        { "condition": { "stats_above": { "hunger": 50 } }, "multiply": 2.5 },
-        { "condition": { "stats_below": { "cash": 20 } }, "multiply": 0.3 },
-        { "condition": { "has_trait": ["STINGY"] }, "multiply": 1.8 },
-    ],
-    "target_resolution": { "type": "room" },
-    "call_action": "queue_intent_visit_grocery",
-    "outcomes": {
-        "stats": { "boredom": -5 },
-    },
-    "storybook_templates": [
-        "{name} headed to the grocery.",
-        "{name} needed supplies. Or an excuse to leave the apartment.",
-    ],
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 4,
+	"category": "daily_life",
+	"magnitude": "minor",
+	"cooldown_events": 12,
+	"boredom_exempt": true,
+	"requirements": {
+		"not_in_room": ["grocery"],
+		"not_has_persistent_state": ["IN_HOSPITAL", "IN_JAIL"],
+	},
+	"weight_modifiers": [
+		{ "condition": { "stats_above": { "hunger": 50 } }, "multiply": 2.5 },
+		{ "condition": { "stats_below": { "cash": 20 } }, "multiply": 0.3 },
+		{ "condition": { "has_trait": ["STINGY"] }, "multiply": 1.8 },
+	],
+	"target_resolution": { "type": "room" },
+	"call_action": "queue_intent_visit_grocery",
+	"outcomes": {
+		"stats": { "boredom": -5 },
+	},
+	"storybook_templates": [
+		"{name} headed to the grocery.",
+		"{name} needed supplies. Or an excuse to leave the apartment.",
+	],
 },
 
 "CHECK_SUPPLIES": {
@@ -1250,6 +1254,7 @@ const EVENTS: Dictionary = {
 	"outcomes": {
 		"stats": { "loneliness": -10, "boredom": -5 },
 		"target_stats": { "loneliness": -10, "boredom": -5 },
+		"relationship": { "bond": 3, "familiarity": 2 },
 	},
 	"storybook_templates": [
 		"{name} and {target} stopped in the hallway. One of them said something real.",
@@ -1276,6 +1281,7 @@ const EVENTS: Dictionary = {
 	"outcomes": {
 		"stats": { "loneliness": -2 },
 		"target_stats": { "loneliness": -2 },
+		"relationship": { "familiarity": 1 },
 	},
 	"storybook_templates": [
 		"{name} and {target} passed in the hall.",
@@ -1304,6 +1310,7 @@ const EVENTS: Dictionary = {
 	"outcomes": {
 		"stats": { "loneliness": -5, "boredom": -3 },
 		"target_stats": { "loneliness": -5, "boredom": -3 },
+		"relationship": { "bond": 2, "familiarity": 1 },
 	},
 	"storybook_templates": [
 		"{name} stopped {target} in the hallway. {They} talked for a minute.",
@@ -1382,6 +1389,7 @@ const EVENTS: Dictionary = {
 	"call_action": "nod_in_passing",
 	"outcomes": {
 		"stats": { "loneliness": -3 },
+		"relationship": { "familiarity": 1 },
 	},
 	"storybook_templates": [
 		"{name} nodded at {target}. {target} nodded back.",
@@ -1412,6 +1420,7 @@ const EVENTS: Dictionary = {
 	"outcomes": {
 		"stats": { "loneliness": -8 },
 		"target_stats": { "loneliness": -5 },
+		"relationship": { "bond": 2, "familiarity": 2 },
 	},
 	"storybook_templates": [
 		"{name} said hello to {target}.",
@@ -1443,6 +1452,7 @@ const EVENTS: Dictionary = {
 	"outcomes": {
 		"stats": { "loneliness": -12, "boredom": -10, "stress": -5 },
 		"target_stats": { "loneliness": -8, "boredom": -8 },
+		"relationship": { "bond": 3, "familiarity": 2 },
 	},
 	"storybook_templates": [
 		"{name} chatted with {target} for a while.",
@@ -1473,6 +1483,7 @@ const EVENTS: Dictionary = {
 	"outcomes": {
 		"stats": { "happiness": 3 },
 		"target_stats": { "happiness": 8, "stress": -5 },
+		"relationship": { "bond": 4, "familiarity": 1 },
 	},
 	"storybook_templates": [
 		"{name} said something kind to {target}.",
@@ -1504,6 +1515,7 @@ const EVENTS: Dictionary = {
 		"stats": { "stress": -8 },
 		"target_stats": { "stress": 15, "happiness": -10 },
 		"target_feelings": ["UPSET_FEELING"],
+		"relationship": { "bond": -6, "trust": -3, "rivalry": 3 },
 	},
 	"storybook_templates": [
 		"{name} said something cutting to {target}.",
@@ -1537,6 +1549,7 @@ const EVENTS: Dictionary = {
 		"target_stats": { "stress": 15, "happiness": -10 },
 		"feelings": ["UPSET_FEELING"],
 		"target_feelings": ["UPSET_FEELING"],
+		"relationship": { "bond": -8, "trust": -5, "rivalry": 5 },
 	},
 	"storybook_templates": [
 		"{name} got into it with {target}. Neither backed down.",
@@ -1557,6 +1570,7 @@ const EVENTS: Dictionary = {
 		"other_character_in_room": true,
 		"time_of_day": ["evening", "night"],
 		"stats_above": { "happiness": 50 },
+		"relationship_bond_above": 30,
 	},
 	"weight_modifiers": [
 		{ "condition": { "has_trait": ["ROMANTIC"] }, "multiply": 1.8 },
@@ -1571,6 +1585,7 @@ const EVENTS: Dictionary = {
 		"target_stats": { "loneliness": -20, "stress": -8 },
 		"feelings": ["CONTENT_FEELING"],
 		"target_feelings": ["CONTENT_FEELING"],
+		"relationship": { "bond": 10, "trust": 8, "familiarity": 5 },
 	},
 	"storybook_templates": [
 		"{name} and {target} talked until the lights dimmed. Something shifted.",
@@ -1590,10 +1605,13 @@ const EVENTS: Dictionary = {
 	"requirements": {
 		"other_character_in_room": true,
 		"stats_above": { "happiness": 55 },
+		"compatible_sexuality": true,
+		"relationship_bond_above": 20,
 	},
 	"weight_modifiers": [
 		{ "condition": { "has_trait": ["FLIRTATIOUS"] }, "multiply": 4.0 },
 		{ "condition": { "has_trait": ["ROMANTIC"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["HIGH_LIBIDO"] }, "multiply": 1.5 },
 		{ "condition": { "has_trait": ["SHY"] }, "multiply": 0.2 },
 		{ "condition": { "stats_above": { "happiness": 75 } }, "multiply": 1.8 },
 		{ "condition": { "has_state": ["CONTENT"] }, "multiply": 1.5 },
@@ -1602,7 +1620,8 @@ const EVENTS: Dictionary = {
 	"call_action": "flirt",
 	"outcomes": {
 		"stats": { "happiness": 5 },
-		"target_stats": { "happiness": 5 },
+		"target_stats": { "happiness": 3 },
+		"relationship": { "bond": 5, "familiarity": 2 },
 	},
 	"storybook_templates": [
 		"{name} flirted with {target}. Subtly, or not.",
@@ -1635,6 +1654,7 @@ const EVENTS: Dictionary = {
 		"target_stats": { "stress": 12, "happiness": -5 },
 		"feelings": ["RELIEVED"],
 		"target_feelings": ["ANXIOUS"],
+		"relationship": { "bond": -3, "trust": 2, "rivalry": 2 },
 	},
 	"storybook_templates": [
 		"{name} cornered {target}. There was something that needed saying.",
@@ -1663,6 +1683,7 @@ const EVENTS: Dictionary = {
 	"outcomes": {
 		"stats": { "boredom": -8 },
 		"target_stats": { "boredom": -5 },
+		"relationship": { "bond": 2, "familiarity": 2 },
 	},
 	"storybook_templates": [
 		"{name} leaned in and told {target} something they probably shouldn't have.",
@@ -1693,6 +1714,7 @@ const EVENTS: Dictionary = {
 	"outcomes": {
 		"stats": { "loneliness": -15, "stress": -5, "happiness": 5 },
 		"target_stats": { "loneliness": -10, "stress": -3 },
+		"relationship": { "bond": 5, "trust": 3, "familiarity": 3 },
 	},
 	"storybook_templates": [
 		"{name} and {target} talked about something that happened a while back.",
@@ -1725,6 +1747,7 @@ const EVENTS: Dictionary = {
 		"target_stats": { "stress": 25, "happiness": -10, "health": -12 },
 		"feelings": ["COCKY"],
 		"target_feelings": ["HUMILIATED", "FURIOUS"],
+		"relationship": { "bond": -15, "trust": -10, "rivalry": 10 },
 	},
 	"storybook_templates": [
 		"{name} hit {target}. The room went quiet.",
@@ -1732,9 +1755,132 @@ const EVENTS: Dictionary = {
 		"Someone was always going to throw the first punch. {name} did.",
 	],
 },
+
+"ASK_OUT": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 2,
+	"category": "romantic",
+	"magnitude": "major",
+	"cooldown_events": 30,
+	"requirements": {
+		"other_character_in_room": true,
+		"compatible_sexuality": true,
+		"relationship_bond_above": 60,
+		"relationship_tier_at_least": "CLOSE_FRIEND",
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["ROMANTIC"] }, "multiply": 3.0 },
+		{ "condition": { "has_trait": ["FLIRTATIOUS"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["SHY"] }, "multiply": 0.3 },
+		{ "condition": { "stats_above": { "happiness": 70 } }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "character", "filter": "highest_affection", "scope": "same_room", "exclude_robots": true },
+	"call_action": "ask_out",
+	"outcomes": {},
+	"storybook_templates": [
+		"{name} asked {target} out. The {room} held its breath.",
+		"It had been building for days. {name} finally said it out loud.",
+		"{name} did it. {They} actually asked.",
+	],
+},
+
+"APOLOGISE": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 3,
+	"category": "social",
+	"magnitude": "moderate",
+	"cooldown_events": 20,
+	"requirements": {
+		"other_character_in_room": true,
+		"relationship_bond_below": 30,
+		"relationship_bond_above": -40,
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["STUBBORN"] }, "multiply": 0.2 },
+		{ "condition": { "has_trait": ["CHARMING"] }, "multiply": 1.5 },
+		{ "condition": { "stats_above": { "stress": 50 } }, "multiply": 1.8 },
+		{ "condition": { "has_feeling": ["UPSET_FEELING"] }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "character", "filter": "lowest_affection", "scope": "same_room", "exclude_robots": true },
+	"call_action": "apologise",
+	"outcomes": {
+		"stats": { "stress": -8 },
+	},
+	"storybook_templates": [
+		"{name} apologised to {target}. It took more than {they} expected.",
+		"It took {name} a while to say it. {target} waited.",
+		"{name} said sorry. Whether {target} believed it was another thing.",
+	],
+},
+
+"SHARE_STORY": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 5,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 10,
+	"requirements": {
+		"other_character_in_room": true,
+		"relationship_familiarity_above": 5,
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["FUNNY"] }, "multiply": 1.8 },
+		{ "condition": { "has_trait": ["ANTISOCIAL"] }, "multiply": 0.3 },
+		{ "condition": { "stats_above": { "happiness": 50 } }, "multiply": 1.5 },
+	],
+	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
+	"call_action": "share_story",
+	"outcomes": {
+		"stats": { "loneliness": -8, "boredom": -10 },
+		"target_stats": { "loneliness": -5, "boredom": -8 },
+		"relationship": { "bond": 4, "trust": 2, "familiarity": 3 },
+	},
+	"storybook_templates": [
+		"{name} told {target} a story. The kind that needs a punchline.",
+		"{name} started talking and {target} didn't want them to stop.",
+		"It was a long one. {target} laughed at the right parts.",
+		"{name} shared something funny. {target} needed that.",
+	],
+},
+
+"VENT_TO_FRIEND": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 4,
+	"category": "social",
+	"magnitude": "moderate",
+	"cooldown_events": 15,
+	"requirements": {
+		"other_character_in_room": true,
+		"stats_above": { "stress": 45 },
+		"relationship_tier_at_least": "FRIEND",
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 1.5 },
+		{ "condition": { "has_trait": ["SECRETIVE"] }, "multiply": 0.2 },
+		{ "condition": { "stats_above": { "stress": 70 } }, "multiply": 2.5 },
+		{ "condition": { "has_state": ["MISERABLE"] }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "character", "filter": "highest_affection", "scope": "same_room", "exclude_robots": true },
+	"call_action": "vent_to_friend",
+	"outcomes": {
+		"stats": { "stress": -15, "loneliness": -10 },
+		"target_stats": { "stress": 5 },
+		"feelings": ["RELIEVED"],
+		"relationship": { "bond": 3, "trust": 5 },
+	},
+	"storybook_templates": [
+		"{name} needed to talk. {target} let them.",
+		"{name} unloaded on {target}. Not everything, but enough.",
+		"It wasn't pretty, but {target} heard it. That was enough for {name}.",
+		"{name} vented. {target} didn't try to fix it. Just listened.",
+	],
+},
 }
-
-
 # ─────────────────────────────────────────────────────────────
 # CATEGORIES
 # ─────────────────────────────────────────────────────────────

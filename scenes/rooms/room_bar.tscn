@@ -100,10 +100,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.362215, 0.5, -2.7342296)
 [node name="Zone_Pool" type="Node3D" parent="Zones" unique_id=1809753248]
 
 [node name="Spot_0" type="Marker3D" parent="Zones/Zone_Pool" unique_id=1299886479]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.186065, 0.5, -1.3802727)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.8128626, 0.5, -1.3802727)
 
 [node name="Spot_1" type="Marker3D" parent="Zones/Zone_Pool" unique_id=1275631496]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.186065, 0.5, -4.4979343)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.7087681, 0.5, -4.4979343)
 
 [node name="Zone_Lounge" type="Node3D" parent="Zones" unique_id=747339292]
 

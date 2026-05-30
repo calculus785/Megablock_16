@@ -40,6 +40,7 @@ func call_action(action_name: String, character: CharData, target, args: Diction
 		"pace_hallway":            return _pace_hallway(character, target, args)
 		"late_night_stare":        return _late_night_stare(character, target, args)
 		"sleep":                   return _sleep(character, target, args)
+		"energy_crash":            return _energy_crash(character, target, args)
 		# ── Home ─────────────────────────────────────────
 		"look_in_mirror":          return _look_in_mirror(character, target, args)
 		"lie_in_bed":              return _lie_in_bed(character, target, args)
@@ -103,6 +104,10 @@ func call_action(action_name: String, character: CharData, target, args: Diction
 		"check_fridge":   return _check_fridge(character, target, args)
 		"sit_at_desk":    return _sit_at_desk(character, target, args)
 		"eat_at_home":    return _eat_at_home(character, target, args)
+		"ask_out":                 return _ask_out(character, target, args)
+		"apologise":               return _apologise(character, target, args)
+		"share_story":             return _share_story(character, target, args)
+		"vent_to_friend":          return _vent_to_friend(character, target, args)
 		_:
 			push_warning("[Actions] Unknown action: '%s'" % action_name)
 			return DONE
@@ -249,9 +254,49 @@ func _think_about(character: CharData, _target, _args: Dictionary) -> String:
 	if result == null:
 		modify_stat(character, "boredom", -5.0)
 		return DONE
+ 
 	Memory.recall_entry(character, result["index"])
 	var entry: Dictionary = result["entry"]
 	var tone: String = _get_memory_tone(entry)
+ 
+	# Check if the memory involves someone we have a relationship with
+	var target_id: String = entry.get("target_id", "")
+	if target_id != "" and target_id != character.char_id:
+		var bond: float = Relationships.get_bond(character.char_id, target_id)
+		var rivalry: float = Relationships.get_rivalry(character.char_id, target_id)
+		var target_char: CharData = Registry.get_character(target_id)
+		var target_name: String = target_char.char_name if target_char else "someone"
+ 
+		# High bond — warm memories
+		if bond >= 30.0:
+			modify_stat(character, "happiness", 5.0)
+			modify_stat(character, "loneliness", -8.0)
+			if tone == "positive":
+				Relationships.set_directional_feeling(
+					character.char_id, target_id, "AFFECTIONATE", 1.0)
+				FeelingDriver.push(character, "CONTENT_FEELING", {
+					"event_key": "think_about_fondly",
+					"at_tick": Clock.get_total_days(),
+					"summary": "thinking fondly about %s" % target_name,
+				})
+			return DONE
+ 
+		# Negative bond — bitter memories
+		if bond <= -20.0:
+			modify_stat(character, "stress", 5.0)
+			modify_stat(character, "happiness", -3.0)
+			Relationships.set_directional_feeling(
+				character.char_id, target_id, "BITTER", 1.0)
+			return DONE
+ 
+		# High rivalry — resentful regardless of bond
+		if rivalry >= 20.0:
+			modify_stat(character, "stress", 3.0)
+			Relationships.set_directional_feeling(
+				character.char_id, target_id, "RESENTFUL", 1.0)
+			return DONE
+ 
+	# No relationship context — fall back to tone-based response (original logic)
 	match tone:
 		"positive":
 			modify_stat(character, "happiness", 5.0)
@@ -306,6 +351,22 @@ func _sleep(character: CharData, _target, _args: Dictionary) -> String:
 	character.is_sleeping = true
 	return DONE
 
+func _energy_crash(character: CharData, _target, _args: Dictionary) -> String:
+	if character.current_room == character.home_room:
+		# Home — sleep in bed
+		_move_to_zone(character, "Zone_Bed")
+		character.is_sleeping = true
+		return DONE
+ 
+	# Not home — go home, queue critical sleep intent
+	start_movement(character, character.home_room)
+	Memory.push_intent(character, {
+		"intent_key": "SLEEP",
+		"priority": "critical",
+		"patience": 99,
+		"clearable": false,
+	})
+	return DONE
 
 # ═════════════════════════════════════════════════════════════
 # HOME — apartment events
@@ -709,10 +770,184 @@ func _deep_conversation(character: CharData, target, _args: Dictionary) -> Strin
 
 func _flirt(character: CharData, target, _args: Dictionary) -> String:
 	modify_stat(character, "happiness", 5.0)
-	if target is CharData:
-		modify_stat(target, "happiness", 5.0)
+	if not target is CharData:
+		return DONE
+ 
+	modify_stat(target, "happiness", 3.0)
+ 
+	# Roll reciprocate chance: base 50%, +20% if actor has CHARMING,
+	# +15% if target has FLIRTATIOUS, -20% if target has bond < 10
+	var chance: float = 0.50
+	if "CHARMING" in character.get_all_active_traits():
+		chance += 0.20
+	if "FLIRTATIOUS" in target.get_all_active_traits():
+		chance += 0.15
+	if "SHY" in target.get_all_active_traits():
+		chance -= 0.15
+	var bond: float = Relationships.get_bond(character.char_id, target.char_id)
+	if bond < 10.0:
+		chance -= 0.20
+ 
+	# Check if target is attracted to actor
+	if not Identity.is_attracted_to(target.preference, character.pronouns):
+		chance = 0.0  # can't reciprocate if not attracted
+ 
+	chance = clampf(chance, 0.05, 0.95)
+ 
+	if randf() < chance:
+		# Reciprocated — push FLIRTY directional feeling on target toward actor
+		Relationships.set_directional_feeling(
+			target.char_id, character.char_id, "FLIRTY", 1.0)
+		Relationships.modify_bond(character.char_id, target.char_id, 3.0)
+		if Settings.debug_console_logging:
+			print("[Actions] 💕 %s flirted with %s → reciprocated!" % [
+				character.char_name, target.char_name])
+	else:
+		# Rejected — mild awkwardness
+		modify_stat(character, "stress", 3.0)
+		if Settings.debug_console_logging:
+			print("[Actions] 💔 %s flirted with %s → not reciprocated" % [
+				character.char_name, target.char_name])
+ 
 	return DONE
 
+func _ask_out(character: CharData, target, _args: Dictionary) -> String:
+	if not target is CharData:
+		return DONE
+ 
+	# Acceptance chance: base 40%
+	var chance: float = 0.40
+	var bond: float = Relationships.get_bond(character.char_id, target.char_id)
+ 
+	# Bond bonus: +1% per bond point above 60
+	chance += (bond - 60.0) * 0.01
+ 
+	# Target has FLIRTY feeling toward actor → big boost
+	if Relationships.has_directional_feeling(target.char_id, character.char_id, "FLIRTY"):
+		chance += 0.30
+ 
+	# Target has AFFECTIONATE feeling toward actor → moderate boost
+	if Relationships.has_directional_feeling(target.char_id, character.char_id, "AFFECTIONATE"):
+		chance += 0.15
+ 
+	# Attraction check — if target isn't attracted, auto-reject
+	if not Identity.is_attracted_to(target.preference, character.pronouns):
+		chance = 0.0
+ 
+	# Target already partnered → very unlikely
+	if Relationships.is_partnered(target.char_id):
+		chance *= 0.1
+ 
+	chance = clampf(chance, 0.05, 0.95)
+ 
+	if randf() < chance:
+		# ACCEPTED — set event-gated tier to ROMANTIC_INTEREST
+		Relationships.set_event_gated_tier(
+			character.char_id, target.char_id, "ROMANTIC_INTEREST")
+		Relationships.modify_bond(character.char_id, target.char_id, 15.0)
+		Relationships.modify_trust(character.char_id, target.char_id, 10.0)
+ 
+		# Push feelings on both
+		FeelingDriver.push(character, "ELATED", {
+			"event_key": "ask_out_accepted",
+			"at_tick": Clock.get_total_days(),
+			"summary": "%s said yes" % target.char_name,
+		})
+		FeelingDriver.push(target, "ELATED", {
+			"event_key": "ask_out_accepted",
+			"at_tick": Clock.get_total_days(),
+			"summary": "%s asked, and it felt right" % character.char_name,
+		})
+ 
+		# Set directional feelings
+		Relationships.set_directional_feeling(
+			character.char_id, target.char_id, "INFATUATED", 1.0)
+		Relationships.set_directional_feeling(
+			target.char_id, character.char_id, "INFATUATED", 1.0)
+ 
+		if Settings.debug_console_logging:
+			print("[Actions] 💕💕 %s asked %s out → ACCEPTED! → ROMANTIC_INTEREST" % [
+				character.char_name, target.char_name])
+	else:
+		# REJECTED
+		Relationships.modify_bond(character.char_id, target.char_id, -10.0)
+		FeelingDriver.push(character, "HEARTBROKEN", {
+			"event_key": "ask_out_rejected",
+			"at_tick": Clock.get_total_days(),
+			"summary": "%s said no" % target.char_name,
+		})
+		modify_stat(character, "happiness", -15.0)
+		modify_stat(character, "stress", 10.0)
+ 
+		if Settings.debug_console_logging:
+			print("[Actions] 💔💔 %s asked %s out → REJECTED" % [
+				character.char_name, target.char_name])
+ 
+	return DONE
+
+func _apologise(character: CharData, target, _args: Dictionary) -> String:
+	if not target is CharData:
+		return DONE
+ 
+	modify_stat(character, "stress", -8.0)
+ 
+	# Acceptance chance: base 50%, modified by bond
+	var bond: float = Relationships.get_bond(character.char_id, target.char_id)
+	var chance: float = 0.50
+ 
+	# Bond modifier: easier to forgive near zero, harder deep negative
+	chance += bond * 0.01  # e.g. bond -30 → -0.30, bond +10 → +0.10
+ 
+	# Traits
+	if "STUBBORN" in target.get_all_active_traits():
+		chance -= 0.20
+	if "FORGIVING" in target.get_all_active_traits():
+		chance += 0.25
+ 
+	chance = clampf(chance, 0.15, 0.90)
+ 
+	if randf() < chance:
+		# Accepted
+		Relationships.modify_bond(character.char_id, target.char_id, 12.0)
+		Relationships.modify_rivalry(character.char_id, target.char_id, -5.0)
+		Relationships.modify_trust(character.char_id, target.char_id, 3.0)
+		FeelingDriver.push(target, "CONTENT_FEELING", {
+			"event_key": "apology_accepted",
+			"at_tick": Clock.get_total_days(),
+			"summary": "%s apologised, and meant it" % character.char_name,
+		})
+		# Clear grudge-type directional feelings
+		Relationships.clear_directional_feeling(
+			target.char_id, character.char_id, "BITTER")
+		Relationships.clear_directional_feeling(
+			target.char_id, character.char_id, "RESENTFUL")
+ 
+		if Settings.debug_console_logging:
+			print("[Actions] 🤝 %s apologised to %s → accepted" % [
+				character.char_name, target.char_name])
+	else:
+		# Rejected
+		Relationships.modify_bond(character.char_id, target.char_id, -5.0)
+		FeelingDriver.push(character, "UPSET_FEELING", {
+			"event_key": "apology_rejected",
+			"at_tick": Clock.get_total_days(),
+			"summary": "%s didn't accept the apology" % target.char_name,
+		})
+ 
+		if Settings.debug_console_logging:
+			print("[Actions] ❌ %s apologised to %s → rejected" % [
+				character.char_name, target.char_name])
+ 
+	return DONE
+
+func _share_story(_character: CharData, _target, _args: Dictionary) -> String:
+	return DONE
+
+func _vent_to_friend(character: CharData, target, _args: Dictionary) -> String:
+	if target is CharData:
+		# Venting builds trust — you showed vulnerability
+		Relationships.modify_trust(character.char_id, target.char_id, 3.0)
+	return DONE
 
 func _confront(character: CharData, _target, _args: Dictionary) -> String:
 	FeelingDriver.remove(character, "FURIOUS")

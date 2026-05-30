@@ -114,6 +114,7 @@ func _spawn_characters() -> void:
 	var building = get_node_or_null("/root/main/Building")
 	if building:
 		building.update_apartment_labels()
+	_seed_starting_relationships()
 
 
 func _create_character_bodies() -> void:
@@ -147,3 +148,43 @@ func _print_character_summary() -> void:
 			character.current_room,
 		])
 	print("───────────────────────────────────────────────\n")
+
+func _seed_starting_relationships() -> void:
+	print("\n[Bootstrap] Seeding starting relationships...")
+ 
+	# Build a name → char_id lookup from spawned characters
+	var name_to_id: Dictionary = {}
+	for character in Registry.get_all():
+		name_to_id[character.char_name] = character.char_id
+ 
+	# Starting relationships defined per character roster.
+	# Format: [actor_name, target_name, {bond, familiarity, trust, ...}]
+	var seeds: Array = [
+		# Sara knows everyone — she's the social hub
+		["Sara Vega", "Marcus Webb",    {"bond": 10.0, "familiarity": 20.0}],
+		["Sara Vega", "Kai Lindqvist",  {"bond": 25.0, "familiarity": 30.0}],
+		["Sara Vega", "Priya Nair",     {"bond": 5.0,  "familiarity": 10.0}],
+		# Kai gossips with Sara, knows Marcus from the hallway
+		["Kai Lindqvist", "Marcus Webb", {"bond": -5.0, "familiarity": 15.0}],
+		# Priya is mostly isolated — one neighbour connection
+		["Priya Nair", "Kai Lindqvist", {"bond": 8.0,  "familiarity": 12.0}],
+	]
+ 
+	for seed in seeds:
+		var actor_name: String = seed[0]
+		var target_name: String = seed[1]
+		var values: Dictionary = seed[2]
+ 
+		if name_to_id.has(actor_name) and name_to_id.has(target_name):
+			Relationships.seed_relationship(
+				name_to_id[actor_name],
+				name_to_id[target_name],
+				values
+			)
+		else:
+			if not name_to_id.has(actor_name):
+				push_warning("[Bootstrap] Starting relationship: '%s' not found." % actor_name)
+			if not name_to_id.has(target_name):
+				push_warning("[Bootstrap] Starting relationship: '%s' not found." % target_name)
+ 
+	print("[Bootstrap] %d starting relationships seeded." % seeds.size())
