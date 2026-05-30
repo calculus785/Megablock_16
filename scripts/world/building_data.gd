@@ -122,6 +122,46 @@ const FLOOR_TYPES: Dictionary = {
 			},
 		],
 	},
+
+	"small_common_cafe": {
+		"scene_path": "res://scenes/world/FloorSmallCommon.tscn",
+		"slots": [
+			{
+				"door_node": "Spots/Room0_Door",
+				"origin_node": "Spots/Room0_Origin",
+				"room_size": "apartment",
+				"room_scene": "res://scenes/rooms/room_apartment.tscn",
+				"doorway_node": "Spots/Room0_Doorway",
+			},
+			{
+				"door_node": "Spots/Room1_Door",
+				"origin_node": "Spots/Room1_Origin",
+				"room_size": "small_common",
+				"room_scene": "res://scenes/rooms/room_cafe.tscn",
+				"doorway_node": "Spots/Room1_Doorway",
+			},
+		],
+	},
+
+	"small_common_library": {
+		"scene_path": "res://scenes/world/FloorSmallCommon.tscn",
+		"slots": [
+			{
+				"door_node": "Spots/Room0_Door",
+				"origin_node": "Spots/Room0_Origin",
+				"room_size": "apartment",
+				"room_scene": "res://scenes/rooms/room_apartment.tscn",
+				"doorway_node": "Spots/Room0_Doorway",
+			},
+			{
+				"door_node": "Spots/Room1_Door",
+				"origin_node": "Spots/Room1_Origin",
+				"room_size": "small_common",
+				"room_scene": "res://scenes/rooms/room_library.tscn",
+				"doorway_node": "Spots/Room1_Doorway",
+			},
+		],
+	},
 }
 
 
@@ -148,7 +188,7 @@ const FLOORS: Array = [
 	},
 	{
 		"floor_id": "F02",
-		"floor_type": "large_common",
+		"floor_type": "large_common_grocery",
 		"rooms": [
 			{ "room_id": "grocery_f2_s0", "type": "grocery", "slot": 0 },
 			{ "room_id": "apartment_f2_s1", "type": "apartment", "slot": 1 },
@@ -165,12 +205,20 @@ const FLOORS: Array = [
 	},
 	{
 		"floor_id": "F04",
-		"floor_type": "small_common",
+		"floor_type": "small_common_cafe",
 		"rooms": [
 			{ "room_id": "apartment_f4_s0", "type": "apartment", "slot": 0 },
 			{ "room_id": "cafe_f4_s1", "type": "cafe", "slot": 1 },
 		],
 	},
+	{
+		"floor_id": "F05",
+		"floor_type": "small_common_library",
+		"rooms": [
+			{ "room_id": "apartment_f5_s0", "type": "apartment", "slot": 0 },
+			{ "room_id": "library_f5_s1", "type": "library", "slot": 1 },
+		],
+	}
 ]
 
 

@@ -109,8 +109,9 @@ func plan_route(origin_room: String, dest_room: String) -> Array:
 		"room_id": origin_room,
 	})
 	# Walk through hallway doorway, hallway door starts closing
+	var doorway_pos: Vector3 = Rooms.get_doorway_pos(origin_room)
 	waypoints.append({
-		"pos": Rooms.get_doorway_pos(origin_room),
+		"pos": Vector3(doorway_pos.x, doorway_pos.y, lane_z),
 		"type": "exit_hallway_doorway",
 		"room_id": origin_room,
 	})
@@ -158,10 +159,6 @@ func plan_route(origin_room: String, dest_room: String) -> Array:
 	else:
 		var floor_fd: Dictionary = Rooms.get_floor_data_by_index(origin_floor)
 		var hallway_y: float = floor_fd.get("hallway_y", origin["door_pos"].y)
-		waypoints.append({
-			"pos": Vector3(origin["door_pos"].x, hallway_y, lane_z),
-			"type": "walk",
-		})
 		waypoints.append({
 			"pos": Vector3(dest["door_pos"].x, hallway_y, lane_z),
 			"type": "walk",

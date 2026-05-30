@@ -15,6 +15,7 @@ const APARTMENT_IDS: Array = [
 	"apartment_f1_s1",
 	"apartment_f2_s1",
 	"apartment_f4_s0",
+	"apartment_f5_s0",
 ]
 
 const BESPOKE_CONFIGS: Array = [
@@ -53,6 +54,18 @@ const BESPOKE_CONFIGS: Array = [
 		"hidden_traits": ["ADDICT_PRONE"],
 		"interests": ["gossip", "social_media", "people_watching"],
 		"internal_age": 22.0,
+	},
+	{
+		"char_name": "Priya Nair",
+		"pronouns": "she/her",
+		"preference": "she/her",
+		"favourite_color": "deep_green",
+		"hair_colour": "dark",
+		"life_arch": "neutral",
+		"traits": ["BOOKWORM", "MOTIVATED", "RECLUSIVE"],
+		"hidden_traits": ["PARANOID"],
+		"interests": ["reading", "history", "people_watching"],
+		"internal_age": 29.0,
 	},
 ]
 
@@ -97,6 +110,10 @@ func _spawn_characters() -> void:
 	# Random characters → remaining apartments
 	for i in range(BESPOKE_CONFIGS.size(), APARTMENT_IDS.size()):
 		Registry.generate_random_character(APARTMENT_IDS[i])
+	# After all characters are spawned:
+	var building = get_node_or_null("/root/main/Building")
+	if building:
+		building.update_apartment_labels()
 
 
 func _create_character_bodies() -> void:

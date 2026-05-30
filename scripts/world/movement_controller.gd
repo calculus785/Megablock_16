@@ -21,6 +21,7 @@ var _current_index: int = 0
 var _is_moving: bool = false
 var _tween: Tween
 var _proximity_fired: Array = []
+var _proximity_paused: bool = false
 
 # Elevator state
 enum ElevatorPhase { NONE, WAITING, RIDING }
@@ -35,9 +36,17 @@ var _pending_door_is_hallway: bool = false
 const BASE_SPEED: float = 6.0  # units per second
 
 
+var _pause_timer: Timer = null
+
 func _ready() -> void:
 	Pathfinder.passenger_boarded.connect(_on_passenger_boarded)
 	Pathfinder.passenger_exited.connect(_on_passenger_exited)
+	# Proximity pause timer
+	_pause_timer = Timer.new()
+	_pause_timer.one_shot = true
+	_pause_timer.timeout.connect(_on_pause_finished)
+	add_child(_pause_timer)
+
 
 
 func _process(_delta: float) -> void:
@@ -86,6 +95,12 @@ func is_moving() -> bool:
 
 
 func _move_to_next() -> void:
+	if _proximity_paused:
+		return
+	if _current_index >= _waypoints.size():
+		_is_moving = false
+		movement_completed.emit()
+		return
 	if _current_index >= _waypoints.size():
 		_is_moving = false
 		movement_completed.emit()
@@ -104,6 +119,21 @@ func _move_to_next() -> void:
 		"exit_room_doorway":     _handle_exit_doorway(wp, false)
 		"exit_hallway_doorway":  _handle_exit_doorway(wp, true)
 		_:                       _tween_to(wp["pos"])
+
+func pause_for_proximity(duration: float) -> void:
+	if not _is_moving:
+		return
+	_proximity_paused = true
+	# Kill any active tween so character stops in place
+	if _tween and _tween.is_valid():
+		_tween.kill()
+	_pause_timer.start(duration)
+
+
+func _on_pause_finished() -> void:
+	_proximity_paused = false
+	if _is_moving:
+		_move_to_next()
 
 # ── TWEENING ─────────────────────────────────────────────────
 
@@ -125,6 +155,12 @@ func _on_tween_finished() -> void:
 	waypoint_reached.emit(wp)
 	if wp["type"] == "walk":
 		_check_proximity()
+
+	if wp["type"] == "arrive":
+		var room_id: String = wp.get("room_id", "")
+		var room_door: Node3D = Rooms.get_room_door(room_id)
+		if room_door and room_door.has_method("notify_through"):
+			room_door.notify_through()
 
 	# If we just arrived at a door waypoint, handle open/wait logic
 	if _pending_door != null:
@@ -226,12 +262,13 @@ func _on_passenger_exited(car_index: int, char_id: String) -> void:
 const PROXIMITY_RANGE: float = 3.0  # units — how close two characters need to be
 
 func _check_proximity() -> void:
+	
 	var parent := get_parent()
 	if not "char_data" in parent:
 		return
 	var my_data: CharData = parent.char_data
 	var my_pos: Vector3 = parent.global_position
-
+	
 	for other_body in _get_nearby_character_bodies():
 		if not "char_data" in other_body:
 			continue

@@ -579,8 +579,8 @@ func _echo(character: CharData, _target, event_key: String,
 
 	# Target ID for memory lookups
 	var target_id: String = ""
-	if _target is CharData:
-		target_id = _target.char_id
+	if _target is CharData and _target.char_id != character.char_id:
+			target_id = _target.char_id
 
 	Memory.write_storybook(character, {
 		"event_key":         event_key,
@@ -927,7 +927,6 @@ func _apply_repetition_boredom(character: CharData, event_key: String) -> void:
 # ─────────────────────────────────────────────────────────────
 
 func fire_proximity_event(actor: CharData, target: CharData) -> void:
-	# Pick from proximity-eligible events
 	var eligible: Array = _get_eligible_proximity_events(actor, target)
 	if eligible.is_empty():
 		return
@@ -951,12 +950,31 @@ func fire_proximity_event(actor: CharData, target: CharData) -> void:
 	_set_cooldown(actor, event_key, event_def)
 	_event_counter += 1
 
+	# ── PROXIMITY PAUSE for heavy events ────────────────────
+	if event_def.get("proximity_type", "light") == "heavy":
+		var pause_duration: float = 4.0 if event_key == "HALLWAY_CHAT" else 6.0
+		_pause_character_movement(actor, pause_duration)
+		_pause_character_movement(target, pause_duration)
+
 	if Settings.debug_console_logging:
 		print("[Sim] 🚶 PROXIMITY → %s + %s → %s" % [
 			actor.char_name, target.char_name, summary
 		])
 
 	event_fired.emit(actor.char_id, event_key, summary)
+
+
+func _pause_character_movement(character: CharData, duration: float) -> void:
+	# Find the character's body node and call pause_for_proximity on its movement controller
+	var container = get_node_or_null("/root/main/Building/Characters")
+	if container == null:
+		return
+	for body in container.get_children():
+		if "char_data" in body and body.char_data.char_id == character.char_id:
+			var ctrl = body.get_node_or_null("MovementController")
+			if ctrl and ctrl.has_method("pause_for_proximity"):
+				ctrl.pause_for_proximity(duration)
+			return
 
 
 func _get_eligible_proximity_events(actor: CharData, _target: CharData) -> Array:

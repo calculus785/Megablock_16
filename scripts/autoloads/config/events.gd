@@ -344,6 +344,95 @@ const EVENTS: Dictionary = {
 # HOME — apartment events
 # ═════════════════════════════════════════════════════════════
 
+"CHECK_FRIDGE": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 8,
+	"category": "daily_life",
+	"magnitude": "minor",
+	"cooldown_events": 4,
+	"requirements": {
+		"in_home_room": true,
+		"room_has_zone": "Zone_Fridge",
+	},
+	"weight_modifiers": [
+		{ "condition": { "stats_above": { "hunger": 30 } }, "multiply": 2.5 },
+		{ "condition": { "has_trait": ["BIG_APPETITE"] }, "multiply": 2.0 },
+		{ "condition": { "has_state": ["TIRED"] }, "multiply": 1.4 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "check_fridge",
+	"outcomes": {
+		"stats": { "hunger": -15, "boredom": -3 },
+	},
+	"storybook_templates": [
+		"{name} stood in front of the open fridge for a moment. Closed it. Opened it again.",
+		"{name} found something in the fridge. Good enough.",
+		"Not much left. {name} made it work.",
+	],
+},
+
+"SIT_AT_DESK": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 6,
+	"category": "psychology",
+	"magnitude": "minor",
+	"cooldown_events": 5,
+	"requirements": {
+		"in_home_room": true,
+		"room_has_zone": "Zone_Desk",
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["MOTIVATED"] }, "multiply": 2.5 },
+		{ "condition": { "has_trait": ["BOOKWORM"] }, "multiply": 1.8 },
+		{ "condition": { "stats_above": { "boredom": 30 } }, "multiply": 1.5 },
+		{ "condition": { "has_state": ["RESTLESS"] }, "multiply": 1.8 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "sit_at_desk",
+	"outcomes": {
+		"stats": { "boredom": -15, "stress": -5, "energy": -3 },
+	},
+	"storybook_templates": [
+		"{name} sat at the desk. Stared at it. Did something, eventually.",
+		"{name} opened something up and got to work.",
+		"The desk was cluttered. {name} worked around it.",
+		"{name} sat down with the intention of being productive. Mostly succeeded.",
+	],
+},
+
+"EAT_AT_HOME": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 7,
+	"category": "daily_life",
+	"magnitude": "minor",
+	"cooldown_events": 3,
+	"boredom_exempt_traits": ["BIG_APPETITE"],
+	"requirements": {
+		"in_home_room": true,
+		"room_has_zone": "Zone_Fridge",
+		"stats_above": { "hunger": 40 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "stats_above": { "hunger": 65 } }, "multiply": 2.5 },
+		{ "condition": { "has_trait": ["BIG_APPETITE"] }, "multiply": 2.0 },
+		{ "condition": { "stats_below": { "cash": 15 } }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "eat_at_home",
+	"outcomes": {
+		"stats": { "hunger": -40, "happiness": 5 },
+		"feelings": ["WELL_FED"],
+	},
+	"storybook_templates": [
+		"{name} ate at home. Cheaper, quieter.",
+		"{name} made something quick. It was fine.",
+		"Dinner in. {name} didn't feel like going out.",
+	],
+},
+
 "LOOK_IN_MIRROR": {
 	"scope": "character",
 	"trigger_mode": "rolled",
@@ -409,6 +498,7 @@ const EVENTS: Dictionary = {
 	"requirements": {
 		"in_home_room": true,
 		"stats_above": { "hunger": 30 },
+		"room_has_zone": "Zone_Fridge",
 	},
 	"weight_modifiers": [
 		{ "condition": { "has_trait": ["BIG_APPETITE"] }, "multiply": 1.8 },
@@ -913,14 +1003,14 @@ const EVENTS: Dictionary = {
 "VISIT_LIBRARY": {
 	"scope": "character",
 	"trigger_mode": "rolled",
-	"base_weight": 5,
+	"base_weight": 7,
 	"category": "psychology",
 	"magnitude": "minor",
 	"cooldown_events": 10,
 	"boredom_exempt": true,
 	"requirements": {
 		"not_in_room": ["library"],
-		"stats_above": { "boredom": 30 },
+		"stats_above": { "boredom": 15 },
 		"not_has_persistent_state": ["IN_HOSPITAL", "IN_JAIL"],
 	},
 	"weight_modifiers": [
@@ -1048,9 +1138,66 @@ const EVENTS: Dictionary = {
 	],
 },
 
+"ADMIRE_STATUE": {
+    "scope": "character",
+    "trigger_mode": "rolled",
+    "base_weight": 4,
+    "category": "psychology",
+    "magnitude": "minor",
+    "cooldown_events": 10,
+    "requirements": {
+        "in_room": ["library"],
+        "room_has_zone": "Zone_Statue",
+        "zone_has_space": "Zone_Statue",
+    },
+    "weight_modifiers": [
+        { "condition": { "has_trait": ["ROMANTIC"] }, "multiply": 2.0 },
+        { "condition": { "has_state": ["CONTENT"] }, "multiply": 1.5 },
+        { "condition": { "stats_above": { "boredom": 30 } }, "multiply": 1.5 },
+    ],
+    "target_resolution": { "type": "self" },
+    "call_action": "admire_statue",
+    "outcomes": {
+        "stats": { "happiness": 5, "stress": -5, "boredom": -8 },
+    },
+    "storybook_templates": [
+        "{name} stood in front of the statue for a while. Something about it.",
+        "{name} kept coming back to the statue. Couldn't say why.",
+        "The statue didn't move. Neither did {name}. Not for a minute.",
+    ],
+},
+
 # ═════════════════════════════════════════════════════════════
 # GROCERY
 # ═════════════════════════════════════════════════════════════
+
+"VISIT_GROCERY": {
+    "scope": "character",
+    "trigger_mode": "rolled",
+    "base_weight": 4,
+    "category": "daily_life",
+    "magnitude": "minor",
+    "cooldown_events": 12,
+    "boredom_exempt": true,
+    "requirements": {
+        "not_in_room": ["grocery"],
+        "not_has_persistent_state": ["IN_HOSPITAL", "IN_JAIL"],
+    },
+    "weight_modifiers": [
+        { "condition": { "stats_above": { "hunger": 50 } }, "multiply": 2.5 },
+        { "condition": { "stats_below": { "cash": 20 } }, "multiply": 0.3 },
+        { "condition": { "has_trait": ["STINGY"] }, "multiply": 1.8 },
+    ],
+    "target_resolution": { "type": "room" },
+    "call_action": "queue_intent_visit_grocery",
+    "outcomes": {
+        "stats": { "boredom": -5 },
+    },
+    "storybook_templates": [
+        "{name} headed to the grocery.",
+        "{name} needed supplies. Or an excuse to leave the apartment.",
+    ],
+},
 
 "CHECK_SUPPLIES": {
 	"scope": "character",
@@ -1081,6 +1228,35 @@ const EVENTS: Dictionary = {
 # ═════════════════════════════════════════════════════════════
 # SOCIAL — any room with other characters present
 # ═════════════════════════════════════════════════════════════
+
+"BRIEF_CONVERSATION": {
+	"scope": "character",
+	"trigger_mode": "proximity",
+	"proximity_type": "heavy",
+	"base_weight": 4,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 15,
+	"requirements": {
+		"stats_above": { "happiness": 35 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["ANTISOCIAL"] }, "multiply": 0.1 },
+		{ "condition": { "stats_above": { "loneliness": 40 } }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "self" },
+	"call_action": "brief_conversation",
+	"outcomes": {
+		"stats": { "loneliness": -10, "boredom": -5 },
+		"target_stats": { "loneliness": -10, "boredom": -5 },
+	},
+	"storybook_templates": [
+		"{name} and {target} stopped in the hallway. One of them said something real.",
+		"{name} caught {target} on the way out. They talked for a minute — actually talked.",
+		"It was just the hallway, but {name} and {target} stayed longer than they meant to.",
+	],
+},
 
 "HALLWAY_NOD": {
 	"scope": "character",

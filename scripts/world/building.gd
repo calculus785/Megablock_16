@@ -6,6 +6,9 @@ extends Node3D
 
 var _camera: Camera3D
 var _storybook_logs_visible: bool = false
+@export var zoom_ortho_threshold: float = 80.0   # camera Z distance to switch
+
+var _is_ortho: bool = false
 
 
 func _ready() -> void:
@@ -86,7 +89,10 @@ func _register_floor_rooms(
 		})
 
 		_instance_room_scene(floor_node, slot, room_entry["room_id"])
-	
+		var origin_marker: Marker3D = floor_node.get_node_or_null(slot.get("origin_node", ""))
+		if origin_marker:
+			_add_room_label(floor_node, room_entry["room_id"], origin_marker.position)
+			
 
 func _register_floor_info(floor_node: Node3D, floor_def: Dictionary, floor_index: int) -> void:
 	var lane0 = floor_node.get_node_or_null("HallwayLane0")
@@ -135,14 +141,32 @@ func _setup_camera() -> void:
 	_camera.make_current()
 
 
+func _get_ortho_size_from_perspective() -> float:
+	# Calculate what half-height the perspective camera sees at the building plane.
+	# Building is at Z=0, camera is at position.z — so distance to building = camera Z.
+	# half_height = distance * tan(fov/2)
+	var fov_rad: float = deg_to_rad(_camera.fov)
+	return _camera.position.z * tan(fov_rad * 0.5) * 1.7
+	
+
 func _process(_delta: float) -> void:
 	if _camera == null:
 		return
 	var speed: float = _camera.position.z * 0.03
 	if Input.is_action_pressed("ui_left"):  _camera.position.x -= speed
 	if Input.is_action_pressed("ui_right"): _camera.position.x += speed
-	if Input.is_action_pressed("ui_up"):    _camera.position.y += speed  # 3D Y is up
+	if Input.is_action_pressed("ui_up"):    _camera.position.y += speed
 	if Input.is_action_pressed("ui_down"):  _camera.position.y -= speed
+
+	# ── Camera projection swap ───────────────────────────
+	var should_be_ortho: bool = _camera.position.z >= zoom_ortho_threshold
+	if should_be_ortho != _is_ortho:
+		_is_ortho = should_be_ortho
+		if _is_ortho:
+			_camera.size = _get_ortho_size_from_perspective()
+			_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+		else:
+			_camera.projection = Camera3D.PROJECTION_PERSPECTIVE
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -297,3 +321,49 @@ func _register_doors(floor_node: Node3D, floor_def: Dictionary, type_def: Dictio
 			var room_door = room_node.get_node_or_null("Geometry/Door0")
 			if room_door:
 				Rooms.register_room_door(room_id, room_door)
+
+
+# Store label nodes keyed by room_id so Bootstrap can update them later
+var _room_labels: Dictionary = {}
+
+func _add_room_label(floor_node: Node3D, room_id: String, origin_pos: Vector3) -> void:
+	var label := Label3D.new()
+	
+	var f_index: int = room_id.find("_f")
+	var room_type: String = room_id.substr(0, f_index) if f_index > 0 else room_id
+	
+	const LABEL_NAMES: Dictionary = {
+		"bar":       "BAR",
+		"cafe":      "CAFÉ",
+		"library":   "LIBRARY",
+		"grocery":   "GROCERY",
+		"gym":       "GYM",
+		"cinema":    "CINEMA",
+		"laundry":   "LAUNDRY",
+		"rooftop":   "ROOFTOP",
+		"lobby":     "LOBBY",
+		"apartment": "APT",
+		"management":"MGMT",
+	}
+	
+	label.text = LABEL_NAMES.get(room_type, room_type.to_upper())
+	label.font_size = 48
+	label.pixel_size = 0.02
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.modulate = Color(1.0, 1.0, 0.6, 0.85)
+	label.position = origin_pos + Vector3(0, 1.5, -0.5)
+	
+	floor_node.add_child(label)
+	_room_labels[room_id] = label
+
+
+# Called by Bootstrap after characters are spawned
+func update_apartment_labels() -> void:
+	for character in Registry.get_all():
+		var room_id: String = character.home_room
+		if not _room_labels.has(room_id):
+			continue
+		var label: Label3D = _room_labels[room_id]
+		label.text = character.char_name.split(" ")[0]
+		label.modulate = Color(0.7, 0.9, 1.0, 0.85)  # blue-ish

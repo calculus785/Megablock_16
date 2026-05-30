@@ -71,9 +71,12 @@ func call_action(action_name: String, character: CharData, target, args: Diction
 		"window_watch":            return _window_watch(character, target, args)
 		"study_together":          return _study_together(character, target, args)
 		"quiet_moment_together":   return _quiet_moment_together(character, target, args)
+		"admire_statue":           return _admire_statue(character, target, args)
 		# ── Grocery ──────────────────────────────────────
+		"queue_intent_visit_grocery": return _queue_intent_visit_grocery(character, target, args)
 		"check_supplies":          return _check_supplies(character, target, args)
 		# ── Social (any room with others) ────────────────
+		"brief_conversation": return _brief_conversation(character, target, args)
 		"sit_at_bar":         return _sit_at_bar(character, target, args)
 		"lean_on_counter":    return _lean_on_counter(character, target, args)
 		"browse_shelves":     return _browse_shelves(character, target, args)
@@ -97,6 +100,9 @@ func call_action(action_name: String, character: CharData, target, args: Diction
 		"reminisce_together":      return _reminisce_together(character, target, args)
 		"spill_drink":             return _spill_drink(character, target, args)
 		"physical_fight":          return _physical_fight(character, target, args)
+		"check_fridge":   return _check_fridge(character, target, args)
+		"sit_at_desk":    return _sit_at_desk(character, target, args)
+		"eat_at_home":    return _eat_at_home(character, target, args)
 		_:
 			push_warning("[Actions] Unknown action: '%s'" % action_name)
 			return DONE
@@ -296,6 +302,7 @@ func _late_night_stare(character: CharData, _target, _args: Dictionary) -> Strin
 
 
 func _sleep(character: CharData, _target, _args: Dictionary) -> String:
+	_move_to_zone(character, "Zone_Bed")
 	character.is_sleeping = true
 	return DONE
 
@@ -303,6 +310,20 @@ func _sleep(character: CharData, _target, _args: Dictionary) -> String:
 # ═════════════════════════════════════════════════════════════
 # HOME — apartment events
 # ═════════════════════════════════════════════════════════════
+
+func _check_fridge(character: CharData, _target, _args: Dictionary) -> String:
+	_move_to_zone(character, "Zone_Fridge")
+	return DONE
+
+
+func _sit_at_desk(character: CharData, _target, _args: Dictionary) -> String:
+	_move_to_zone(character, "Zone_Desk")
+	return DONE
+
+
+func _eat_at_home(character: CharData, _target, _args: Dictionary) -> String:
+	_move_to_zone(character, "Zone_Fridge")
+	return DONE
 
 func _look_in_mirror(character: CharData, _target, _args: Dictionary) -> String:
 	modify_stat(character, "stress", -3.0)
@@ -507,20 +528,22 @@ func _queue_intent_visit_cafe(character: CharData, _target, _args: Dictionary) -
 	modify_stat(character, "boredom", -5.0)
 	return DONE
 
-
-func _order_food(_character: CharData, _target, _args: Dictionary) -> String:
+func _order_food(character: CharData, _target, _args: Dictionary) -> String:
+	_move_to_zone(character, "Zone_Tables")
 	return DONE
 
-
-func _order_coffee(_character: CharData, _target, _args: Dictionary) -> String:
+func _order_coffee(character: CharData, _target, _args: Dictionary) -> String:
+	_move_to_zone(character, "Zone_Counter")
 	return DONE
 
-
-func _sit_alone_cafe(_character: CharData, _target, _args: Dictionary) -> String:
+func _sit_alone_cafe(character: CharData, _target, _args: Dictionary) -> String:
+	_move_to_zone(character, "Zone_Tables")
 	return DONE
 
-
-func _share_meal(_character: CharData, _target, _args: Dictionary) -> String:
+func _share_meal(character: CharData, target, _args: Dictionary) -> String:
+	_move_to_zone(character, "Zone_Tables")
+	if target is CharData:
+		_move_target_to_zone(target, "Zone_Tables")
 	return DONE
 
 
@@ -551,12 +574,20 @@ func _queue_intent_visit_library(character: CharData, _target, _args: Dictionary
 
 
 func _read_book(character: CharData, _target, _args: Dictionary) -> String:
+	_move_to_zone(character, "Zone_Shelves")
 	Memory.add_active_impression(character, "bookshelf")
 	modify_stat(character, "boredom", -20.0)
 	modify_stat(character, "stress", -10.0)
 	modify_stat(character, "happiness", 5.0)
 	return DONE
 
+func _admire_statue(character: CharData, _target, _args: Dictionary) -> String:
+	_move_to_zone(character, "Zone_Statue")
+	Memory.add_active_impression(character, "library_statue")
+	modify_stat(character, "happiness", 5.0)
+	modify_stat(character, "stress", -5.0)
+	modify_stat(character, "boredom", -8.0)
+	return DONE
 
 func _browse_shelves(character: CharData, _target, _args: Dictionary) -> String:
 	_move_to_zone(character, "Zone_Shelves")
@@ -568,18 +599,35 @@ func _window_watch(character: CharData, _target, _args: Dictionary) -> String:
 	_move_to_zone(character, "Zone_Window")
 	return DONE
 
-
-func _study_together(_character: CharData, _target, _args: Dictionary) -> String:
+func _study_together(character: CharData, target, _args: Dictionary) -> String:
+	_move_to_zone(character, "Zone_Shelves")
+	if target is CharData:
+		_move_target_to_zone(target, "Zone_Shelves")
 	return DONE
 
-
-func _quiet_moment_together(_character: CharData, _target, _args: Dictionary) -> String:
+func _quiet_moment_together(character: CharData, target, _args: Dictionary) -> String:
+	_move_to_zone(character, "Zone_Shelves")
+	if target is CharData:
+		_move_target_to_zone(target, "Zone_Shelves")
 	return DONE
-
-
 # ═════════════════════════════════════════════════════════════
 # GROCERY
 # ═════════════════════════════════════════════════════════════
+
+func _queue_intent_visit_grocery(character: CharData, _target, _args: Dictionary) -> String:
+	var grocery_rooms: Array = Rooms.get_rooms_by_type("grocery")
+	if not grocery_rooms.is_empty():
+		start_movement(character, grocery_rooms[0])
+	Memory.clear_intents(character)
+	Memory.push_intent(character, {
+		"intent_key": "CHECK_SUPPLIES",
+		"priority": "normal",
+		"target_id": "",
+		"patience": 10,
+		"clearable": true,
+	})
+	modify_stat(character, "boredom", -5.0)
+	return DONE
 
 func _check_supplies(character: CharData, _target, _args: Dictionary) -> String:
 	_move_to_zone(character, "Zone_Aisles")
@@ -589,6 +637,8 @@ func _check_supplies(character: CharData, _target, _args: Dictionary) -> String:
 # ═════════════════════════════════════════════════════════════
 # SOCIAL — any room with other characters
 # ═════════════════════════════════════════════════════════════
+func _brief_conversation(_character: CharData, _target, _args: Dictionary) -> String:
+	return DONE
 
 func _hallway_nod(_character: CharData, _target, _args: Dictionary) -> String:
 	return DONE
