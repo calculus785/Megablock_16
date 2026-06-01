@@ -8,10 +8,12 @@
 # %APPDATA%/Godot/app_userdata/MegaBlock16/
 
 extends Node
-
-# --- Game speed ---
-var sim_speed: float = 3.1       # 1.0 = normal, 2.0 = double, etc.
-var paused: bool = false
+var speed_preset: int = 1
+ 
+const SPEED_PRESETS: Array = [0.0, 1.0, 3.0, 10.0, 30.0]
+const SPEED_NAMES: Array = [
+	"⏸ PAUSED", "▶ PLAY", "⏩ FAST (3x)", "⏩⏩ TURBO (10x)", "🚀 ULTRA (30x)"
+]
 
 # --- Display ---
 var fullscreen: bool = false
@@ -31,17 +33,23 @@ var debug_console_logging: bool = true   # print() spam in Output
 const CONFIG_PATH: String = "user://settings.cfg"
 
 
+
 func _ready() -> void:
 	_load_settings()
 	print("[Settings] Loaded.")
+	set_speed(1)  # start at 1x play speed
 
+func set_speed(preset_index: int) -> void:
+	speed_preset = clampi(preset_index, 0, SPEED_PRESETS.size() - 1)
+	Engine.time_scale = SPEED_PRESETS[speed_preset]
+	if debug_console_logging:
+		print("[Settings] Speed: %s" % SPEED_NAMES[speed_preset])
 
 # --- Save to disk ---
 func save_settings() -> void:
 	var config := ConfigFile.new()
 
-	config.set_value("game", "sim_speed", sim_speed)
-	config.set_value("game", "paused", paused)
+	config.set_value("game", "speed_preset", speed_preset)
 
 	config.set_value("display", "fullscreen", fullscreen)
 	config.set_value("display", "resolution_scale", resolution_scale)
@@ -66,8 +74,7 @@ func _load_settings() -> void:
 	if err != OK:
 		return
 
-	sim_speed = config.get_value("game", "sim_speed", sim_speed)
-	paused = config.get_value("game", "paused", paused)
+	speed_preset = config.get_value("game", "speed_preset", 1)
 
 	fullscreen = config.get_value("display", "fullscreen", fullscreen)
 	resolution_scale = config.get_value("display", "resolution_scale", resolution_scale)

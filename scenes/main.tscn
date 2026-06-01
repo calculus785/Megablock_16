@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://ynp1h7djuu3t" path="res://scripts/debug/bootstrap.gd" id="1_o5qli"]
 [ext_resource type="PackedScene" uid="uid://qjc5y4r31msg" path="res://scenes/debug/event_inspector.tscn" id="2_0wfyh"]
 [ext_resource type="PackedScene" uid="uid://dy2mm6cvxxmsp" path="res://scenes/debug/force_event.tscn" id="3_sugp2"]
+[ext_resource type="PackedScene" uid="uid://kobdf4osl4j1" path="res://scenes/ui/speed_hud.tscn" id="4_jyhfs"]
 
 [sub_resource type="Environment" id="Environment_sugp2"]
 background_mode = 1
@@ -20,3 +21,5 @@ script = ExtResource("1_o5qli")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1260510131]
 environment = SubResource("Environment_sugp2")
+
+[node name="SpeedHUD" parent="." unique_id=1562753069 instance=ExtResource("4_jyhfs")]

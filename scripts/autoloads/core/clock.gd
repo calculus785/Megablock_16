@@ -104,10 +104,6 @@ func _ready() -> void:
 
 
 func _on_tick() -> void:
-	# Respect pause and sim speed
-	if Settings.paused:
-		return
-	_timer.wait_time = BASE_TICK_INTERVAL / maxf(Settings.sim_speed, 0.1)
 
 	# Emit the base tick — Sim listens to this
 	tick.emit()
