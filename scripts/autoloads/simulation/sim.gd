@@ -211,6 +211,34 @@ func force_fire_event(character: CharData, event_key: String) -> String:
 	event_fired.emit(character.char_id, event_key, summary)
 	return summary
 
+func force_fire_event_with_target(character: CharData,
+		event_key: String, target) -> String:
+	var event_def: Dictionary = Events.get_event(event_key)
+	if event_def.is_empty():
+		push_warning("[Sim] force_fire_event_with_target — unknown event: %s" % event_key)
+		return "Unknown event: %s" % event_key
+ 
+	# Skip resolve_target — use the provided target directly
+	var frame: Dictionary = Context.build_frame(character, target, event_def)
+ 
+	var action_name: String = event_def.get("call_action", "")
+	if action_name != "":
+		var result: String = Actions.call_action(action_name, character, target, frame)
+		if result == Actions.LOCK_SEQUENCE:
+			var seq_key: String = event_def.get("sequence_key", "")
+			if seq_key != "" and target is CharData:
+				_start_sequence(character, target, seq_key)
+ 
+	_apply_outcomes(character, target, event_def)
+	var summary: String = _echo(character, target, event_key, event_def, frame)
+	_event_counter += 1
+ 
+	if Settings.debug_console_logging:
+		print("[Sim] 🔧 FORCED → %s → %s" % [character.char_name, summary])
+ 
+	event_fired.emit(character.char_id, event_key, summary)
+	return summary
+
 # ─────────────────────────────────────────────────────────────
 # DEBUG QUERY (used by EventInspector)
 # Returns eligible events + final weights for a character.
@@ -579,6 +607,20 @@ func _check_requirements(character: CharData, reqs: Dictionary) -> bool:
 				break
 		if not found:
 			return false
+
+		# faction_sentiment_above — all listed factions must be above threshold
+	if reqs.has("faction_sentiment_above"):
+		for faction in reqs["faction_sentiment_above"]:
+			var threshold: float = float(reqs["faction_sentiment_above"][faction])
+			if character.faction_sentiment.get(faction, 50.0) <= threshold:
+				return false
+ 
+	# faction_sentiment_below — all listed factions must be below threshold
+	if reqs.has("faction_sentiment_below"):
+		for faction in reqs["faction_sentiment_below"]:
+			var threshold: float = float(reqs["faction_sentiment_below"][faction])
+			if character.faction_sentiment.get(faction, 50.0) >= threshold:
+				return false
 	return true
 
 # ─────────────────────────────────────────────────────────────

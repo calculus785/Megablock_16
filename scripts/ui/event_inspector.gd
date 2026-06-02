@@ -14,6 +14,7 @@ var _selected_index: int = 0
 func _ready() -> void:
 	visible = false
 	Sim.event_fired.connect(_on_event_fired)
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	print("[EventInspector] Ready. F2 to toggle, Tab to cycle characters.")
 
 
@@ -171,6 +172,39 @@ func _refresh() -> void:
 			lines.append("  %-20s %4d  (%s)" % [obj_key, score, tier])
 	lines.append("")
 
+	# ── TRAIT PROGRESS ──────────────────────────────────────
+	lines.append("── TRAIT PROGRESS ─────────────────────────────")
+	if character.trait_progress.is_empty():
+		lines.append("  (no progress)")
+	else:
+		var sorted_keys: Array = character.trait_progress.keys()
+		sorted_keys.sort()
+		for counter_key in sorted_keys:
+			var value: int = character.trait_progress[counter_key]
+			# Find threshold for this counter if any
+			var threshold_str: String = ""
+			for t_key in Traits.EVOLUTION_THRESHOLDS:
+				if Traits.EVOLUTION_THRESHOLDS[t_key]["counter_key"] == counter_key:
+					threshold_str = " / %d → %s" % [
+						Traits.EVOLUTION_THRESHOLDS[t_key]["threshold"], t_key
+					]
+					break
+			lines.append("  %-20s %4d%s" % [counter_key, value, threshold_str])
+	lines.append("")
+
+	# ── FACTION SENTIMENT ───────────────────────────────────
+	lines.append("── FACTION SENTIMENT ──────────────────────────")
+	if character.faction_sentiment.is_empty():
+		lines.append("  (none)")
+	else:
+		for faction in character.faction_sentiment:
+			var score: float = character.faction_sentiment[faction]
+			var bar: String = ""
+			if score >= 70: bar = " ★"
+			elif score <= 30: bar = " ▼"
+			lines.append("  %-16s %4.0f%s" % [faction, score, bar])
+	lines.append("")
+	
 	# ── ELIGIBLE EVENTS + WEIGHTS ───────────────────────────
 	lines.append("── ELIGIBLE EVENTS ─────────────────────────────")
 	var eligible: Array = Sim.get_eligible_with_weights(character)

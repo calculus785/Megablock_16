@@ -166,16 +166,41 @@ func recall_entry(character: CharData, entry_index: int) -> void:
 # Find a random memorable entry for THINK_ABOUT to surface.
 # Returns the entry dict and its index, or null if none exist.
 func pick_random_memorable(character: CharData):
-	var memorable: Array = []
+	var weighted_pool: Array = []
+	var total_weight: int = 0
+ 
 	for i in range(character.storybook.size()):
-		if character.storybook[i].get("memorable", false):
-			memorable.append(i)
-
-	if memorable.is_empty():
+		var entry: Dictionary = character.storybook[i]
+		if not entry.get("memorable", false):
+			continue
+ 
+		var weight: int = 1
+		var target_id: String = entry.get("target_id", "")
+ 
+		if target_id != "" and target_id != character.char_id:
+			var bond: float = Relationships.get_bond(character.char_id, target_id)
+			if bond >= 30.0:
+				weight = 6
+			else:
+				weight = 3
+ 
+		weighted_pool.append({ "index": i, "weight": weight })
+		total_weight += weight
+ 
+	if weighted_pool.is_empty():
 		return null
-
-	var idx: int = memorable[randi() % memorable.size()]
-	return { "index": idx, "entry": character.storybook[idx] }
+ 
+	# Weighted pick
+	var roll: int = randi_range(1, total_weight)
+	var running: int = 0
+	for item in weighted_pool:
+		running += item["weight"]
+		if roll <= running:
+			return { "index": item["index"], "entry": character.storybook[item["index"]] }
+ 
+	# Fallback (shouldn't reach here)
+	var last: Dictionary = weighted_pool.back()
+	return { "index": last["index"], "entry": character.storybook[last["index"]] }
 
 
 # ─────────────────────────────────────────────────────────────

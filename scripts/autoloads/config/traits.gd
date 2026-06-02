@@ -426,6 +426,41 @@ const TRAITS: Dictionary = {
 	"conflicting_traits": [],  # can coexist with ALCOHOLIC (suppresses its modifiers)
 	"flags": {"suppresses_alcoholic_modifiers": true, "avoids_bar": true}
 },
+"WELL_READ": {
+	"label": "Well Read",
+	"weight": 0,
+	"description": "Hours in the library have left a mark. They reference things. People notice.",
+	"stat_modifiers": { "happiness": 5 },
+	"conflicting_traits": [],
+	"flags": { "library_events_bonus": true }
+},
+ 
+"BRAWLER": {
+	"label": "Brawler",
+	"weight": 0,
+	"description": "Fought enough times that it stopped feeling like a mistake. It's just what happens.",
+	"stat_modifiers": { "health": -5, "stress": -10 },
+	"conflicting_traits": [],
+	"flags": { "can_start_fights": true, "fight_events_bonus": true }
+},
+ 
+"REGULAR": {
+	"label": "Regular",
+	"weight": 0,
+	"description": "The bar knows their order before they sit down. They like it that way.",
+	"stat_modifiers": { "loneliness": -10 },
+	"conflicting_traits": [],
+	"flags": { "bar_events_bonus": true, "known_at_bar": true }
+},
+ 
+"GOSSIP_EVOLVED": {
+	"label": "Chronic Gossip",
+	"weight": 0,
+	"description": "They can't help it anymore. Every conversation becomes an exchange of secrets.",
+	"stat_modifiers": { "loneliness": -5 },
+	"conflicting_traits": ["SECRETIVE"],
+	"flags": { "gossip_events_bonus": true, "shares_information": true }
+},
 }
 
 
@@ -439,19 +474,52 @@ const TRAITS: Dictionary = {
 const EVOLUTION_THRESHOLDS: Dictionary = {
 	"ALCOHOLIC": {
 		"counter_key": "drinks_at_bar",
-		"threshold": 50,
-		"grants": "ALCOHOLIC",
+		"threshold": 30,
+		"requires_trait": "",
+		"hidden": false,
+		"replaces": "",
 	},
 	"RECOVERING_ALCOHOLIC": {
 		"counter_key": "sober_days",
-		"threshold": 30,
+		"threshold": 20,
 		"requires_trait": "ALCOHOLIC",
-		"grants": "RECOVERING_ALCOHOLIC",
+		"hidden": true,
+		"replaces": "",
+	},
+	"WELL_READ": {
+		"counter_key": "books_read",
+		"threshold": 15,
+		"requires_trait": "",
+		"hidden": false,
+		"replaces": "",
+	},
+	"BRAWLER": {
+		"counter_key": "fights",
+		"threshold": 5,
+		"requires_trait": "",
+		"hidden": false,
+		"replaces": "",
+	},
+	"GOSSIP_EVOLVED": {
+		"counter_key": "gossip_shared",
+		"threshold": 20,
+		"requires_trait": "",
+		"hidden": false,
+		"replaces": "",
+	},
+	"REGULAR": {
+		"counter_key": "bar_visits",
+		"threshold": 15,
+		"requires_trait": "",
+		"hidden": false,
+		"replaces": "",
 	},
 }
+ 
 
 
 func _ready() -> void:
+	Clock.day_ticked.connect(_on_day_ticked)
 	print("[Traits] Loaded. %d traits defined." % TRAITS.size())
 
 
@@ -585,7 +653,70 @@ func apply_trait_modifiers(trait_key: String, stats: Dictionary) -> Dictionary:
 # the matching trait is granted.
 # ─────────────────────────────────────────────────────────────
 
+func _on_day_ticked() -> void:
+	for character in Registry.get_all():
+		if character is RobotData:
+			continue
+		evaluate_evolution_for_character(character)
+ 
+		# Sober days tracker — increment if ALCOHOLIC but didn't drink today
+		if "ALCOHOLIC" in character.get_all_active_traits():
+			# Check storybook for a drink event in the last day
+			var drank: bool = false
+			for entry in character.storybook:
+				if entry.get("event_key", "") in ["ORDER_DRINK", "DRINK_ALONE"] and \
+						entry.get("at_tick", 0) >= Clock.get_total_days() - 1:
+					drank = true
+					break
+			if not drank:
+				character.trait_progress["sober_days"] = \
+					character.trait_progress.get("sober_days", 0) + 1
+			else:
+				character.trait_progress["sober_days"] = 0
+ 
+ 
 func evaluate_evolution_for_character(character) -> void:
-	# `character` will be CharData once that resource exists.
-	# Stub for now — full logic implemented when Clock + CharData exist.
-	pass
+	for trait_key in EVOLUTION_THRESHOLDS:
+		var config: Dictionary = EVOLUTION_THRESHOLDS[trait_key]
+		var counter_key: String = config["counter_key"]
+		var threshold: int = config["threshold"]
+		var requires: String = config.get("requires_trait", "")
+		var is_hidden: bool = config.get("hidden", false)
+		var replaces: String = config.get("replaces", "")
+ 
+		# Already has this trait — skip
+		if trait_key in character.traits or trait_key in character.hidden_traits:
+			continue
+ 
+		# Trait doesn't exist in TRAITS dict — skip safely
+		if not TRAITS.has(trait_key):
+			push_warning("[Traits] Evolution target '%s' not in TRAITS dict." % trait_key)
+			continue
+ 
+		# Check prerequisite trait
+		if requires != "" and requires not in character.get_all_active_traits():
+			continue
+ 
+		# Check counter threshold
+		var current_value: int = character.trait_progress.get(counter_key, 0)
+		if current_value < threshold:
+			continue
+ 
+		# Grant the trait
+		if is_hidden:
+			character.hidden_traits.append(trait_key)
+		else:
+			character.traits.append(trait_key)
+ 
+		# Handle replacement (removes old trait)
+		if replaces != "":
+			character.traits.erase(replaces)
+			character.hidden_traits.erase(replaces)
+ 
+		# Apply the trait's stat modifiers
+		character.stats = apply_trait_modifiers(trait_key, character.stats)
+ 
+		if Settings.debug_console_logging:
+			print("[Traits] 🌱 %s evolved: %s (%s = %d)" % [
+				character.char_name, trait_key, counter_key, current_value
+			])

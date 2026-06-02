@@ -125,7 +125,14 @@ func modify_stat(character: CharData, stat_key: String, delta: float) -> void:
 		character.stats[stat_key] + delta
 	)
 
-
+func modify_faction(character: CharData, faction: String, delta: float) -> void:
+	var current: float = character.faction_sentiment.get(faction, 50.0)
+	character.faction_sentiment[faction] = clampf(current + delta, 0.0, 100.0)
+	if Settings.debug_console_logging:
+		print("[Actions] 🏛 %s faction %s %+.0f (→%.0f)" % [
+			character.char_name, faction, delta,
+			character.faction_sentiment[faction]
+		])
 # ── MOVEMENT — room to room ─────────────────────────────────
 
 func start_movement(character: CharData, dest_room: String) -> void:
@@ -405,6 +412,7 @@ func _cook_meal(_character: CharData, _target, _args: Dictionary) -> String:
 # ═════════════════════════════════════════════════════════════
 
 func _queue_intent_visit_bar(character: CharData, _target, _args: Dictionary) -> String:
+	character.trait_progress["bar_visits"] = character.trait_progress.get("bar_visits", 0) + 1
 	var bar_rooms: Array = Rooms.get_rooms_by_type("bar")
 	if not bar_rooms.is_empty():
 		start_movement(character, bar_rooms[0])
@@ -435,6 +443,7 @@ func _queue_intent_visit_bar(character: CharData, _target, _args: Dictionary) ->
 
 
 func _order_drink(character: CharData, _target, _args: Dictionary) -> String:
+	character.trait_progress["drinks_at_bar"] = character.trait_progress.get("drinks_at_bar", 0) + 1
 	_move_to_zone(character, "Zone_Counter")
 	Memory.add_active_impression(character, "bar_counter")
 	modify_stat(character, "cash", -5.0)
@@ -448,6 +457,7 @@ func _order_drink(character: CharData, _target, _args: Dictionary) -> String:
 
 
 func _drink_alone(character: CharData, _target, _args: Dictionary) -> String:
+	character.trait_progress["drinks_at_bar"] = character.trait_progress.get("drinks_at_bar", 0) + 1
 	_move_to_zone(character, "Zone_Counter")
 	Memory.add_active_impression(character, "bar_counter")
 	modify_stat(character, "stress", -5.0)
@@ -635,6 +645,7 @@ func _queue_intent_visit_library(character: CharData, _target, _args: Dictionary
 
 
 func _read_book(character: CharData, _target, _args: Dictionary) -> String:
+	character.trait_progress["books_read"] = character.trait_progress.get("books_read", 0) + 1
 	_move_to_zone(character, "Zone_Shelves")
 	Memory.add_active_impression(character, "bookshelf")
 	modify_stat(character, "boredom", -20.0)
@@ -651,6 +662,7 @@ func _admire_statue(character: CharData, _target, _args: Dictionary) -> String:
 	return DONE
 
 func _browse_shelves(character: CharData, _target, _args: Dictionary) -> String:
+	character.trait_progress["books_read"] = character.trait_progress.get("books_read", 0) + 1
 	_move_to_zone(character, "Zone_Shelves")
 	Memory.add_active_impression(character, "bookshelf")
 	return DONE
@@ -954,7 +966,8 @@ func _confront(character: CharData, _target, _args: Dictionary) -> String:
 	return DONE
 
 
-func _gossip(_character: CharData, _target, _args: Dictionary) -> String:
+func _gossip(character: CharData, _target, _args: Dictionary) -> String:
+	character.trait_progress["gossip_shared"] = character.trait_progress.get("gossip_shared", 0) + 1
 	return DONE
 
 
@@ -969,5 +982,6 @@ func _spill_drink(_character: CharData, _target, _args: Dictionary) -> String:
 	return DONE
 
 
-func _physical_fight(_character: CharData, _target, _args: Dictionary) -> String:
+func _physical_fight(character: CharData, _target, _args: Dictionary) -> String:
+	character.trait_progress["fights"] = character.trait_progress.get("fights", 0) + 1
 	return DONE
