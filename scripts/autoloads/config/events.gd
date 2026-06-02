@@ -1501,7 +1501,7 @@ const EVENTS: Dictionary = {
 	"cooldown_events": 5,
 	"requirements": {
 		"other_character_in_room": true,
-		"stats_above": { "stress": 50 },
+		"stats_above": { "stress": 20 },
 	},
 	"weight_modifiers": [
 		{ "condition": { "has_trait": ["SHORT_TEMPERED"] }, "multiply": 3.0 },
@@ -1533,7 +1533,7 @@ const EVENTS: Dictionary = {
 	"cooldown_events": 6,
 	"requirements": {
 		"other_character_in_room": true,
-		"stats_above": { "stress": 55 },
+		"stats_above": { "stress": 40 },
 	},
 	"weight_modifiers": [
 		{ "condition": { "has_trait": ["SHORT_TEMPERED"] }, "multiply": 3.0 },
@@ -1880,6 +1880,182 @@ const EVENTS: Dictionary = {
 		"{name} vented. {target} didn't try to fix it. Just listened.",
 	],
 },
+
+# ═════════════════════════════════════════════════════════════
+# RIVALRY & CONFLICT — events that push characters apart
+# ═════════════════════════════════════════════════════════════
+
+"SHARE_SECRET": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 3,
+	"category": "social",
+	"magnitude": "moderate",
+	"cooldown_events": 25,
+	"memory_tags": ["secret_shared"],
+	"requirements": {
+		"other_character_in_room": true,
+		"relationship_bond_above": 50,
+		"relationship_tier_at_least": "FRIEND",
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 1.5 },
+		{ "condition": { "has_trait": ["ROMANTIC"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["SECRETIVE"] }, "multiply": 0.2 },
+		{ "condition": { "has_trait": ["PARANOID"] }, "multiply": 0.3 },
+		{ "condition": { "stats_above": { "loneliness": 50 } }, "multiply": 1.8 },
+		{ "condition": { "time_of_day": ["evening", "night"] }, "multiply": 1.5 },
+	],
+	"target_resolution": { "type": "character", "filter": "highest_affection", "scope": "same_room", "exclude_robots": true },
+	"call_action": "share_secret",
+	"outcomes": {
+		"stats": { "loneliness": -15, "stress": -8 },
+		"target_stats": { "loneliness": -10 },
+		"relationship": { "bond": 6, "trust": 10, "familiarity": 3 },
+	},
+	"storybook_templates": [
+		"{name} told {target} something {they} don't tell people.",
+		"{name} trusted {target} with something. The kind of thing you don't repeat.",
+		"It came out quiet. {name} hadn't planned to say it. {target} listened.",
+		"{name} shared something personal. It changed the air between them.",
+	],
+},
+
+"BETRAY_SECRET": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 1,
+	"category": "social",
+	"magnitude": "major",
+	"cooldown_events": 40,
+	"memory_tags": ["betrayal"],
+	"requirements": {
+		"other_character_in_room": true,
+		"has_memory_tag": "secret_received",
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["MEAN"] }, "multiply": 3.0 },
+		{ "condition": { "has_trait": ["GOSSIP"] }, "multiply": 2.5 },
+		{ "condition": { "has_trait": ["NOSY"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["SECRETIVE"] }, "multiply": 0.3 },
+		{ "condition": { "has_trait": ["FORGIVING"] }, "multiply": 0.2 },
+		{ "condition": { "stats_above": { "stress": 60 } }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room", "exclude_robots": true },
+	"call_action": "betray_secret",
+	"outcomes": {
+		"stats": { "stress": -5 },
+		"target_stats": { "boredom": -10 },
+		"relationship": { "bond": 2, "familiarity": 3 },
+	},
+	"storybook_templates": [
+		"{name} told {target} something {they} {were_was} trusted not to repeat.",
+		"The secret wasn't {name}'s to share. {target} got it anyway.",
+		"{name} broke a promise without blinking. {target} leaned in.",
+		"It was supposed to stay between them. {name} made sure it didn't.",
+	],
+},
+
+"MOCK": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 2,
+	"category": "social",
+	"magnitude": "moderate",
+	"cooldown_events": 12,
+	"requirements": {
+		"other_character_in_room": true,
+		"stats_above": { "stress": 15 },
+		"not_in_home_room": true,
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["MEAN"] }, "multiply": 3.0 },
+		{ "condition": { "has_trait": ["FUNNY"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["SHORT_TEMPERED"] }, "multiply": 2.0 },
+		{ "condition": { "has_state": ["FURIOUS"] }, "multiply": 2.5 },
+		{ "condition": { "stats_above": { "stress": 70 } }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "character", "filter": "lowest_affection", "scope": "same_room" },
+	"call_action": "mock",
+	"outcomes": {
+		"stats": { "stress": -5, "happiness": 3 },
+		"target_stats": { "stress": 10, "happiness": -8 },
+		"target_feelings": ["HUMILIATED"],
+		"relationship": { "bond": -4, "trust": -5, "rivalry": 5 },
+	},
+	"storybook_templates": [
+		"{name} made fun of {target}. Everyone heard.",
+		"{name} got a laugh at {target}'s expense. The room noticed.",
+		"It was meant to be funny. {target} wasn't laughing.",
+		"{name} said something about {target} loud enough for everyone.",
+	],
+},
+
+"COLD_SHOULDER": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 3,
+	"category": "social",
+	"magnitude": "minor",
+	"cooldown_events": 8,
+	"requirements": {
+		"other_character_in_room": true,
+		"relationship_bond_below": 0,
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["STUBBORN"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["MEAN"] }, "multiply": 1.5 },
+		{ "condition": { "stats_above": { "stress": 50 } }, "multiply": 1.5 },
+		{ "condition": { "stats_above": { "stress": 75 } }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "character", "filter": "lowest_affection", "scope": "same_room" },
+	"call_action": "cold_shoulder",
+	"outcomes": {
+		"target_stats": { "loneliness": 8, "happiness": -5 },
+		"relationship": { "bond": -3, "rivalry": 2 },
+	},
+	"storybook_templates": [
+		"{target} tried to say hello. {name} looked right through {them}.",
+		"{name} pretended {target} wasn't there. {target} noticed.",
+		"The silence was deliberate. {target} felt it.",
+		"{name} turned away when {target} approached. Not subtle.",
+	],
+},
+
+"PROVOKE": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 2,
+	"category": "social",
+	"magnitude": "moderate",
+	"cooldown_events": 15,
+	"requirements": {
+		"other_character_in_room": true,
+		"stats_above": { "stress": 30 },
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["MEAN"] }, "multiply": 3.0 },
+		{ "condition": { "has_trait": ["VIOLENT"] }, "multiply": 2.5 },
+		{ "condition": { "has_trait": ["SHORT_TEMPERED"] }, "multiply": 2.0 },
+		{ "condition": { "has_state": ["FURIOUS"] }, "multiply": 3.0 },
+		{ "condition": { "stats_above": { "stress": 80 } }, "multiply": 2.0 },
+	],
+	"target_resolution": { "type": "character", "filter": "lowest_affection", "scope": "same_room" },
+	"call_action": "provoke",
+	"outcomes": {
+		"stats": { "stress": -5 },
+		"target_stats": { "stress": 15, "happiness": -8 },
+		"target_feelings": ["FURIOUS"],
+		"relationship": { "bond": -5, "trust": -3, "rivalry": 6 },
+	},
+	"storybook_templates": [
+		"{name} pushed {target}'s buttons. Knew exactly which ones.",
+		"{name} wanted a reaction from {target}. {They} got one.",
+		"It wasn't an accident. {name} knew what {they} {were_was} doing.",
+		"{name} kept at it until {target} couldn't ignore it.",
+	],
+},
+
 }
 # ─────────────────────────────────────────────────────────────
 # CATEGORIES

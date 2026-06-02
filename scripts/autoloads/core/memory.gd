@@ -153,6 +153,24 @@ func get_memories_about(character: CharData, target_id: String) -> Array:
 			result.append(entry)
 	return result
 
+# Check if character has ANY storybook entry with a specific memory tag.
+# Used by Sim._check_requirements() for "has_memory_tag" condition.
+func has_storybook_tag(character: CharData, tag: String) -> bool:
+	for entry in character.storybook:
+		if tag in entry.get("memory_tags", []):
+			return true
+	return false
+
+
+# Return all storybook entries with a specific tag + their indices.
+# Used by actions like betray_secret to find the right memory.
+func get_entries_with_tag(character: CharData, tag: String) -> Array:
+	var result: Array = []
+	for i in range(character.storybook.size()):
+		var entry: Dictionary = character.storybook[i]
+		if tag in entry.get("memory_tags", []):
+			result.append({"index": i, "entry": entry})
+	return result
 
 # Increment times_recalled and update last_recalled_day on a storybook entry.
 # Called when THINK_ABOUT surfaces an old memory.

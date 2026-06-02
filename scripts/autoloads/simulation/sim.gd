@@ -72,9 +72,14 @@ func _on_half_hour() -> void:
 	for character in Registry.get_all():
 		if character.is_sleeping:
 			Actions.modify_stat(character, "energy", 8.0)
+			Actions.modify_stat(character, "stress", -2.0)
 		else:
 			Actions.modify_stat(character, "boredom", 3.0)
-			Actions.modify_stat(character, "energy", -3.0)  
+			Actions.modify_stat(character, "energy", -3.0)
+			Actions.modify_stat(character, "stress", 2.0)
+			Actions.modify_stat(character, "hunger", 1.0)
+			Actions.modify_stat(character, "need_for_toilet", 1)
+			Actions.modify_stat(character, "horniness", 0.2)
 		if character.is_in_transit:
 			continue
 
@@ -621,6 +626,11 @@ func _check_requirements(character: CharData, reqs: Dictionary) -> bool:
 			var threshold: float = float(reqs["faction_sentiment_below"][faction])
 			if character.faction_sentiment.get(faction, 50.0) >= threshold:
 				return false
+	
+	# has_memory_tag — character has at least one storybook entry with this tag
+	if reqs.has("has_memory_tag"):
+		if not Memory.has_storybook_tag(character, reqs["has_memory_tag"]):
+			return false
 	return true
 
 # ─────────────────────────────────────────────────────────────
@@ -765,7 +775,7 @@ func _echo(character: CharData, _target, event_key: String,
 		"target_id":         target_id,
 		"magnitude":         event_def.get("magnitude", "minor"),
 		"memorable": event_def.get("magnitude", "minor") in ["moderate", "major", "huge"],
-		"memory_tags":       [],
+		"memory_tags":       event_def.get("memory_tags", []),
 		"times_recalled":    0,
 		"last_recalled_day": 0,
 		"pinned_to_story":   false,

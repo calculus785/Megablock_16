@@ -108,6 +108,11 @@ func call_action(action_name: String, character: CharData, target, args: Diction
 		"apologise":               return _apologise(character, target, args)
 		"share_story":             return _share_story(character, target, args)
 		"vent_to_friend":          return _vent_to_friend(character, target, args)
+		"share_secret":            return _share_secret(character, target, args)
+		"betray_secret":           return _betray_secret(character, target, args)
+		"mock":                    return _mock(character, target, args)
+		"cold_shoulder":           return _cold_shoulder(character, target, args)
+		"provoke":                 return _provoke(character, target, args)
 		_:
 			push_warning("[Actions] Unknown action: '%s'" % action_name)
 			return DONE
@@ -984,4 +989,146 @@ func _spill_drink(_character: CharData, _target, _args: Dictionary) -> String:
 
 func _physical_fight(character: CharData, _target, _args: Dictionary) -> String:
 	character.trait_progress["fights"] = character.trait_progress.get("fights", 0) + 1
+	return DONE
+
+# ═════════════════════════════════════════════════════════════
+# RIVALRY & CONFLICT
+# ═════════════════════════════════════════════════════════════
+
+func _share_secret(character: CharData, target, _args: Dictionary) -> String:
+	if not target is CharData:
+		return DONE
+
+	# Write a "secret_received" tagged memory to target's storybook.
+	# This is what BETRAY_SECRET checks for later.
+	Memory.write_storybook(target, {
+		"event_key":         "SHARE_SECRET",
+		"summary":           "%s trusted %s with something personal." % [
+			character.char_name, target.char_name],
+		"at_tick":           Clock.get_total_days(),
+		"target_id":         character.char_id,
+		"magnitude":         "moderate",
+		"memorable":         true,
+		"memory_tags":       ["secret_received"],
+		"times_recalled":    0,
+		"last_recalled_day": 0,
+		"pinned_to_story":   false,
+	})
+
+	# Extra trust on top of the outcome-driven deltas
+	Relationships.modify_trust(character.char_id, target.char_id, 8.0)
+
+	if Settings.debug_console_logging:
+		print("[Actions] 🤫 %s shared a secret with %s" % [
+			character.char_name, target.char_name])
+	return DONE
+
+
+func _betray_secret(character: CharData, target, _args: Dictionary) -> String:
+	if not target is CharData:
+		return DONE
+
+	# Find a secret this character was trusted with
+	var secrets: Array = Memory.get_entries_with_tag(character, "secret_received")
+	if secrets.is_empty():
+		return DONE
+
+	var picked: Dictionary = secrets[randi() % secrets.size()]
+	var original_sharer_id: String = picked["entry"].get("target_id", "")
+
+	# Write secondhand memory to the person being told
+	Memory.write_storybook(target, {
+		"event_key":         "BETRAY_SECRET",
+		"summary":           "%s spilled someone's secret to %s." % [
+			character.char_name, target.char_name],
+		"at_tick":           Clock.get_total_days(),
+		"target_id":         original_sharer_id,
+		"magnitude":         "moderate",
+		"memorable":         true,
+		"memory_tags":       ["secret_secondhand"],
+		"times_recalled":    0,
+		"last_recalled_day": 0,
+		"pinned_to_story":   false,
+	})
+
+	# The original secret-sharer finds out — massive trust damage
+	if original_sharer_id != "":
+		Relationships.modify_trust(original_sharer_id, character.char_id, -15.0)
+		Relationships.modify_bond(original_sharer_id, character.char_id, -10.0)
+		Relationships.modify_rivalry(original_sharer_id, character.char_id, 8.0)
+		Relationships.set_directional_feeling(
+			original_sharer_id, character.char_id, "RESENTFUL", 1.0)
+
+		var original: CharData = Registry.get_character(original_sharer_id)
+		if original:
+			FeelingDriver.push(original, "FURIOUS", {
+				"event_key": "secret_betrayed",
+				"at_tick": Clock.get_total_days(),
+				"summary": "%s told someone their secret" % character.char_name,
+			})
+
+		if Settings.debug_console_logging:
+			var orig_name: String = original.char_name if original else "someone"
+			print("[Actions] 🗡️ %s betrayed %s's secret to %s" % [
+				character.char_name, orig_name, target.char_name])
+
+	character.trait_progress["secrets_betrayed"] = \
+		character.trait_progress.get("secrets_betrayed", 0) + 1
+	return DONE
+
+
+func _mock(character: CharData, target, _args: Dictionary) -> String:
+	if not target is CharData:
+		return DONE
+
+	# If target has SHORT_TEMPERED, the humiliation turns to fury
+	if "SHORT_TEMPERED" in target.get_all_active_traits():
+		FeelingDriver.push(target, "FURIOUS", {
+			"event_key": "mock",
+			"at_tick": Clock.get_total_days(),
+			"summary": "%s mocked them in front of everyone" % character.char_name,
+		})
+
+	character.trait_progress["insults_given"] = \
+		character.trait_progress.get("insults_given", 0) + 1
+
+	if Settings.debug_console_logging:
+		print("[Actions] 🎭 %s mocked %s" % [
+			character.char_name, target.char_name])
+	return DONE
+
+
+func _cold_shoulder(_character: CharData, target, _args: Dictionary) -> String:
+	if not target is CharData:
+		return DONE
+
+	# The target feels the snub — push BITTER toward the actor
+	Relationships.set_directional_feeling(
+		target.char_id, _character.char_id, "BITTER", 1.0)
+
+	if Settings.debug_console_logging:
+		print("[Actions] 🧊 %s gave %s the cold shoulder" % [
+			_character.char_name, target.char_name])
+	return DONE
+
+
+func _provoke(character: CharData, target, _args: Dictionary) -> String:
+	if not target is CharData:
+		return DONE
+
+	# If target is SHORT_TEMPERED or already very stressed, they snap harder
+	var target_traits: Array = target.get_all_active_traits()
+	if "SHORT_TEMPERED" in target_traits or target.stats.get("stress", 0.0) > 70.0:
+		FeelingDriver.push(target, "FURIOUS", {
+			"event_key": "provoke",
+			"at_tick": Clock.get_total_days(),
+			"summary": "%s deliberately pushed them" % character.char_name,
+		})
+
+	character.trait_progress["provocations"] = \
+		character.trait_progress.get("provocations", 0) + 1
+
+	if Settings.debug_console_logging:
+		print("[Actions] 🔥 %s provoked %s" % [
+			character.char_name, target.char_name])
 	return DONE
