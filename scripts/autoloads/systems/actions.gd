@@ -971,8 +971,138 @@ func _confront(character: CharData, _target, _args: Dictionary) -> String:
 	return DONE
 
 
-func _gossip(character: CharData, _target, _args: Dictionary) -> String:
-	character.trait_progress["gossip_shared"] = character.trait_progress.get("gossip_shared", 0) + 1
+func _gossip(character: CharData, target, _args: Dictionary) -> String:
+	# Always increment the trait evolution counter
+	character.trait_progress["gossip_shared"] = \
+		character.trait_progress.get("gossip_shared", 0) + 1
+
+	if not target is CharData:
+		return DONE
+
+	# ── Pick something to gossip about ──────────────────────
+	var result = Memory.pick_gossipable_entry(character, target)
+
+	if result == null:
+		# Nothing juicy to share — event still fired socially, just no transfer
+		if Settings.debug_console_logging:
+			print("[Actions] 🗣️ %s gossiped to %s — nothing juicy to share" % [
+				character.char_name, target.char_name])
+		return DONE
+
+	var entry: Dictionary = result["entry"]
+	var entry_index: int = result["index"]
+	var subject_id: String = entry.get("target_id", "")
+
+	# ── Mark as shared to this target ───────────────────────
+	if not entry.has("shared_to"):
+		character.storybook[entry_index]["shared_to"] = []
+	character.storybook[entry_index]["shared_to"].append(target.char_id)
+
+	# ── Write secondhand memory on the target ───────────────
+	var secondhand: Dictionary = Memory.write_secondhand_storybook(
+		target, character, entry)
+
+	# ── Tone-based stat adjustments on the TARGET ───────────
+	# Hearing good things about someone → warm feelings toward them
+	# Hearing bad things → suspicion / dislike toward them
+	var tone: String = entry.get("tone", "neutral")
+	var subject_char: CharData = Registry.get_character(subject_id)
+	var subject_name: String = subject_char.char_name if subject_char else "someone"
+
+	if subject_id != "" and subject_id != target.char_id:
+		match tone:
+			"negative":
+				# Target now thinks less of the subject
+				Relationships.modify_bond(target.char_id, subject_id, -3.0)
+				Relationships.modify_trust(target.char_id, subject_id, -2.0)
+				modify_stat(target, "stress", 3.0)
+				if Settings.debug_console_logging:
+					print("[Actions] 🗣️ %s told %s something bad about %s → bond -3, trust -2" % [
+						character.char_name, target.char_name, subject_name])
+			"positive":
+				# Target now thinks better of the subject
+				Relationships.modify_bond(target.char_id, subject_id, 2.0)
+				modify_stat(target, "happiness", 2.0)
+				if Settings.debug_console_logging:
+					print("[Actions] 🗣️ %s told %s something nice about %s → bond +2" % [
+						character.char_name, target.char_name, subject_name])
+			_:
+				if Settings.debug_console_logging:
+					print("[Actions] 🗣️ %s told %s about %s — neutral gossip" % [
+						character.char_name, target.char_name, subject_name])
+
+	# ── Subject fame adjustment ─────────────────────────────
+	# Being talked about raises reputation (good or bad — fame is fame)
+	if subject_char:
+		var fame_delta: float = 1.0
+		if tone == "negative":
+			fame_delta = 2.0  # scandals spread faster
+		modify_stat(subject_char, "global_reputation", fame_delta)
+
+	# ── Check: is the target the SUBJECT of the gossip? ────
+	# "Hey Sara, did you hear about... wait, that's YOU"
+	# This shouldn't normally happen (pick_gossipable_entry excludes it)
+	# but secondhand entries might loop back. Handle defensively.
+	if subject_id == target.char_id:
+		FeelingDriver.push(target, "HUMILIATED", {
+			"event_key": "heard_gossip_about_self",
+			"at_tick": Clock.get_total_days(),
+			"summary": "%s was gossiping about me" % character.char_name,
+		})
+		Relationships.modify_bond(target.char_id, character.char_id, -5.0)
+		Relationships.modify_trust(target.char_id, character.char_id, -8.0)
+		if Settings.debug_console_logging:
+			print("[Actions] 🗣️😳 %s accidentally gossiped about %s TO %s!" % [
+				character.char_name, target.char_name, target.char_name])
+		return DONE
+
+	# ── LISTEN_IN: bystanders overhear ──────────────────────
+	var room_id: String = character.current_room
+	if room_id != "":
+		var occupants: Array = Rooms.get_occupants(room_id)
+		for occ_id in occupants:
+			# Skip the gossiper and the target — they're already involved
+			if occ_id == character.char_id or occ_id == target.char_id:
+				continue
+
+			var bystander: CharData = Registry.get_character(occ_id)
+			if bystander == null or bystander.is_sleeping:
+				continue
+
+			# 25% base chance to overhear. NOSY trait doubles it.
+			var listen_chance: float = 0.25
+			if "NOSY" in bystander.get_all_active_traits():
+				listen_chance = 0.50
+			# OBLIVIOUS trait halves it
+			if "OBLIVIOUS" in bystander.get_all_active_traits():
+				listen_chance *= 0.5
+
+			if randf() > listen_chance:
+				continue
+
+			# Check bystander hasn't already heard this specific gossip
+			var already_shared: Array = entry.get("shared_to", [])
+			if occ_id in already_shared:
+				continue
+
+			# Bystander overhears — gets the same secondhand entry
+			Memory.write_secondhand_storybook(bystander, character, entry)
+
+			# Mark them in shared_to as well
+			character.storybook[entry_index]["shared_to"].append(occ_id)
+
+			# Bystander also gets tone-based relationship shift toward subject
+			if subject_id != "" and subject_id != occ_id:
+				match tone:
+					"negative":
+						Relationships.modify_bond(occ_id, subject_id, -2.0)
+					"positive":
+						Relationships.modify_bond(occ_id, subject_id, 1.0)
+
+			if Settings.debug_console_logging:
+				print("[Actions] 👂 %s overheard %s gossiping about %s" % [
+					bystander.char_name, character.char_name, subject_name])
+
 	return DONE
 
 

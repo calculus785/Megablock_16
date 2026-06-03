@@ -112,6 +112,10 @@ extends Resource
 # Entry shape: { intent_key, priority, target, patience, clearable }
 @export var intent_queue: Array = []
 
+# Secrets this character knows about. Each entry is a dictionary:
+# { secret_id, original_owner_id, content, shared_by_id,
+#   betrayal_chain_known, betrayer_id, heard_at_tick }
+@export var secrets: Array = []
 
 # ═════════════════════════════════════════════════════════════
 # LOCATION & MOVEMENT

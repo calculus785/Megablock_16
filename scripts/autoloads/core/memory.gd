@@ -381,6 +381,184 @@ func get_impression_tier(character: CharData, interactable_key: String) -> Strin
 	var score: int = get_impression(character, interactable_key)
 	return Interactables.get_impression_tier(score)
 
+# ─────────────────────────────────────────────────────────────
+# SECRETS
+# Knowledge-as-inventory. Characters hold secrets about others.
+# Created by SHARE_SECRET, copied by BETRAY_SECRET / gossip.
+# Queried by TELL_ON to check if chain is traceable.
+#
+# Entry shape:
+#   { secret_id: String,             — unique, e.g. "secret_sara_001"
+#     original_owner_id: String,     — who the secret belongs to
+#     content: String,               — "Sara got fired from her job"
+#     shared_by_id: String,          — who gave YOU this copy
+#     betrayal_chain_known: bool,    — can you trace back to the betrayer?
+#     betrayer_id: String,           — the first person who leaked it ("" if unknown)
+#     heard_at_tick: int }
+# ─────────────────────────────────────────────────────────────
+
+# Generate a unique secret ID from the owner's char_id.
+func generate_secret_id(owner_id: String) -> String:
+	var count: int = 0
+	for character in Registry.get_all():
+		for secret in character.secrets:
+			if secret.get("original_owner_id", "") == owner_id:
+				count += 1
+	return "secret_%s_%03d" % [owner_id, count]
+
+
+# Add a secret to a character's knowledge.
+func add_secret(character: CharData, secret: Dictionary) -> void:
+	character.secrets.append(secret)
+	if Settings.debug_console_logging:
+		var owner_char: CharData = Registry.get_character(
+			secret.get("original_owner_id", ""))
+		var owner_name: String = owner_char.char_name if owner_char else "unknown"
+		print("[Memory] 🤫 %s now knows a secret about %s" % [
+			character.char_name, owner_name])
+
+
+# Check if character already knows a specific secret by ID.
+func has_secret(character: CharData, secret_id: String) -> bool:
+	for secret in character.secrets:
+		if secret.get("secret_id", "") == secret_id:
+			return true
+	return false
+
+
+# Check if character holds ANY secrets at all.
+func has_any_secrets(character: CharData) -> bool:
+	return not character.secrets.is_empty()
+
+
+# Get all secrets this character knows about a specific person.
+func get_secrets_about(character: CharData, owner_id: String) -> Array:
+	var result: Array = []
+	for secret in character.secrets:
+		if secret.get("original_owner_id", "") == owner_id:
+			result.append(secret)
+	return result
+
+
+# Get secrets where betrayal chain is known — eligible for TELL_ON.
+# Excludes secrets where the character IS the original owner.
+func get_tellable_secrets(character: CharData) -> Array:
+	var result: Array = []
+	for secret in character.secrets:
+		if secret.get("betrayal_chain_known", false) \
+				and secret.get("original_owner_id", "") != character.char_id:
+			result.append(secret)
+	return result
+
+
+# Get secrets this character could betray (they're not the original owner).
+func get_betrayable_secrets(character: CharData) -> Array:
+	var result: Array = []
+	for secret in character.secrets:
+		if secret.get("original_owner_id", "") != character.char_id:
+			result.append(secret)
+	return result
+
+
+# ─────────────────────────────────────────────────────────────
+# GOSSIP HELPERS
+# Used by _gossip() in actions.gd to find transferable memories
+# and write secondhand entries on the listener.
+# ─────────────────────────────────────────────────────────────
+
+# Pick a storybook entry suitable for gossiping to a specific target.
+# Must be: memorable, about a third party (not self, not the target),
+# and not already shared to this target.
+# Prefers negative/shocking entries. GOSSIP trait widens the pool.
+# Returns { "index": int, "entry": Dictionary } or null.
+func pick_gossipable_entry(gossiper: CharData, target: CharData):
+	var pool: Array = []
+	var total_weight: int = 0
+	var has_gossip_trait: bool = "GOSSIP" in gossiper.get_all_active_traits()
+
+	for i in range(gossiper.storybook.size()):
+		var entry: Dictionary = gossiper.storybook[i]
+
+		# Must be memorable
+		if not entry.get("memorable", false):
+			continue
+
+		# Must involve a third party
+		var subject_id: String = entry.get("target_id", "")
+		if subject_id == "" or subject_id == gossiper.char_id:
+			continue
+		if subject_id == target.char_id:
+			continue
+
+		# Check shared_to — skip if target already heard this one
+		var shared_to: Array = entry.get("shared_to", [])
+		if target.char_id in shared_to:
+			continue
+
+		# Weight by tone — negative/shocking gossip is juicier
+		var tone: String = entry.get("tone", "neutral")
+		var weight: int = 1
+		if tone == "negative":
+			weight = 4
+		elif tone == "positive":
+			weight = 2
+
+		# Secondhand gossip (stuff heard from others) is extra shareable
+		if entry.get("secondhand", false):
+			weight += 1
+
+		# GOSSIP trait characters share everything more freely
+		if has_gossip_trait:
+			weight += 2
+
+		pool.append({"index": i, "weight": weight})
+		total_weight += weight
+
+	if pool.is_empty():
+		return null
+
+	# Weighted pick
+	var roll: int = randi_range(1, total_weight)
+	var running: int = 0
+	for item in pool:
+		running += item["weight"]
+		if roll <= running:
+			return {"index": item["index"],
+					"entry": gossiper.storybook[item["index"]]}
+
+	var last: Dictionary = pool.back()
+	return {"index": last["index"], "entry": gossiper.storybook[last["index"]]}
+
+
+# Write a secondhand storybook entry on the listener.
+# This is how gossip spreads knowledge through the building.
+# Returns the new entry dictionary (for logging / further use).
+func write_secondhand_storybook(listener: CharData, gossiper: CharData,
+		original_entry: Dictionary) -> Dictionary:
+
+	var subject_id: String = original_entry.get("target_id", "")
+	var subject_char: CharData = Registry.get_character(subject_id)
+	var subject_name: String = subject_char.char_name if subject_char else "someone"
+	var original_summary: String = original_entry.get("summary", "something")
+
+	var secondhand_entry: Dictionary = {
+		"event_key":         "GOSSIP_HEARD",
+		"summary":           "Heard from %s: %s" % [gossiper.char_name, original_summary],
+		"at_tick":           Clock.get_total_days(),
+		"target_id":         subject_id,
+		"magnitude":         original_entry.get("magnitude", "minor"),
+		"memorable":         true,
+		"memory_tags":       ["gossip", "secondhand"],
+		"times_recalled":    0,
+		"last_recalled_day": 0,
+		"pinned_to_story":   false,
+		"secondhand":        true,
+		"source_id":         gossiper.char_id,
+		"original_event_key": original_entry.get("event_key", ""),
+	}
+
+	write_storybook(listener, secondhand_entry)
+	return secondhand_entry
 
 # ─────────────────────────────────────────────────────────────
 # DAILY PRUNING
