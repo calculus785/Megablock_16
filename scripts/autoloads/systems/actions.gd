@@ -113,6 +113,7 @@ func call_action(action_name: String, character: CharData, target, args: Diction
 		"mock":                    return _mock(character, target, args)
 		"cold_shoulder":           return _cold_shoulder(character, target, args)
 		"provoke":                 return _provoke(character, target, args)
+		"tell_on": return _tell_on(character, target, args)
 		_:
 			push_warning("[Actions] Unknown action: '%s'" % action_name)
 			return DONE
@@ -138,6 +139,57 @@ func modify_faction(character: CharData, faction: String, delta: float) -> void:
 			character.char_name, faction, delta,
 			character.faction_sentiment[faction]
 		])
+
+# ── AVOIDANCE HELPER ────────────────────────────────────────
+# Called by negative social actions to maybe push AVOIDING feeling.
+# Chance and duration are base values, modified by traits.
+func _maybe_push_avoidance(character: CharData, avoided: CharData,
+		base_chance: float, base_hours: float, reason: String) -> void:
+	# Don't double-push if already avoiding this person
+	if FeelingDriver.has_feeling(character, "AVOIDING", avoided.char_id):
+		return
+	var chance: float = base_chance
+	var hours: float = base_hours
+
+	var my_traits: Array = character.get_all_active_traits()
+	if "SHORT_TEMPERED" in my_traits:
+		chance += 0.20
+	if "STUBBORN" in my_traits:
+		hours *= 1.5
+	if "FORGIVING" in my_traits:
+		hours *= 0.5
+		chance -= 0.15
+	if "LONER" in my_traits:
+		chance += 0.15
+
+	chance = clampf(chance, 0.10, 0.95)
+
+	if randf() >= chance:
+		return
+
+	# Guard: char_id must be valid before pushing
+	if avoided.char_id == null or avoided.char_id == "":
+		return
+
+	FeelingDriver.push(character, "AVOIDING", {
+		"event_key": reason,
+		"at_tick": Clock.get_total_days(),
+		"summary": "avoiding %s" % avoided.char_name,
+		"target_id": avoided.char_id,
+		"hours": hours,
+	})
+
+	FeelingDriver.push(character, "AVOIDING", {
+		"event_key": reason,
+		"at_tick": Clock.get_total_days(),
+		"summary": "avoiding %s" % avoided.char_name,
+		"target_id": avoided.char_id,
+		"hours": hours,
+	})
+
+	if Settings.debug_console_logging:
+		print("[Actions] 🚷 %s is now avoiding %s (%.0fh)" % [
+			character.char_name, avoided.char_name, hours])
 # ── MOVEMENT — room to room ─────────────────────────────────
 
 func start_movement(character: CharData, dest_room: String) -> void:
@@ -817,13 +869,13 @@ func _flirt(character: CharData, target, _args: Dictionary) -> String:
 			target.char_id, character.char_id, "FLIRTY", 1.0)
 		Relationships.modify_bond(character.char_id, target.char_id, 3.0)
 		if Settings.debug_console_logging:
-			print("[Actions] 💕 %s flirted with %s → reciprocated!" % [
+			print("[Actions] 💨 %s flirted with %s → reciprocated!" % [
 				character.char_name, target.char_name])
 	else:
 		# Rejected — mild awkwardness
 		modify_stat(character, "stress", 3.0)
 		if Settings.debug_console_logging:
-			print("[Actions] 💔 %s flirted with %s → not reciprocated" % [
+			print("[Actions] 💨 %s flirted with %s → not reciprocated" % [
 				character.char_name, target.char_name])
  
 	return DONE
@@ -966,24 +1018,30 @@ func _vent_to_friend(character: CharData, target, _args: Dictionary) -> String:
 		Relationships.modify_trust(character.char_id, target.char_id, 3.0)
 	return DONE
 
-func _confront(character: CharData, _target, _args: Dictionary) -> String:
+func _confront(character: CharData, target, _args: Dictionary) -> String:
 	FeelingDriver.remove(character, "FURIOUS")
+	if target is CharData:
+		# Target may want to avoid the confronter
+		_maybe_push_avoidance(target, character, 0.50, 12.0, "confronted_by")
 	return DONE
 
 
 func _gossip(character: CharData, target, _args: Dictionary) -> String:
-	# Always increment the trait evolution counter
 	character.trait_progress["gossip_shared"] = \
 		character.trait_progress.get("gossip_shared", 0) + 1
 
 	if not target is CharData:
+		return DONE
+	if target.char_id == character.char_id:
+		return DONE
+	# Guard: never gossip to yourself (catches force-fire misuse)
+	if target.char_id == character.char_id:
 		return DONE
 
 	# ── Pick something to gossip about ──────────────────────
 	var result = Memory.pick_gossipable_entry(character, target)
 
 	if result == null:
-		# Nothing juicy to share — event still fired socially, just no transfer
 		if Settings.debug_console_logging:
 			print("[Actions] 🗣️ %s gossiped to %s — nothing juicy to share" % [
 				character.char_name, target.char_name])
@@ -1003,8 +1061,6 @@ func _gossip(character: CharData, target, _args: Dictionary) -> String:
 		target, character, entry)
 
 	# ── Tone-based stat adjustments on the TARGET ───────────
-	# Hearing good things about someone → warm feelings toward them
-	# Hearing bad things → suspicion / dislike toward them
 	var tone: String = entry.get("tone", "neutral")
 	var subject_char: CharData = Registry.get_character(subject_id)
 	var subject_name: String = subject_char.char_name if subject_char else "someone"
@@ -1012,7 +1068,6 @@ func _gossip(character: CharData, target, _args: Dictionary) -> String:
 	if subject_id != "" and subject_id != target.char_id:
 		match tone:
 			"negative":
-				# Target now thinks less of the subject
 				Relationships.modify_bond(target.char_id, subject_id, -3.0)
 				Relationships.modify_trust(target.char_id, subject_id, -2.0)
 				modify_stat(target, "stress", 3.0)
@@ -1020,7 +1075,6 @@ func _gossip(character: CharData, target, _args: Dictionary) -> String:
 					print("[Actions] 🗣️ %s told %s something bad about %s → bond -3, trust -2" % [
 						character.char_name, target.char_name, subject_name])
 			"positive":
-				# Target now thinks better of the subject
 				Relationships.modify_bond(target.char_id, subject_id, 2.0)
 				modify_stat(target, "happiness", 2.0)
 				if Settings.debug_console_logging:
@@ -1032,23 +1086,26 @@ func _gossip(character: CharData, target, _args: Dictionary) -> String:
 						character.char_name, target.char_name, subject_name])
 
 	# ── Subject fame adjustment ─────────────────────────────
-	# Being talked about raises reputation (good or bad — fame is fame)
 	if subject_char:
-		var fame_delta: float = 1.0
-		if tone == "negative":
-			fame_delta = 2.0  # scandals spread faster
-		modify_stat(subject_char, "global_reputation", fame_delta)
+		match tone:
+			"positive":
+				modify_stat(subject_char, "global_reputation", 2.0)
+			"negative":
+				modify_stat(subject_char, "global_reputation", -2.0)
+			_:
+				modify_stat(subject_char, "global_reputation", 1.0)
+
+	# ── Secret propagation via gossip ───────────────────────
+	_propagate_secret_via_gossip(character, target, entry)
 
 	# ── Check: is the target the SUBJECT of the gossip? ────
-	# "Hey Sara, did you hear about... wait, that's YOU"
-	# This shouldn't normally happen (pick_gossipable_entry excludes it)
-	# but secondhand entries might loop back. Handle defensively.
 	if subject_id == target.char_id:
 		FeelingDriver.push(target, "HUMILIATED", {
 			"event_key": "heard_gossip_about_self",
 			"at_tick": Clock.get_total_days(),
 			"summary": "%s was gossiping about me" % character.char_name,
 		})
+		_maybe_push_avoidance(target, character, 0.70, 12.0, "gossiped_about_me_to_my_face")
 		Relationships.modify_bond(target.char_id, character.char_id, -5.0)
 		Relationships.modify_trust(target.char_id, character.char_id, -8.0)
 		if Settings.debug_console_logging:
@@ -1061,7 +1118,6 @@ func _gossip(character: CharData, target, _args: Dictionary) -> String:
 	if room_id != "":
 		var occupants: Array = Rooms.get_occupants(room_id)
 		for occ_id in occupants:
-			# Skip the gossiper and the target — they're already involved
 			if occ_id == character.char_id or occ_id == target.char_id:
 				continue
 
@@ -1069,29 +1125,54 @@ func _gossip(character: CharData, target, _args: Dictionary) -> String:
 			if bystander == null or bystander.is_sleeping:
 				continue
 
-			# 25% base chance to overhear. NOSY trait doubles it.
 			var listen_chance: float = 0.25
 			if "NOSY" in bystander.get_all_active_traits():
 				listen_chance = 0.50
-			# OBLIVIOUS trait halves it
 			if "OBLIVIOUS" in bystander.get_all_active_traits():
 				listen_chance *= 0.5
 
 			if randf() > listen_chance:
 				continue
 
-			# Check bystander hasn't already heard this specific gossip
 			var already_shared: Array = entry.get("shared_to", [])
 			if occ_id in already_shared:
 				continue
 
-			# Bystander overhears — gets the same secondhand entry
-			Memory.write_secondhand_storybook(bystander, character, entry)
+			# ── Bystander heard gossip about THEMSELVES ─────
+			if subject_id == occ_id:
+				FeelingDriver.push(bystander, "HUMILIATED", {
+					"event_key": "overheard_gossip_about_self",
+					"at_tick": Clock.get_total_days(),
+					"summary": "overheard %s gossiping about me" % character.char_name,
+				})
+				Relationships.modify_bond(occ_id, character.char_id, -5.0)
+				Relationships.modify_trust(occ_id, character.char_id, -8.0)
+				Memory.write_storybook(bystander, {
+					"event_key":         "OVERHEARD_GOSSIP_ABOUT_SELF",
+					"summary":           "%s overheard %s talking about them behind their back." % [
+						bystander.char_name, character.char_name],
+					"at_tick":           Clock.get_total_days(),
+					"target_id":         character.char_id,
+					"magnitude":         "moderate",
+					"memorable":         true,
+					"memory_tags":       ["overheard_gossip"],
+					"times_recalled":    0,
+					"last_recalled_day": 0,
+					"pinned_to_story":   false,
+				})
+				character.storybook[entry_index]["shared_to"].append(occ_id)
+				if Settings.debug_console_logging:
+					print("[Actions] 👂😳 %s overheard %s gossiping about THEM!" % [
+						bystander.char_name, character.char_name])
+				continue
 
-			# Mark them in shared_to as well
+			# ── Normal overhear ─────────────────────────────
+			Memory.write_secondhand_storybook(bystander, character, entry)
 			character.storybook[entry_index]["shared_to"].append(occ_id)
 
-			# Bystander also gets tone-based relationship shift toward subject
+			# Secret propagation for bystander too
+			_propagate_secret_via_gossip(character, bystander, entry)
+
 			if subject_id != "" and subject_id != occ_id:
 				match tone:
 					"negative":
@@ -1106,6 +1187,38 @@ func _gossip(character: CharData, target, _args: Dictionary) -> String:
 	return DONE
 
 
+# Helper: when gossip involves a secret, copy the secret to the listener.
+# Gossip-spread secrets always have betrayal_chain_known = false.
+func _propagate_secret_via_gossip(gossiper: CharData, listener: CharData,
+		entry: Dictionary) -> void:
+	var gossip_secret_id: String = entry.get("secret_id", "")
+	if gossip_secret_id == "":
+		return
+	if Memory.has_secret(listener, gossip_secret_id):
+		return
+	for sec in gossiper.secrets:
+		if sec.get("secret_id", "") == gossip_secret_id:
+			# Don't give people copies of their own secret
+			if listener.char_id == sec.get("original_owner_id", ""):
+				return
+			Memory.add_secret(listener, {
+				"secret_id": gossip_secret_id,
+				"original_owner_id": sec.get("original_owner_id", ""),
+				"content": sec.get("content", ""),
+				"shared_by_id": gossiper.char_id,
+				"betrayal_chain_known": false,
+				"betrayer_id": "",
+				"heard_at_tick": Clock.get_total_days(),
+			})
+			if Settings.debug_console_logging:
+				var owner: CharData = Registry.get_character(
+					sec.get("original_owner_id", ""))
+				var owner_name: String = owner.char_name if owner else "someone"
+				print("[Actions] 🤫📢 %s now knows %s's secret via gossip" % [
+					listener.char_name, owner_name])
+			break
+
+
 func _reminisce_together(character: CharData, _target, _args: Dictionary) -> String:
 	var result = Memory.pick_random_memorable(character)
 	if result:
@@ -1117,8 +1230,12 @@ func _spill_drink(_character: CharData, _target, _args: Dictionary) -> String:
 	return DONE
 
 
-func _physical_fight(character: CharData, _target, _args: Dictionary) -> String:
+func _physical_fight(character: CharData, target, _args: Dictionary) -> String:
 	character.trait_progress["fights"] = character.trait_progress.get("fights", 0) + 1
+	if target is CharData:
+		# Both sides want distance after a fight
+		_maybe_push_avoidance(character, target, 0.80, 24.0, "fought_with")
+		_maybe_push_avoidance(target, character, 0.80, 24.0, "fought_with")
 	return DONE
 
 # ═════════════════════════════════════════════════════════════
@@ -1129,8 +1246,38 @@ func _share_secret(character: CharData, target, _args: Dictionary) -> String:
 	if not target is CharData:
 		return DONE
 
-	# Write a "secret_received" tagged memory to target's storybook.
-	# This is what BETRAY_SECRET checks for later.
+	# ── Generate secret content from character's life ───────
+	var content: String = ""
+	var memorable: Array = Memory.get_memorable_entries(character)
+	var candidates: Array = []
+	for mem_entry in memorable:
+		var t: String = mem_entry.get("tone", "neutral")
+		if t in ["negative", "neutral"]:
+			candidates.append(mem_entry)
+	if not candidates.is_empty():
+		var picked: Dictionary = candidates[randi() % candidates.size()]
+		content = picked.get("summary", "something private about %s" % character.char_name)
+	else:
+		var templates: Array = [
+			"something personal about %s" % character.char_name,
+			"something %s has never told anyone" % character.char_name,
+			"a private matter involving %s" % character.char_name,
+		]
+		content = templates[randi() % templates.size()]
+
+	# ── Create the secret ───────────────────────────────────
+	var secret_id: String = Memory.generate_secret_id(character.char_id)
+	# Target's copy — they received it directly from the owner
+	Memory.add_secret(target, {
+		"secret_id": secret_id,
+		"original_owner_id": character.char_id,
+		"content": content,
+		"shared_by_id": character.char_id,
+		"betrayal_chain_known": false,
+		"betrayer_id": "",
+		"heard_at_tick": Clock.get_total_days(),
+	})
+	# ── Storybook on target (what BETRAY_SECRET checks for) ─
 	Memory.write_storybook(target, {
 		"event_key":         "SHARE_SECRET",
 		"summary":           "%s trusted %s with something personal." % [
@@ -1143,67 +1290,89 @@ func _share_secret(character: CharData, target, _args: Dictionary) -> String:
 		"times_recalled":    0,
 		"last_recalled_day": 0,
 		"pinned_to_story":   false,
+		"secret_id":         secret_id,
 	})
 
-	# Extra trust on top of the outcome-driven deltas
 	Relationships.modify_trust(character.char_id, target.char_id, 8.0)
 
 	if Settings.debug_console_logging:
-		print("[Actions] 🤫 %s shared a secret with %s" % [
-			character.char_name, target.char_name])
+		print("[Actions] 🤫 %s shared a secret with %s (id: %s)" % [
+			character.char_name, target.char_name, secret_id])
 	return DONE
 
 
 func _betray_secret(character: CharData, target, _args: Dictionary) -> String:
+	character.trait_progress["gossip_shared"] = \
+		character.trait_progress.get("gossip_shared", 0) + 1
+
 	if not target is CharData:
 		return DONE
-
-	# Find a secret this character was trusted with
-	var secrets: Array = Memory.get_entries_with_tag(character, "secret_received")
-	if secrets.is_empty():
+	if target.char_id == character.char_id:
 		return DONE
 
-	var picked: Dictionary = secrets[randi() % secrets.size()]
-	var original_sharer_id: String = picked["entry"].get("target_id", "")
+	# ── Find a secret this character could betray ───────────
+	var betrayable: Array = Memory.get_betrayable_secrets(character)
+	if betrayable.is_empty():
+		if Settings.debug_console_logging:
+			print("[Actions] 💔 %s wanted to betray a secret but has none" % [
+				character.char_name])
+		return DONE
 
-	# Write secondhand memory to the person being told
+	var picked: Dictionary = betrayable[randi() % betrayable.size()]
+	var secret_id: String = picked.get("secret_id", "")
+	var original_owner_id: String = picked.get("original_owner_id", "")
+	var content: String = picked.get("content", "something")
+
+	# Skip if target already knows this secret
+	if Memory.has_secret(target, secret_id):
+		if Settings.debug_console_logging:
+			print("[Actions] 💔 %s tried to betray a secret to %s but they already knew" % [
+				character.char_name, target.char_name])
+		return DONE
+
+	# Skip if target IS the original owner (don't betray Sara's secret TO Sara)
+	if target.char_id == original_owner_id:
+		return DONE
+
+	# ── Copy the secret to the target ───────────────────────
+	# Target knows WHO betrayed it (the character telling them)
+	Memory.add_secret(target, {
+		"secret_id": secret_id,
+		"original_owner_id": original_owner_id,
+		"content": content,
+		"shared_by_id": character.char_id,
+		"betrayal_chain_known": true,
+		"betrayer_id": character.char_id,
+		"heard_at_tick": Clock.get_total_days(),
+	})
+
+	var original: CharData = Registry.get_character(original_owner_id)
+	var orig_name: String = original.char_name if original else "someone"
+
+	# ── Storybook on target — gates TELL_ON ─────────────────
 	Memory.write_storybook(target, {
 		"event_key":         "BETRAY_SECRET",
-		"summary":           "%s spilled someone's secret to %s." % [
-			character.char_name, target.char_name],
+		"summary":           "%s told %s something about %s that wasn't theirs to share." % [
+			character.char_name, target.char_name, orig_name],
 		"at_tick":           Clock.get_total_days(),
-		"target_id":         original_sharer_id,
+		"target_id":         original_owner_id,
 		"magnitude":         "moderate",
 		"memorable":         true,
-		"memory_tags":       ["secret_secondhand"],
+		"memory_tags":       ["betrayal_info", "secret_secondhand"],
 		"times_recalled":    0,
 		"last_recalled_day": 0,
 		"pinned_to_story":   false,
+		"secret_id":         secret_id,
 	})
 
-	# The original secret-sharer finds out — massive trust damage
-	if original_sharer_id != "":
-		Relationships.modify_trust(original_sharer_id, character.char_id, -15.0)
-		Relationships.modify_bond(original_sharer_id, character.char_id, -10.0)
-		Relationships.modify_rivalry(original_sharer_id, character.char_id, 8.0)
-		Relationships.set_directional_feeling(
-			original_sharer_id, character.char_id, "RESENTFUL", 1.0)
-
-		var original: CharData = Registry.get_character(original_sharer_id)
-		if original:
-			FeelingDriver.push(original, "FURIOUS", {
-				"event_key": "secret_betrayed",
-				"at_tick": Clock.get_total_days(),
-				"summary": "%s told someone their secret" % character.char_name,
-			})
-
-		if Settings.debug_console_logging:
-			var orig_name: String = original.char_name if original else "someone"
-			print("[Actions] 🗡️ %s betrayed %s's secret to %s" % [
-				character.char_name, orig_name, target.char_name])
+	if Settings.debug_console_logging:
+		print("[Actions] 💔 %s betrayed %s's secret to %s (no rivalry yet — needs TELL_ON)" % [
+			character.char_name, orig_name, target.char_name])
 
 	character.trait_progress["secrets_betrayed"] = \
 		character.trait_progress.get("secrets_betrayed", 0) + 1
+	
+	
 	return DONE
 
 
@@ -1261,4 +1430,91 @@ func _provoke(character: CharData, target, _args: Dictionary) -> String:
 	if Settings.debug_console_logging:
 		print("[Actions] 🔥 %s provoked %s" % [
 			character.char_name, target.char_name])
+	return DONE
+
+func _tell_on(character: CharData, _target, _args: Dictionary) -> String:
+	# ── Find a tellable secret where the original owner is in the room ──
+	var tellable: Array = Memory.get_tellable_secrets(character)
+	if tellable.is_empty():
+		return DONE
+
+	var room_id: String = character.current_room
+	var occupants: Array = Rooms.get_occupants(room_id) if room_id != "" else []
+
+	var chosen_secret: Dictionary = {}
+	var owner: CharData = null
+
+	for secret in tellable:
+		# Skip secrets we've already told the owner about
+		if secret.get("told_owner", false):
+			continue
+		var owner_id: String = secret.get("original_owner_id", "")
+		if owner_id in occupants:
+			owner = Registry.get_character(owner_id)
+			if owner and not owner.is_sleeping:
+				chosen_secret = secret
+				break
+
+	if chosen_secret.is_empty() or owner == null:
+		return DONE
+
+	var betrayer_id: String = chosen_secret.get("betrayer_id", "")
+	var betrayer: CharData = Registry.get_character(betrayer_id)
+	var betrayer_name: String = betrayer.char_name if betrayer else "someone"
+
+	# ── Owner finds out — rivalry toward the betrayer ───────
+	if betrayer_id != "":
+		Relationships.modify_trust(owner.char_id, betrayer_id, -15.0)
+		Relationships.modify_bond(owner.char_id, betrayer_id, -10.0)
+		Relationships.modify_rivalry(owner.char_id, betrayer_id, 8.0)
+		Relationships.set_directional_feeling(
+			owner.char_id, betrayer_id, "RESENTFUL", 1.0)
+
+		FeelingDriver.push(owner, "FURIOUS", {
+			"event_key": "secret_betrayed_told",
+			"at_tick": Clock.get_total_days(),
+			"summary": "%s told me that %s betrayed my secret" % [
+				character.char_name, betrayer_name],
+		})
+
+	# ── Owner also feels humiliated that the secret is out ──
+	FeelingDriver.push(owner, "HUMILIATED", {
+		"event_key": "secret_exposed",
+		"at_tick": Clock.get_total_days(),
+		"summary": "my secret is out — %s told me" % character.char_name,
+	})
+
+	# ── Owner's storybook — the betrayal moment ────────────
+	Memory.write_storybook(owner, {
+		"event_key":         "TOLD_ABOUT_BETRAYAL",
+		"summary":           "%s told %s that %s had betrayed their secret." % [
+			character.char_name, owner.char_name, betrayer_name],
+		"at_tick":           Clock.get_total_days(),
+		"target_id":         betrayer_id,
+		"magnitude":         "major",
+		"memorable":         true,
+		"memory_tags":       ["betrayal_discovered"],
+		"times_recalled":    0,
+		"last_recalled_day": 0,
+		"pinned_to_story":   false,
+	})
+
+	# ── Teller gains trust from the owner (did the right thing) ──
+	Relationships.modify_trust(owner.char_id, character.char_id, 5.0)
+	Relationships.modify_bond(owner.char_id, character.char_id, 3.0)
+
+	# ── Mark this secret as told so we don't repeat ─────────
+	chosen_secret["told_owner"] = true
+
+	if Settings.debug_console_logging:
+		print("[Actions] 🫵 %s told %s that %s betrayed their secret!" % [
+			character.char_name, owner.char_name, betrayer_name])
+	# Owner now avoids the betrayer
+	if betrayer_id != "" and betrayer:
+		_maybe_push_avoidance(owner, betrayer, 0.90, 48.0, "secret_betrayed_by")
+
+	if Settings.debug_console_logging:
+		print("[Actions] 🫵 %s told %s that %s betrayed their secret!" % [
+			character.char_name, owner.char_name, betrayer_name])
+
 	return DONE

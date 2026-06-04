@@ -539,27 +539,32 @@ func write_secondhand_storybook(listener: CharData, gossiper: CharData,
 	var subject_id: String = original_entry.get("target_id", "")
 	var subject_char: CharData = Registry.get_character(subject_id)
 	var subject_name: String = subject_char.char_name if subject_char else "someone"
+
+	# Always use the root summary — the original unwrapped event text.
+	# This prevents "Heard from X: Heard from Y: Heard from Z:..." nesting.
 	var original_summary: String = original_entry.get("summary", "something")
+	var root_summary: String = original_entry.get("root_summary", original_summary)
 
 	var secondhand_entry: Dictionary = {
-		"event_key":         "GOSSIP_HEARD",
-		"summary":           "Heard from %s: %s" % [gossiper.char_name, original_summary],
-		"at_tick":           Clock.get_total_days(),
-		"target_id":         subject_id,
-		"magnitude":         original_entry.get("magnitude", "minor"),
-		"memorable":         true,
-		"memory_tags":       ["gossip", "secondhand"],
-		"times_recalled":    0,
-		"last_recalled_day": 0,
-		"pinned_to_story":   false,
-		"secondhand":        true,
-		"source_id":         gossiper.char_id,
+		"event_key":          "GOSSIP_HEARD",
+		"summary":            "Heard from %s: %s" % [gossiper.char_name, root_summary],
+		"root_summary":       root_summary,
+		"at_tick":            Clock.get_total_days(),
+		"target_id":          subject_id,
+		"magnitude":          original_entry.get("magnitude", "minor"),
+		"memorable":          true,
+		"memory_tags":        ["gossip", "secondhand"],
+		"times_recalled":     0,
+		"last_recalled_day":  0,
+		"pinned_to_story":    false,
+		"secondhand":         true,
+		"source_id":          gossiper.char_id,
 		"original_event_key": original_entry.get("event_key", ""),
+		"secret_id":          original_entry.get("secret_id", ""),
 	}
 
 	write_storybook(listener, secondhand_entry)
 	return secondhand_entry
-
 # ─────────────────────────────────────────────────────────────
 # DAILY PRUNING
 # Connected to Clock.day_ticked. Runs for every character.

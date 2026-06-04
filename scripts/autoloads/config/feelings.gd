@@ -221,6 +221,15 @@ const FEELINGS: Dictionary = {
 	"can_be_hidden": true,
 	"can_be_targeted": false,
 },
+"AVOIDING": {
+	"label": "Avoiding",
+	"description": "Actively trying to stay away from someone. Can't be in the same room.",
+	"duration_hours": 12,
+	"drift_modifiers": { "stress": 2, "happiness": -1 },
+	"conflicting": [],
+	"can_be_hidden": false,
+	"can_be_targeted": true,
+},
 
 # ── PHYSICAL ─────────────────────────────────────────────────────────────
 "EXHAUSTED_FEELING": {
@@ -366,4 +375,3 @@ func can_be_hidden(feeling_key: String) -> bool:
 
 func can_be_targeted(feeling_key: String) -> bool:
 	return FEELINGS[feeling_key].get("can_be_targeted", false)
-

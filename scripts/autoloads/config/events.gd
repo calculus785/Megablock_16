@@ -2056,6 +2056,35 @@ const EVENTS: Dictionary = {
 	],
 },
 
+"TELL_ON": {
+	"scope": "character",
+	"trigger_mode": "rolled",
+	"base_weight": 2,
+	"category": "social",
+	"magnitude": "moderate",
+	"cooldown_events": 20,
+	"requirements": {
+		"other_character_in_room": true,
+		"has_memory_tag": "betrayal_info",
+	},
+	"weight_modifiers": [
+		{ "condition": { "has_trait": ["GOSSIP"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 1.5 },
+		{ "condition": { "has_trait": ["BY_THE_BOOK"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["MEAN"] }, "multiply": 0.4 },
+		{ "condition": { "has_trait": ["SECRETIVE"] }, "multiply": 0.3 },
+	],
+	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room", "exclude_robots": true },
+	"call_action": "tell_on",
+	"outcomes": {
+		"stats": { "stress": -5 },
+	},
+	"storybook_templates": [
+		"{name} decided someone needed to know the truth.",
+		"{name} couldn't keep it to themselves. Not this.",
+		"There was something {name} had to say. It couldn't wait.",
+	],
+},
 }
 # ─────────────────────────────────────────────────────────────
 # CATEGORIES

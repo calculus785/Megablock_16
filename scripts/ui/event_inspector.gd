@@ -205,6 +205,51 @@ func _refresh() -> void:
 			lines.append("  %-16s %4.0f%s" % [faction, score, bar])
 	lines.append("")
 	
+	# ── SECRETS ─────────────────────────────────────────────
+	lines.append("── SECRETS ─────────────────────────────────────")
+	if character.secrets.is_empty():
+		lines.append("  (none)")
+	else:
+		for secret in character.secrets:
+			var owner_id: String = secret.get("original_owner_id", "")
+			var owner_char: CharData = Registry.get_character(owner_id)
+			var owner_name: String = owner_char.char_name if owner_char else "unknown"
+			var is_own: bool = owner_id == character.char_id
+
+			if is_own:
+				lines.append("  🤫 OWN SECRET (shared)")
+			else:
+				var from_id: String = secret.get("shared_by_id", "")
+				var from_char: CharData = Registry.get_character(from_id)
+				var from_name: String = from_char.char_name if from_char else "gossip"
+				var chain_tag: String = ""
+				if secret.get("betrayal_chain_known", false):
+					var betrayer_id: String = secret.get("betrayer_id", "")
+					var b_char: CharData = Registry.get_character(betrayer_id)
+					var b_name: String = b_char.char_name if b_char else "?"
+					chain_tag = " [betrayer: %s]" % b_name
+				elif secret.get("told_owner", false):
+					chain_tag = " [told owner]"
+				lines.append("  🤫 About %s (from %s)%s" % [
+					owner_name, from_name, chain_tag])
+	lines.append("")
+
+	# ── RECENT GOSSIP (secondhand storybook) ────────────────
+	lines.append("── RECENT GOSSIP ───────────────────────────────")
+	var gossip_entries: Array = []
+	for entry in character.storybook:
+		if entry.get("secondhand", false):
+			gossip_entries.append(entry)
+	if gossip_entries.is_empty():
+		lines.append("  (nothing heard)")
+	else:
+		# Show last 5 secondhand entries
+		var start_idx: int = max(0, gossip_entries.size() - 5)
+		for idx in range(start_idx, gossip_entries.size()):
+			var ge: Dictionary = gossip_entries[idx]
+			lines.append("  %s" % ge.get("summary", "?"))
+	lines.append("")
+
 	# ── ELIGIBLE EVENTS + WEIGHTS ───────────────────────────
 	lines.append("── ELIGIBLE EVENTS ─────────────────────────────")
 	var eligible: Array = Sim.get_eligible_with_weights(character)

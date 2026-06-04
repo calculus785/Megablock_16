@@ -50,7 +50,9 @@ func _on_tick() -> void:
 			continue
 		if not character.is_actionable():
 			continue
-
+		# ── AVOIDANCE CHECK ─────────────────────────────────
+		if _check_and_flee_avoided(character):
+			continue
 		# ── INTENT PROCESSING ───────────────────────────────
 		# Tick patience on all intents. Any that hit 0 fire GIVE_UP.
 		var expired: Array = Memory.tick_intents(character)
@@ -362,6 +364,83 @@ func _fire_give_up(character: CharData, expired_key: String) -> void:
 		print("[Sim] ❌ %s → %s" % [character.char_name, summary])
 
 	event_fired.emit(character.char_id, "GIVE_UP", summary)
+
+# ─────────────────────────────────────────────────────────────
+# AVOIDANCE CHECK
+# If a character is in the same room as someone they're AVOIDING,
+# push a flee intent and skip normal pipeline.
+# ─────────────────────────────────────────────────────────────
+
+func _check_and_flee_avoided(character: CharData) -> bool:
+	# Guard: room must be a valid non-empty string
+	if character.current_room == null or character.current_room == "":
+		return false
+
+	# Don't double-push if already fleeing
+	for intent in character.intent_queue:
+		if intent.has("flee_from"):
+			return false
+
+	var room_id: String = character.current_room
+	var occupants: Array = Rooms.get_occupants(room_id)
+
+	for feeling in character.feelings:
+		if feeling.get("feeling_key", "") != "AVOIDING":
+			continue
+		var raw_avoid = feeling.get("target_id", null)
+		if raw_avoid == null:
+			continue
+		var avoid_id: String = str(raw_avoid)
+		if avoid_id == "" or avoid_id == "null":
+			continue
+		# Guard: avoid_id must be valid
+		if avoid_id == null or avoid_id == "":
+			continue
+		if avoid_id not in occupants:
+			continue
+
+		var avoided: CharData = Registry.get_character(avoid_id)
+		if avoided == null or avoided.is_sleeping:
+			continue
+
+		# ── Flee! ───────────────────────────────────────────
+		var flee_key: String = "GO_HOME"
+		if character.current_room == character.home_room:
+			flee_key = "WANDER"
+
+		Memory.push_intent(character, {
+			"intent_key": flee_key,
+			"priority": "high",
+			"target_id": "",
+			"patience": 5,
+			"clearable": false,
+			"flee_from": avoid_id,
+		})
+
+		var summary: String = "%s saw %s and needed to leave." % [
+			character.char_name, avoided.char_name]
+
+		Memory.write_storybook(character, {
+			"event_key":         "FLEE_AVOIDED",
+			"summary":           summary,
+			"at_tick":           Clock.get_total_days(),
+			"target_id":         avoid_id,
+			"magnitude":         "minor",
+			"memorable":         false,
+			"memory_tags":       ["avoidance"],
+			"times_recalled":    0,
+			"last_recalled_day": 0,
+			"pinned_to_story":   false,
+		})
+
+		if Settings.debug_console_logging:
+			print("[Sim] 🚷 %s spotted %s — leaving %s" % [
+				character.char_name, avoided.char_name, room_id])
+
+		event_fired.emit(character.char_id, "FLEE_AVOIDED", summary)
+		return true
+
+	return false
 
 # ─────────────────────────────────────────────────────────────
 # COOLDOWNS
