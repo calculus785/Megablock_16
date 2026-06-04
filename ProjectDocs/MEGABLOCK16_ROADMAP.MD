@@ -202,6 +202,53 @@ Core systems:
 - [ ] THINK_ABOUT upgraded to use relationship data (good memories = bond boost)
 - [ ] AVOID_CHARACTER intent (pushed by AWKWARD_HALLWAY_PASS etc)
 ---
+## Phase 4 — Extension Wave
+
+**Passive relationship decay**
+- relationships.gd: last_positive_interaction_tick field on RelationshipRecord
+- Daily check: if no positive interaction in threshold days, bond decays -1/day
+- Decay rate by tier. PARTNER/MARRIED immune.
+- Stops if THINK_ABOUT or positive event fired toward that character in last 2 days
+
+**CONVERSE_SEQ (replaces CHAT)**
+- Multi-beat sequence. Continue/end roll each beat.
+- Beat pool: TALK_ABOUT, GOSSIP_BEAT, UNSOLICITED_ADVICE, RUB_WRONG_WAY,
+  SHOW_OFF, HEATED_ARGUMENT_BEAT, DEEP_MOMENT
+- End pool: NATURAL_GOODBYE, GOTTA_RUN, AWKWARD_EXIT, STORMED_OFF
+- Group conversation: third character can join mid-sequence
+- EXCLUDED feeling if not selected as speaker for 4+ beats
+
+**Jealousy System**
+- Three intensity levels: MILD_JEALOUSY, JEALOUS, CONSUMING_JEALOUSY
+- Triggered by witnessing romantic events involving someone you're attached to
+- JEALOUSY_SCENE event: confrontation with CONSUMING_JEALOUSY
+- Gossip propagation triggers jealousy checks
+- CharData.watching array for surveillance tracking
+
+**Cold Phase**
+- Persistent state on RelationshipRecord (is_cold: bool)
+- Triggers after 3+ days no positive interaction for ROMANTIC_INTEREST+ pairs
+- Doubles bond decay, reduces positive event weights, biases CONVERSE_SEQ negative
+- Inspector: ❄️ tag on relationship entry
+- Recovery: APOLOGISE, DEEP_MOMENT, SHARE_SECRET
+
+**Lying System**
+- lies array on CharData
+- Lie entry: lie_id, target_id, content, contradicted_by_event_key, is_exposed
+- CAUGHT_LYING: major trust/bond damage when contradiction reaches lied-to character
+- Starter beats: FAKE_COMPLIMENT, DENY_INVOLVEMENT
+- Deferred: ALIBI (needs police phase)
+
+**Public Humiliation**
+- Context determines severity (witness count, reputation, traits)
+- Low: global_reputation -5, HUMILIATED feeling
+- High: global_reputation -15, witnesses bond -3 with attacker
+
+**Rumour Spreading (gossip expansion)**
+- GOSSIP beat gains rumour subtype
+- Distorted memory: tone shifted, magnitude exaggerated, or wrong target_id
+- Distortion boosted by MEAN trait, high rivalry, active jealousy
+- Contradiction exposure: rumour-spreader loses trust with all who heard it
 
 ## Phase 5 — World Objects & Inventory
 **Goal:** The world has stuff in it. Characters pick things up, break things, decorate apartments.

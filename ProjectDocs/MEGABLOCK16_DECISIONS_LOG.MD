@@ -401,3 +401,44 @@ F00  LOBBY — entry right side, ads, sparse, homeless
 ★  \= DISTURBED\_BY\_MUSIC apartment  
 (lg) \= larger room footprint  
 EL1/EL2 left shafts full height | EL3 right shaft F01–F20 only
+
+**Grow Apart is passive decay, not an event** — Bond decay on inactive
+relationships lives in relationships.gd connected to Clock.day_ticked.
+last_positive_interaction_tick field on RelationshipRecord tracks recency.
+THINK_ABOUT toward a character counts as keeping the relationship alive.
+Phase 4 extension session.
+
+**CHAT replaced by CONVERSE_SEQ** — Chat becomes a full multi-beat sequence
+with a continue/end roll each beat, a conversation beat pool, and an ending
+beat pool. Group conversations supported via mid-sequence join mechanic.
+EXCLUDED feeling fires if a participant goes 4+ beats without speaking.
+Phase 4 extension session.
+
+**Jealousy is a full system, not a single event** — Three intensity levels,
+triggered by witnessing or hearing about romantic events involving an attachment.
+CharData.watching array tracks surveillance targets. JEALOUSY_SCENE is the
+confrontation event gated on CONSUMING_JEALOUSY. Comparable scope to the
+secret/gossip system. Phase 4 extension session.
+
+**Cold Phase is a RelationshipRecord state, not a CharData state** — is_cold
+bool lives on the relationship record between two specific characters. Only
+fires for ROMANTIC_INTEREST+ pairs inactive for 3+ days. Doubles decay,
+biases conversation negative, visible in EventInspector. Phase 4 extension.
+
+**Lying System deferred from secrets** — lies array on CharData separate
+from secrets. Exposure mechanic: contradicting event reaching lied-to
+character triggers CAUGHT_LYING roll. Gossip can carry contradictions.
+ALIBI variant deferred to police phase. Phase 4 extension session.
+
+**Spread Rumour is a gossip subtype, not a separate event** — Rumours are
+distorted gossip entries. Distortion chance modified by MEAN trait, rivalry,
+and active jealousy toward subject. Contradiction exposure costs the
+rumour-spreader trust with all who heard it. Phase 4 extension session.
+
+**Public Humiliation severity determined by context** — Witness count,
+target reputation, and attacker traits determine low vs high severity at
+runtime. Not two separate events. Phase 4 extension session.
+
+**Heated Argument is a CONVERSE_SEQ beat** — Not a standalone event.
+Weight toward this beat increases as conversation turns negative (feelings
+and bond tracked through sequence context). Phase 4 extension session.
