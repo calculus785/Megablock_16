@@ -114,6 +114,23 @@ func call_action(action_name: String, character: CharData, target, args: Diction
 		"cold_shoulder":           return _cold_shoulder(character, target, args)
 		"provoke":                 return _provoke(character, target, args)
 		"tell_on": return _tell_on(character, target, args)
+		"start_hallway_conversation": return _start_hallway_conversation(character, target, args)
+		"start_conversation":      return _start_conversation(character, target, args)
+		"converse_open":           return _converse_open(character, target, args)
+		"converse_positive_chat":  return _converse_positive_chat(character, target, args)
+		"converse_neutral_chat":   return _converse_neutral_chat(character, target, args)
+		"converse_negative_chat":  return _converse_negative_chat(character, target, args)
+		"converse_compliment":     return _converse_compliment(character, target, args)
+		"converse_insult":         return _converse_insult(character, target, args)
+		"converse_gossip":         return _converse_gossip(character, target, args)
+		"converse_share_interest": return _converse_share_interest(character, target, args)
+		"converse_unsolicited_advice": return _converse_unsolicited_advice(character, target, args)
+		"converse_show_off":       return _converse_show_off(character, target, args)
+		"converse_deep_moment":    return _converse_deep_moment(character, target, args)
+		"converse_rub_wrong_way":  return _converse_rub_wrong_way(character, target, args)
+		"converse_heated_argument": return _converse_heated_argument(character, target, args)
+		"converse_spit_on":        return _converse_spit_on(character, target, args)
+		"converse_flirt": return _converse_flirt(character, target, args)
 		_:
 			push_warning("[Actions] Unknown action: '%s'" % action_name)
 			return DONE
@@ -1518,3 +1535,167 @@ func _tell_on(character: CharData, _target, _args: Dictionary) -> String:
 			character.char_name, owner.char_name, betrayer_name])
 
 	return DONE
+
+# ═════════════════════════════════════════════════════════════
+# CONVERSATION SEQUENCE — beat action functions
+# Called by the pool sequence runner in sim.gd.
+# Each returns DONE. Stat/relationship effects are lightweight
+# here — the big deltas come from _end_pool_sequence().
+# Context-driven beats reuse existing action logic.
+# ═════════════════════════════════════════════════════════════
+
+# Entry point — called by the CONVERSE event. Returns LOCK_SEQUENCE
+# so the pipeline starts the sequence on both characters.
+
+func _start_conversation(character: CharData, target, _args: Dictionary) -> String:
+	if not target is CharData:
+		return DONE
+	# Guard: don't start if either is already in a sequence
+	if character.active_sequence != "" or target.active_sequence != "":
+		return DONE
+	return LOCK_SEQUENCE
+
+# Called by HALLWAY_CONVERSE proximity event.
+# Saves both characters' destinations, stops movement, then locks into CONVERSE_SEQ.
+func _start_hallway_conversation(character: CharData, target, _args: Dictionary) -> String:
+	if not target is CharData:
+		return DONE
+	if character.active_sequence != "" or target.active_sequence != "":
+		return DONE
+	# Save destinations so movement resumes after the conversation
+	character.loiter_return_room = character.movement_target_room
+	target.loiter_return_room = target.movement_target_room
+	# Stop both mid-journey
+	character.is_in_transit = false
+	character.is_loitering = true
+	target.is_in_transit = false
+	target.is_loitering = true
+	if Settings.debug_console_logging:
+		print("[Actions] 💬🚶 %s and %s stopped for a hallway conversation" % [
+			character.char_name, target.char_name])
+	return LOCK_SEQUENCE
+
+func _converse_open(_character: CharData, _target, _args: Dictionary) -> String:
+	# Opening beat — no mechanical effects, just sets the stage.
+	# Topic is set by the pool runner in _fire_converse_opening().
+	return DONE
+
+
+func _converse_positive_chat(character: CharData, target, _args: Dictionary) -> String:
+	modify_stat(character, "happiness", 2.0)
+	if target is CharData:
+		modify_stat(target, "happiness", 2.0)
+	return DONE
+
+
+func _converse_neutral_chat(_character: CharData, _target, _args: Dictionary) -> String:
+	# Neutral chat — no stat effects. The conversation just flows.
+	return DONE
+
+
+func _converse_negative_chat(character: CharData, target, _args: Dictionary) -> String:
+	modify_stat(character, "stress", 3.0)
+	if target is CharData:
+		modify_stat(target, "stress", 2.0)
+	return DONE
+
+
+# Wraps existing compliment logic
+func _converse_compliment(character: CharData, target, args: Dictionary) -> String:
+	return _compliment(character, target, args)
+
+
+# Wraps existing insult logic
+func _converse_insult(character: CharData, target, args: Dictionary) -> String:
+	return _insult(character, target, args)
+
+
+# Wraps existing gossip logic — full propagation, secondhand memory, bystanders
+func _converse_gossip(character: CharData, target, args: Dictionary) -> String:
+	return _gossip(character, target, args)
+
+
+func _converse_share_interest(character: CharData, target, _args: Dictionary) -> String:
+	modify_stat(character, "happiness", 3.0)
+	if target is CharData:
+		modify_stat(target, "happiness", 2.0)
+		# Small bond bump for finding common ground
+		Relationships.modify_bond(character.char_id, target.char_id, 2.0)
+	return DONE
+
+
+func _converse_unsolicited_advice(character: CharData, target, _args: Dictionary) -> String:
+	# Giver feels helpful, receiver feels annoyed
+	modify_stat(character, "stress", -2.0)
+	if target is CharData:
+		modify_stat(target, "stress", 4.0)
+	return DONE
+
+
+func _converse_show_off(character: CharData, target, _args: Dictionary) -> String:
+	modify_stat(character, "happiness", 3.0)
+	if target is CharData:
+		modify_stat(target, "boredom", 5.0)
+	return DONE
+
+
+# Deep moment — trust boost, emotional vulnerability
+func _converse_deep_moment(character: CharData, target, _args: Dictionary) -> String:
+	modify_stat(character, "loneliness", -8.0)
+	modify_stat(character, "stress", -5.0)
+	if target is CharData:
+		modify_stat(target, "loneliness", -6.0)
+		modify_stat(target, "stress", -4.0)
+		Relationships.modify_trust(character.char_id, target.char_id, 5.0)
+		Relationships.modify_bond(character.char_id, target.char_id, 3.0)
+	return DONE
+
+
+func _converse_rub_wrong_way(character: CharData, target, _args: Dictionary) -> String:
+	if target is CharData:
+		modify_stat(target, "stress", 5.0)
+		modify_stat(target, "happiness", -3.0)
+	return DONE
+
+
+# Wraps existing argue logic + pushes FRUSTRATED
+func _converse_heated_argument(character: CharData, target, _args: Dictionary) -> String:
+	modify_stat(character, "stress", 10.0)
+	if target is CharData:
+		modify_stat(target, "stress", 12.0)
+		modify_stat(target, "happiness", -8.0)
+		FeelingDriver.push(target, "FRUSTRATED", {
+			"event_key": "CONVERSE_SEQ_HEATED_ARGUMENT",
+			"at_tick": Clock.get_total_days(),
+			"summary": "heated argument with %s" % character.char_name,
+		})
+		Relationships.modify_rivalry(character.char_id, target.char_id, 3.0)
+	return DONE
+
+
+# Extreme disrespect — pushes HUMILIATED and FURIOUS, may trigger avoidance
+func _converse_spit_on(character: CharData, target, _args: Dictionary) -> String:
+	if target is CharData:
+		modify_stat(target, "stress", 20.0)
+		modify_stat(target, "happiness", -15.0)
+		FeelingDriver.push(target, "HUMILIATED", {
+			"event_key": "CONVERSE_SEQ_SPIT_ON",
+			"at_tick": Clock.get_total_days(),
+			"summary": "%s spat on them" % character.char_name,
+		})
+		FeelingDriver.push(target, "FURIOUS", {
+			"event_key": "CONVERSE_SEQ_SPIT_ON",
+			"at_tick": Clock.get_total_days(),
+			"summary": "%s spat on them" % character.char_name,
+		})
+		Relationships.modify_bond(character.char_id, target.char_id, -10.0)
+		Relationships.modify_rivalry(character.char_id, target.char_id, 8.0)
+		# High chance of avoidance
+		_maybe_push_avoidance(target, character, 0.85, 36, "spat on by %s" % character.char_name)
+	# Spitter gets a stress release
+	modify_stat(character, "stress", -10.0)
+	return DONE
+
+func _converse_flirt(character: CharData, target, args: Dictionary) -> String:
+	# Reuses full flirt logic — reciprocation roll, directional feelings, all of it
+	return _flirt(character, target, args)

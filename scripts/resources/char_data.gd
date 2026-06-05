@@ -150,6 +150,8 @@ extends Resource
 @export var sequence_partner_id: String = ""    # other participant's char_id
 @export var sequence_role: String = ""          # "initiator" / "responder" / etc.
 @export var sequence_context: Dictionary = {}   # arbitrary scratchpad for the sequence
+@export var is_loitering: bool = false
+@export var loiter_return_room: String = ""
 
 
 # ═════════════════════════════════════════════════════════════

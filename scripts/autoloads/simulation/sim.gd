@@ -41,12 +41,12 @@ func _on_tick() -> void:
 		if character.is_sleeping:
 			_try_wake(character)
 			continue
-		if character.is_in_transit:
-			continue
-		# Sequence advance — before is_actionable check.
+		# Sequence advance — before transit check so loitering chars still process.
 		if character.active_sequence != "" and character.sequence_role == "initiator":
 			if not _check_and_interrupt(character):
 				_advance_sequence(character)
+			continue
+		if character.is_in_transit:
 			continue
 		if not character.is_actionable():
 			continue
@@ -944,6 +944,11 @@ func _start_sequence(initiator: CharData, responder: CharData, seq_key: String) 
 # Called each tick for the initiator of an active sequence.
 # Fires the current beat, applies outcomes, writes storybook, advances.
 func _advance_sequence(character: CharData) -> void:
+	# ── Pool-type sequence dispatch ─────────────────────────
+	var _seq_check: Dictionary = Sequences.get_sequence(character.active_sequence)
+	if _seq_check.get("type", "") == "pool":
+		_advance_pool_sequence(character)
+		return
 	var seq_key: String  = character.active_sequence
 	var beat_id: int     = character.sequence_beat
 	var beat: Dictionary = Sequences.get_beat(seq_key, beat_id)
@@ -1024,6 +1029,18 @@ func _advance_sequence(character: CharData) -> void:
 		if partner:
 			partner.sequence_beat = next_id
 
+# If a character stopped mid-journey for a hallway conversation,
+# resume movement to their saved destination.
+func _resume_from_loiter(character: CharData) -> void:
+	if not character.is_loitering:
+		return
+	character.is_loitering = false
+	var dest: String = character.loiter_return_room
+	character.loiter_return_room = ""
+	if dest != "" and dest != character.current_room:
+		Actions.start_movement(character, dest)
+		if Settings.debug_console_logging:
+			print("[Sim] 🚶 %s resuming journey → %s" % [character.char_name, dest])
 
 # Weighted roll for a branch beat (e.g. beat 1 of PLAY_POOL_SEQ).
 # Applies outcome-specific weight modifiers from the beat definition.
@@ -1086,6 +1103,10 @@ func _end_sequence(initiator: CharData, partner: CharData) -> void:
 	_clear_sequence(initiator)
 	if partner:
 		_clear_sequence(partner)
+	# Resume journey if either character stopped for a hallway conversation
+	_resume_from_loiter(initiator)
+	if partner:
+		_resume_from_loiter(partner)
 
 
 # Checks if any interruptible auto_fire event is eligible for a locked character.
@@ -1148,6 +1169,538 @@ func _check_and_interrupt(character: CharData) -> bool:
 	return false
 
 # ─────────────────────────────────────────────────────────────
+# POOL SEQUENCES (CONVERSE_SEQ etc.)
+# Variable-length sequences that roll from a weighted beat pool
+# each tick. Mood tracked in sequence_context, resets on end.
+# ─────────────────────────────────────────────────────────────
+
+# Main driver — called every tick for the initiator of a pool sequence.
+func _advance_pool_sequence(character: CharData) -> void:
+	var seq_key: String = character.active_sequence
+	var seq_def: Dictionary = Sequences.get_sequence(seq_key)
+	var partner: CharData = Registry.get_character(character.sequence_partner_id)
+
+	if partner == null:
+		push_warning("[Sim] Pool sequence %s — partner gone, ending." % seq_key)
+		_end_sequence(character, partner)
+		return
+
+	var ctx: Dictionary = character.sequence_context
+	var beat_count: int = ctx.get("beat_count", 0)
+
+	# ── OPENING BEAT (first tick) ───────────────────────────
+	if beat_count == 0:
+		_fire_converse_opening(character, partner, seq_key, seq_def)
+		return
+
+	# ── CONTINUE / END ROLL ─────────────────────────────────
+	var mood: float = ctx.get("mood", 0.0)
+	var base_continue: float = seq_def.get("continue_base_chance", 0.90)
+	var decay: float = seq_def.get("continue_decay_per_beat", 0.12)
+	var mood_end_bonus: float = seq_def.get("mood_end_bonus", 0.03)
+	var mood_cont_bonus: float = seq_def.get("mood_continue_bonus", 0.01)
+
+	# Beat count is the primary driver. Mood nudges slightly.
+	var continue_chance: float = base_continue - (decay * beat_count)
+	if mood < 0.0:
+		continue_chance -= absf(mood) * mood_end_bonus
+	elif mood > 0.0:
+		continue_chance += mood * mood_cont_bonus
+	continue_chance = clampf(continue_chance, 0.05, 0.95)
+
+	if randf() > continue_chance:
+		_end_pool_sequence(character, partner, seq_key, seq_def)
+		return
+
+	# ── ROLL BEAT FROM POOL ─────────────────────────────────
+	var beat_key: String = _roll_converse_beat(character, partner, seq_def)
+	if beat_key == "":
+		# No eligible beats — end the conversation
+		_end_pool_sequence(character, partner, seq_key, seq_def)
+		return
+
+	# Find the beat definition (could be in beat_pool or escalation_pool)
+	var beat_def: Dictionary = Sequences.get_beat_from_pool(seq_key, beat_key)
+
+	# ── FIRE BEAT ACTION ────────────────────────────────────
+	var action_name: String = beat_def.get("call_action", "")
+	if action_name != "":
+		Actions.call_action(action_name, character, partner, ctx)
+
+	# ── UPDATE MOOD ─────────────────────────────────────────
+	var mood_delta: float = beat_def.get("mood_delta", 0.0)
+	mood = clampf(ctx.get("mood", 0.0) + mood_delta, -100.0, 100.0)
+	ctx["mood"] = mood
+	ctx["beat_count"] = beat_count + 1
+
+	# Track mood over time for arc detection at summary
+	if not ctx.has("mood_history"):
+		ctx["mood_history"] = []
+	ctx["mood_history"].append(mood)
+
+	# ── STORYBOOK ───────────────────────────────────────────
+	var last_beat: String = ctx.get("last_beat_key", "")
+	var templates: Array
+	if beat_key == last_beat and beat_def.has("continued_templates"):
+		templates = beat_def["continued_templates"]
+	else:
+		templates = beat_def.get("storybook_templates", [])
+
+	if not templates.is_empty():
+		var frame: Dictionary = {
+			"name": character.char_name,
+			"target": partner.char_name,
+			"topic": ctx.get("topic", "nothing in particular"),
+		}
+		var template: String = templates[randi() % templates.size()]
+		var summary: String = Context.fill_template(template, frame)
+
+		Memory.write_storybook(character, {
+			"event_key":         seq_key + "_" + beat_key,
+			"summary":           summary,
+			"at_tick":           Clock.get_total_days(),
+			"target_id":         partner.char_id,
+			"magnitude":         "minor",
+			"memorable":         false,
+			"memory_tags":       ["conversation"],
+			"times_recalled":    0,
+			"last_recalled_day": 0,
+			"pinned_to_story":   false,
+		})
+
+		if Settings.debug_console_logging:
+			print("[Sim] 💬 %s (beat %d, mood %.0f) → %s" % [
+				seq_key, beat_count, mood, summary])
+
+		event_fired.emit(character.char_id, seq_key, summary)
+
+	ctx["last_beat_key"] = beat_key
+
+	# ── ESCALATION END CHECK ────────────────────────────────
+	# Some beats (SPIT_ON etc.) have a chance to end the conversation.
+	var end_chance: float = beat_def.get("ends_conversation_chance", 0.0)
+	if end_chance > 0.0 and randf() < end_chance:
+		if Settings.debug_console_logging:
+			print("[Sim] 💬 %s escalation ended conversation" % beat_key)
+		_end_pool_sequence(character, partner, seq_key, seq_def)
+		return
+
+	# Sync context to partner so both have the same mood/state
+	if partner:
+		partner.sequence_context = ctx.duplicate(true)
+
+
+# Fires the first beat — picks a topic and writes the opening line.
+func _fire_converse_opening(character: CharData, partner: CharData,
+		seq_key: String, seq_def: Dictionary) -> void:
+	var ctx: Dictionary = character.sequence_context
+
+	# Pick topic tone based on relationship
+	var bond: float = Relationships.get_bond(character.char_id, partner.char_id)
+	var tone: String = "neutral"
+	if bond > 20:
+		tone = ["positive", "neutral", "neutral"][randi() % 3]
+	elif bond < -10:
+		tone = ["negative", "neutral", "neutral"][randi() % 3]
+
+	var topic: String = Sequences.get_conversation_topic(tone)
+	ctx["topic"] = topic
+	ctx["mood"] = 0.0
+	ctx["beat_count"] = 1
+	ctx["last_beat_key"] = ""
+	ctx["mood_history"] = [0.0]
+
+	# Fire opening action
+	var opening: Dictionary = seq_def.get("opening_beat", {})
+	var action_name: String = opening.get("call_action", "")
+	if action_name != "":
+		Actions.call_action(action_name, character, partner, ctx)
+
+	# Write storybook
+	var templates: Array = opening.get("storybook_templates", [])
+	if not templates.is_empty():
+		var frame: Dictionary = {
+			"name": character.char_name,
+			"target": partner.char_name,
+			"topic": topic,
+		}
+		var template: String = templates[randi() % templates.size()]
+		var summary: String = Context.fill_template(template, frame)
+
+		Memory.write_storybook(character, {
+			"event_key":         seq_key + "_OPEN",
+			"summary":           summary,
+			"at_tick":           Clock.get_total_days(),
+			"target_id":         partner.char_id,
+			"magnitude":         "minor",
+			"memorable":         false,
+			"memory_tags":       ["conversation"],
+			"times_recalled":    0,
+			"last_recalled_day": 0,
+			"pinned_to_story":   false,
+		})
+
+		if Settings.debug_console_logging:
+			print("[Sim] 💬 %s OPEN → %s" % [seq_key, summary])
+
+		event_fired.emit(character.char_id, seq_key, summary)
+
+	# Sync to partner
+	if partner:
+		partner.sequence_context = ctx.duplicate(true)
+
+
+# Rolls a beat from the conversation pool. Returns beat_key or "" if none eligible.
+func _roll_converse_beat(character: CharData, partner: CharData,
+		seq_def: Dictionary) -> String:
+	var ctx: Dictionary = character.sequence_context
+	var beat_count: int = ctx.get("beat_count", 0)
+	var min_escalation: int = seq_def.get("escalation_min_beats", 4)
+
+	var pool: Array = []  # Array of [beat_key, weight]
+
+	# Add conversation beats
+	for beat_key in seq_def.get("beat_pool", {}).keys():
+		var beat_def: Dictionary = seq_def["beat_pool"][beat_key]
+		if not _check_converse_reqs(character, partner, beat_def, ctx):
+			continue
+		var weight: float = _apply_converse_mods(character, partner, beat_def, ctx)
+		if weight > 0.0:
+			pool.append([beat_key, weight])
+
+	# Add escalation beats after minimum beat count
+	if beat_count >= min_escalation:
+		for beat_key in seq_def.get("escalation_pool", {}).keys():
+			var beat_def: Dictionary = seq_def["escalation_pool"][beat_key]
+			if not _check_converse_reqs(character, partner, beat_def, ctx):
+				continue
+			var weight: float = _apply_converse_mods(character, partner, beat_def, ctx)
+			if weight > 0.0:
+				pool.append([beat_key, weight])
+
+	if pool.is_empty():
+		return ""
+
+	# Weighted roll
+	var total: float = 0.0
+	for entry in pool:
+		total += entry[1]
+
+	var roll: float = randf() * total
+	var running: float = 0.0
+	for entry in pool:
+		running += entry[1]
+		if roll <= running:
+			return entry[0]
+
+	return pool[0][0]
+
+
+# Checks beat-specific requirements (mood, relationship with partner, etc.)
+func _check_converse_reqs(character: CharData, partner: CharData,
+		beat_def: Dictionary, ctx: Dictionary) -> bool:
+	var reqs: Dictionary = beat_def.get("requirements", {})
+	if reqs.is_empty():
+		return true
+
+	var mood: float = ctx.get("mood", 0.0)
+
+	if reqs.has("mood_above"):
+		if mood <= float(reqs["mood_above"]):
+			return false
+	if reqs.has("mood_below"):
+		if mood >= float(reqs["mood_below"]):
+			return false
+
+	# Bond with conversation partner (not room occupants)
+	if reqs.has("relationship_bond_above"):
+		if Relationships.get_bond(character.char_id, partner.char_id) <= float(reqs["relationship_bond_above"]):
+			return false
+	if reqs.has("relationship_bond_below"):
+		if Relationships.get_bond(character.char_id, partner.char_id) >= float(reqs["relationship_bond_below"]):
+			return false
+
+	# Gossip — character has something to share with this target
+	if reqs.has("has_gossipable_memory") and reqs["has_gossipable_memory"]:
+		var entry = Memory.pick_gossipable_entry(character, partner)
+		if entry == null:
+			return false
+
+	# Shared interests between the two characters
+	if reqs.has("shares_interest_with_target") and reqs["shares_interest_with_target"]:
+		var found: bool = false
+		for interest in character.interests:
+			if interest in partner.interests:
+				found = true
+				break
+		if not found:
+			return false
+
+	# Standard trait/feeling checks
+	if reqs.has("has_trait"):
+		for trait_key in reqs["has_trait"]:
+			if not trait_key in character.get_all_active_traits():
+				return false
+	if reqs.has("has_feeling"):
+		for feeling_key in reqs["has_feeling"]:
+			if not FeelingDriver.has_feeling(character, feeling_key):
+				return false
+
+	return true
+
+
+# Applies weight modifiers for a conversation beat.
+# Handles mood, traits, feelings, relationship, time_of_day.
+func _apply_converse_mods(character: CharData, partner: CharData,
+		beat_def: Dictionary, ctx: Dictionary) -> float:
+	var weight: float = beat_def.get("base_weight", 10.0)
+	var mood: float = ctx.get("mood", 0.0)
+
+	for modifier in beat_def.get("weight_modifiers", []):
+		var cond: Dictionary = modifier.get("condition", {})
+		var matched: bool = true
+
+		if cond.has("mood_above"):
+			if mood <= float(cond["mood_above"]):
+				matched = false
+		if cond.has("mood_below"):
+			if mood >= float(cond["mood_below"]):
+				matched = false
+		if cond.has("has_trait"):
+			for trait_key in cond["has_trait"]:
+				if not trait_key in character.get_all_active_traits():
+					matched = false
+					break
+		if cond.has("has_feeling"):
+			if not FeelingDriver.has_feeling(character, cond["has_feeling"]):
+				matched = false
+		if cond.has("relationship_bond_above"):
+			if Relationships.get_bond(character.char_id, partner.char_id) <= float(cond["relationship_bond_above"]):
+				matched = false
+		if cond.has("relationship_bond_below"):
+			if Relationships.get_bond(character.char_id, partner.char_id) >= float(cond["relationship_bond_below"]):
+				matched = false
+		if cond.has("time_of_day"):
+			if not Clock.get_time_of_day() in cond["time_of_day"]:
+				matched = false
+
+		if matched:
+			weight *= modifier.get("multiply", 1.0)
+
+	return weight
+
+
+# Ends a pool sequence: picks end beat, writes summary, applies final deltas.
+func _end_pool_sequence(character: CharData, partner: CharData,
+		seq_key: String, seq_def: Dictionary) -> void:
+	var ctx: Dictionary = character.sequence_context
+	var mood: float = ctx.get("mood", 0.0)
+	var beat_count: int = ctx.get("beat_count", 1)
+
+	# ── PICK END BEAT ───────────────────────────────────────
+	var end_key: String = _roll_converse_end(character, seq_def.get("end_pool", {}), mood)
+	var end_def: Dictionary = seq_def.get("end_pool", {}).get(end_key, {})
+
+	# Write end beat storybook
+	var end_templates: Array = end_def.get("storybook_templates", [])
+	if not end_templates.is_empty():
+		var frame: Dictionary = {
+			"name": character.char_name,
+			"target": partner.char_name if partner else "someone",
+			"topic": ctx.get("topic", "nothing"),
+		}
+		var template: String = end_templates[randi() % end_templates.size()]
+		var summary: String = Context.fill_template(template, frame)
+
+		Memory.write_storybook(character, {
+			"event_key":         seq_key + "_END_" + end_key,
+			"summary":           summary,
+			"at_tick":           Clock.get_total_days(),
+			"target_id":         partner.char_id if partner else "",
+			"magnitude":         "minor",
+			"memorable":         false,
+			"memory_tags":       ["conversation"],
+			"times_recalled":    0,
+			"last_recalled_day": 0,
+			"pinned_to_story":   false,
+		})
+
+		if Settings.debug_console_logging:
+			print("[Sim] 💬 %s END (%s, mood %.0f) → %s" % [
+				seq_key, end_key, mood, summary])
+
+		event_fired.emit(character.char_id, seq_key, summary)
+
+	# ── WRITE SUMMARY ───────────────────────────────────────
+	_write_converse_summary(character, partner, seq_key, seq_def)
+
+	# ── FINAL RELATIONSHIP DELTAS ───────────────────────────
+	if partner:
+		# Mood maps loosely to bond: +100 mood ≈ +15 bond, -100 ≈ -15
+		var bond_delta: float = mood * 0.15
+		var fam_delta: float = 2.0 + mini(beat_count, 6) * 0.5
+		Relationships.modify_bond(character.char_id, partner.char_id, bond_delta)
+		Relationships.modify_familiarity(character.char_id, partner.char_id, fam_delta)
+
+		if mood > 20.0:
+			Relationships.modify_trust(character.char_id, partner.char_id, 3.0)
+		elif mood < -20.0:
+			Relationships.modify_trust(character.char_id, partner.char_id, -3.0)
+			Relationships.modify_rivalry(character.char_id, partner.char_id, 2.0)
+
+		if Settings.debug_console_logging:
+			print("[Sim] 💬 %s ↔ %s: convo done (mood %.0f, bond %+.1f, fam +%.1f)" % [
+				character.char_name, partner.char_name, mood, bond_delta, fam_delta])
+
+	# ── STAT EFFECTS ────────────────────────────────────────
+	# Base loneliness/boredom reduction scales with length (capped)
+	var capped_beats: int = mini(beat_count, 6)
+	Actions.modify_stat(character, "loneliness", -4.0 * capped_beats)
+	Actions.modify_stat(character, "boredom", -2.0 * capped_beats)
+	if partner:
+		Actions.modify_stat(partner, "loneliness", -3.0 * capped_beats)
+		Actions.modify_stat(partner, "boredom", -2.0 * capped_beats)
+
+	# Mood-dependent: good chats reduce stress, bad ones add it
+	if mood > 10.0:
+		Actions.modify_stat(character, "stress", -5.0)
+		Actions.modify_stat(character, "happiness", 5.0)
+		if partner:
+			Actions.modify_stat(partner, "stress", -4.0)
+			Actions.modify_stat(partner, "happiness", 4.0)
+	elif mood < -10.0:
+		Actions.modify_stat(character, "stress", 8.0)
+		Actions.modify_stat(character, "happiness", -5.0)
+		if partner:
+			Actions.modify_stat(partner, "stress", 6.0)
+			Actions.modify_stat(partner, "happiness", -4.0)
+
+	_end_sequence(character, partner)
+
+
+# Rolls from the end pool, weighted by mood.
+func _roll_converse_end(character: CharData, end_pool: Dictionary, mood: float) -> String:
+	var pool: Array = []
+
+	for end_key in end_pool.keys():
+		var end_def: Dictionary = end_pool[end_key]
+		var weight: float = end_def.get("base_weight", 10.0)
+
+		for modifier in end_def.get("weight_modifiers", []):
+			var cond: Dictionary = modifier.get("condition", {})
+			var matched: bool = true
+
+			if cond.has("mood_above"):
+				if mood <= float(cond["mood_above"]):
+					matched = false
+			if cond.has("mood_below"):
+				if mood >= float(cond["mood_below"]):
+					matched = false
+			if cond.has("has_trait"):
+				for trait_key in cond["has_trait"]:
+					if not trait_key in character.get_all_active_traits():
+						matched = false
+						break
+
+			if matched:
+				weight *= modifier.get("multiply", 1.0)
+
+		if weight > 0.0:
+			pool.append([end_key, weight])
+
+	if pool.is_empty():
+		return "NATURAL_GOODBYE"
+
+	var total: float = 0.0
+	for entry in pool:
+		total += entry[1]
+
+	var roll: float = randf() * total
+	var running: float = 0.0
+	for entry in pool:
+		running += entry[1]
+		if roll <= running:
+			return entry[0]
+
+	return pool[0][0]
+
+
+# Writes the conversation summary. Detects the arc (positive, soured, recovery, etc.)
+# and picks a matching template. Only flagged memorable if mood crossed the threshold.
+func _write_converse_summary(character: CharData, partner: CharData,
+		seq_key: String, seq_def: Dictionary) -> void:
+	var ctx: Dictionary = character.sequence_context
+	var mood: float = ctx.get("mood", 0.0)
+	var mood_history: Array = ctx.get("mood_history", [])
+	var threshold: float = seq_def.get("memorable_mood_threshold", 40.0)
+
+	# Detect the arc
+	var arc: String = _detect_converse_arc(mood, mood_history)
+
+	var summary_pool: Dictionary = seq_def.get("summary_templates", {})
+	var templates: Array = summary_pool.get(arc,
+		summary_pool.get("neutral", ["{name} and {target} talked."]))
+	if templates.is_empty():
+		templates = ["{name} and {target} talked."]
+
+	var frame: Dictionary = {
+		"name": character.char_name,
+		"target": partner.char_name if partner else "someone",
+		"topic": ctx.get("topic", "nothing"),
+	}
+	var template: String = templates[randi() % templates.size()]
+	var summary: String = Context.fill_template(template, frame)
+
+	var is_memorable: bool = absf(mood) >= threshold
+
+	# Write on both characters
+	var entry: Dictionary = {
+		"event_key":         seq_key + "_SUMMARY",
+		"summary":           summary,
+		"at_tick":           Clock.get_total_days(),
+		"target_id":         partner.char_id if partner else "",
+		"magnitude":         "moderate" if is_memorable else "minor",
+		"memorable":         is_memorable,
+		"memory_tags":       ["conversation", "summary"],
+		"times_recalled":    0,
+		"last_recalled_day": 0,
+		"pinned_to_story":   false,
+	}
+
+	Memory.write_storybook(character, entry)
+	if partner:
+		var partner_entry: Dictionary = entry.duplicate()
+		partner_entry["target_id"] = character.char_id
+		Memory.write_storybook(partner, partner_entry)
+
+	if Settings.debug_console_logging:
+		print("[Sim] 💬 SUMMARY (%s, mood %.0f%s) → %s" % [
+			arc, mood, " ⭐" if is_memorable else "", summary])
+
+
+# Figures out the conversation arc from mood history.
+func _detect_converse_arc(final_mood: float, mood_history: Array) -> String:
+	if mood_history.size() < 2:
+		if final_mood > 20.0: return "positive"
+		if final_mood < -20.0: return "negative"
+		return "neutral"
+
+	# Check early mood vs final mood for arc detection
+	var early_index: int = mini(2, mood_history.size() - 1)
+	var early_mood: float = mood_history[early_index]
+
+	if early_mood < -10.0 and final_mood > 10.0:
+		return "recovery"
+	if early_mood > 10.0 and final_mood < -10.0:
+		return "soured"
+
+	if final_mood > 30.0: return "very_positive"
+	if final_mood > 10.0: return "positive"
+	if final_mood < -30.0: return "very_negative"
+	if final_mood < -10.0: return "negative"
+	return "neutral"
+
+# ─────────────────────────────────────────────────────────────
 # REPETITION BOREDOM
 # If the same event appears in the last 4 storybook entries,
 # add boredom. Traits like GAMBLER/ALCOHOLIC are exempt for
@@ -1208,7 +1761,12 @@ func fire_proximity_event(actor: CharData, target: CharData) -> void:
 
 	var action_name: String = event_def.get("call_action", "")
 	if action_name != "":
-		Actions.call_action(action_name, actor, target, frame)
+		var result: String = Actions.call_action(action_name, actor, target, frame)
+		if result == Actions.LOCK_SEQUENCE:
+			var seq_key: String = event_def.get("sequence_key", "")
+			if seq_key != "" and target is CharData:
+				_start_sequence(actor, target, seq_key)
+			return
 
 	_apply_outcomes(actor, target, event_def)
 	var summary: String = _echo(actor, target, event_key, event_def, frame)

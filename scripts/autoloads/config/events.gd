@@ -1289,32 +1289,29 @@ const EVENTS: Dictionary = {
 	],
 },
 
-"HALLWAY_CHAT": {
+"HALLWAY_CONVERSE": {
 	"scope": "character",
 	"trigger_mode": "proximity",
-	"proximity_type": "heavy",  # pauses both characters briefly
-	"base_weight": 5,
+	"proximity_type": "heavy",
+	"base_weight": 4,
 	"category": "social",
 	"magnitude": "minor",
-	"cooldown_events": 12,
+	"cooldown_events": 10,
 	"requirements": {
-		"stats_above": { "happiness": 40 },
+		"stats_above": { "happiness": 25 },
 	},
 	"weight_modifiers": [
-		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 2.5 },
-		{ "condition": { "has_trait": ["ANTISOCIAL"] }, "multiply": 0.1 },
-		{ "condition": { "has_trait": ["SHY"] }, "multiply": 0.3 },
+		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 2.0 },
+		{ "condition": { "has_trait": ["ANTISOCIAL"] }, "multiply": 0.2 },
+		{ "condition": { "has_trait": ["SHY"] }, "multiply": 0.4 },
+		{ "condition": { "stats_above": { "loneliness": 50 } }, "multiply": 1.8 },
 	],
-	"target_resolution": { "type": "self" },
-	"call_action": "hallway_chat",
-	"outcomes": {
-		"stats": { "loneliness": -5, "boredom": -3 },
-		"target_stats": { "loneliness": -5, "boredom": -3 },
-		"relationship": { "bond": 2, "familiarity": 1 },
-	},
+	"call_action": "start_hallway_conversation",
+	"sequence_key": "CONVERSE_SEQ",
+	"outcomes": {},
 	"storybook_templates": [
-		"{name} stopped {target} in the hallway. {They} talked for a minute.",
-		"{name} and {target} ran into each other. The elevator could wait.",
+		"{name} and {target} stopped in the hallway to talk.",
+		"{name} caught {target} in the corridor. Neither was in that much of a hurry.",
 	],
 },
 
@@ -1429,16 +1426,15 @@ const EVENTS: Dictionary = {
 	],
 },
 
-"CHAT": {
+"CONVERSE": {
 	"scope": "character",
 	"trigger_mode": "rolled",
 	"base_weight": 8,
 	"category": "social",
 	"magnitude": "minor",
-	"cooldown_events": 3,
+	"cooldown_events": 5,
 	"requirements": {
 		"other_character_in_room": true,
-		"stats_below": { "loneliness": 80 },
 	},
 	"weight_modifiers": [
 		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 2.0 },
@@ -1447,17 +1443,13 @@ const EVENTS: Dictionary = {
 		{ "condition": { "has_trait": ["SHY"] }, "multiply": 0.5 },
 		{ "condition": { "stats_above": { "loneliness": 50 } }, "multiply": 1.6 },
 	],
-	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
-	"call_action": "chat",
-	"outcomes": {
-		"stats": { "loneliness": -12, "boredom": -10, "stress": -5 },
-		"target_stats": { "loneliness": -8, "boredom": -8 },
-		"relationship": { "bond": 3, "familiarity": 2 },
-	},
+	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room", "exclude_robots": true },
+	"call_action": "start_conversation",
+	"sequence_key": "CONVERSE_SEQ",
+	"outcomes": {},
 	"storybook_templates": [
-		"{name} chatted with {target} for a while.",
-		"{name} and {target} talked. Nothing heavy.",
-		"A few minutes with {target}. {name} felt better for it.",
+		"{name} and {target} started talking.",
+		"{name} struck up a conversation with {target}.",
 	],
 },
 
@@ -1559,42 +1551,6 @@ const EVENTS: Dictionary = {
 	],
 },
 
-"DEEP_CONVERSATION": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 5,
-	"category": "social",
-	"magnitude": "moderate",
-	"cooldown_events": 20,
-	"requirements": {
-		"other_character_in_room": true,
-		"time_of_day": ["evening", "night"],
-		"stats_above": { "happiness": 50 },
-		"relationship_bond_above": 30,
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["ROMANTIC"] }, "multiply": 1.8 },
-		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 1.5 },
-		{ "condition": { "has_state": ["LONELY"] }, "multiply": 2.0 },
-		{ "condition": { "stats_above": { "loneliness": 50 } }, "multiply": 1.8 },
-	],
-	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room", "exclude_robots": true },
-	"call_action": "deep_conversation",
-	"outcomes": {
-		"stats": { "loneliness": -25, "stress": -10 },
-		"target_stats": { "loneliness": -20, "stress": -8 },
-		"feelings": ["CONTENT_FEELING"],
-		"target_feelings": ["CONTENT_FEELING"],
-		"relationship": { "bond": 10, "trust": 8, "familiarity": 5 },
-	},
-	"storybook_templates": [
-		"{name} and {target} talked until the lights dimmed. Something shifted.",
-		"It started as small talk. It didn't stay that way.",
-		"{name} told {target} something real. {target} listened.",
-		"Late night. {name} and {target} were still talking.",
-	],
-},
-
 "FLIRT": {
 	"scope": "character",
 	"trigger_mode": "rolled",
@@ -1663,34 +1619,6 @@ const EVENTS: Dictionary = {
 	],
 },
 
-"GOSSIP": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 4,
-	"category": "social",
-	"magnitude": "minor",
-	"cooldown_events": 8,
-	"requirements": {
-		"other_character_in_room": true,
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["GOSSIP"] }, "multiply": 4.0 },
-		{ "condition": { "has_trait": ["NOSY"] }, "multiply": 2.0 },
-		{ "condition": { "has_trait": ["SECRETIVE"] }, "multiply": 0.3 },
-	],
-	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
-	"call_action": "gossip",
-	"outcomes": {
-		"stats": { "boredom": -8 },
-		"target_stats": { "boredom": -5 },
-		"relationship": { "bond": 2, "familiarity": 2 },
-	},
-	"storybook_templates": [
-		"{name} leaned in and told {target} something they probably shouldn't have.",
-		"{name} had heard a thing. {target} got the full version.",
-		"{name} kept their voice low. {target} listened.",
-	],
-},
 
 "REMINISCE_TOGETHER": {
 	"scope": "character",
