@@ -249,3 +249,27 @@ func get_character_zone(room_id: String, char_id: String) -> String:
 			if spot["occupied_by"] == char_id:
 				return zone["zone_name"]
 	return ""
+
+# Returns the hallway room_id for a given floor index, or "" if none registered.
+func get_hallway_for_floor(floor_index: int) -> String:
+	var hallway_id: String = "hallway_f%d" % floor_index
+	if _rooms.has(hallway_id):
+		return hallway_id
+	return ""
+
+# Returns true if the room_id is a hallway corridor, not a regular room.
+func is_hallway(room_id: String) -> bool:
+	return room_id.begins_with("hallway_")
+	
+# Find floor index by closest hallway Y position.
+# Used by movement_controller to tag which floor a character is physically on.
+func get_floor_index_by_y(y_pos: float) -> int:
+	var best_index: int = -1
+	var best_dist: float = INF
+	for fid in _floors:
+		var floor_y: float = _floors[fid].get("hallway_y", INF)
+		var dist: float = abs(floor_y - y_pos)
+		if dist < best_dist:
+			best_dist = dist
+			best_index = _floors[fid].get("index", -1)
+	return best_index

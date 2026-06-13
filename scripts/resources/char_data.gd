@@ -130,6 +130,7 @@ extends Resource
 @export var waypoints: Array = []              # path nodes from Pathfinder
 @export var waypoint_index: int = 0            # current waypoint progress
 @export var movement_type: String = "walk"     # key in Stats.MOVEMENT_TYPES
+@export var is_riding_elevator: bool = false
 
 # Blockages this character knows about. Other floors may have unknown blockages.
 # Format: { room_id: expiry_tick }
@@ -152,6 +153,10 @@ extends Resource
 @export var sequence_context: Dictionary = {}   # arbitrary scratchpad for the sequence
 @export var is_loitering: bool = false
 @export var loiter_return_room: String = ""
+@export var loiter_hallway_id: String = ""   # which hallway room has our spot
+@export var loiter_lane: String = ""         # which lane we claimed
+@export var transit_floor_index: int = -1   # floor physically on during transit
+@export var loiter_saved_waypoints: Array = []
 
 
 # ═════════════════════════════════════════════════════════════

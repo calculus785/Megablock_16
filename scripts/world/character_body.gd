@@ -104,11 +104,36 @@ func _setup_movement_controller() -> void:
 func _on_waypoint_reached(wp: Dictionary) -> void:
 	match wp["type"]:
 		"exit_room", "wait_room_door_exit":
+			# Leaving a room — release spots and remove from occupant list
 			Rooms.release_all_spots(char_data.current_room, char_data.char_id)
 			Rooms.remove_occupant(char_data.current_room, char_data.char_id)
-			char_data.zone_target_pos = Vector3.ZERO 
+			char_data.zone_target_pos = Vector3.ZERO
 			if _zone_tween and _zone_tween.is_valid():
-				_zone_tween.kill()                    
+				_zone_tween.kill()
+		"exit_hallway_doorway":
+			# Walked through hallway door into the corridor — register in hallway room
+			var room_id: String = wp.get("room_id", "")
+			var floor_index: int = Rooms.get_floor_index(room_id)
+			var hallway_id: String = Rooms.get_hallway_for_floor(floor_index)
+			if hallway_id != "":
+				char_data.current_room = hallway_id
+				Rooms.add_occupant(hallway_id, char_data.char_id)
+		"ride_elevator":
+			# Exited elevator onto destination floor — register in that floor's hallway
+			var dest_floor: int = wp.get("to_floor", -1)
+			var hallway_id: String = Rooms.get_hallway_for_floor(dest_floor)
+			if hallway_id != "":
+				char_data.current_room = hallway_id
+				Rooms.add_occupant(hallway_id, char_data.char_id)
+		"wait_hallway_door":
+			# Approaching a room door from the corridor — leaving the hallway
+			if Rooms.is_hallway(char_data.current_room):
+				Rooms.remove_occupant(char_data.current_room, char_data.char_id)
+		"wait_elevator":
+			# Approaching elevator shaft — leaving the hallway
+			if Rooms.is_hallway(char_data.current_room):
+				Rooms.remove_occupant(char_data.current_room, char_data.char_id) 
+                 
 
 
 func _on_movement_completed() -> void:
@@ -132,6 +157,14 @@ func snap_to_room() -> void:
 	var pos: Vector3 = Rooms.get_spawn_pos(char_data.current_room)
 	if pos != Vector3.ZERO:
 		position = pos
+
+# Stops all movement and resets the movement-started flag.
+# Called by Sim when a character is intercepted for a hallway conversation.
+func cancel_movement() -> void:
+	_movement_started = false
+	if _zone_tween and _zone_tween.is_valid():
+		_zone_tween.kill()
+	_move_ctrl.stop_movement()
 
 func _move_to_zone_target() -> void:
 	var target: Vector3 = char_data.zone_target_pos

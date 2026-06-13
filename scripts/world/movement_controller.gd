@@ -84,6 +84,21 @@ func stop_movement() -> void:
 	_waypoints.clear()
 	_current_index = 0
 
+# Stops all movement and tweens the character body to a target position.
+# Used when a character is intercepted mid-journey for a hallway conversation.
+func cancel_and_tween_to(target_pos: Vector3) -> void:
+	stop_movement()
+	var parent := get_parent() as Node3D
+	if parent == null:
+		return
+	var distance: float = parent.position.distance_to(target_pos)
+	var duration: float = maxf(distance / BASE_SPEED, 0.05)
+	if _tween and _tween.is_valid():
+		_tween.kill()
+	_is_moving = true
+	_tween = create_tween()
+	_tween.tween_property(parent, "position", target_pos, duration)
+	_tween.finished.connect(func(): _is_moving = false, CONNECT_ONE_SHOT)
 
 func is_moving() -> bool:
 	return _is_moving
@@ -155,6 +170,11 @@ func _on_tween_finished() -> void:
 	waypoint_reached.emit(wp)
 	if wp["type"] == "walk":
 		_check_proximity()
+		# If proximity locked us into a sequence, don't advance to next waypoint
+		var _p := get_parent()
+		if "char_data" in _p and (_p.char_data.is_loitering or _p.char_data.active_sequence != ""):
+			_is_moving = false
+			return
 
 	if wp["type"] == "arrive":
 		var room_id: String = wp.get("room_id", "")
@@ -208,6 +228,18 @@ func _on_passenger_boarded(car_index: int, char_id: String) -> void:
 		return
 	if char_id != _get_char_id():
 		return
+	# Guard: don't board if character was intercepted for a hallway conversation
+	var parent := get_parent()
+	if "char_data" in parent:
+		var cd = parent.char_data
+		if cd.is_loitering or cd.active_sequence != "":
+			_elevator_phase = ElevatorPhase.NONE
+			_is_moving = false
+			_waypoints.clear()
+			_current_index = 0
+			if Settings.debug_console_logging:
+				print("[Movement] %s skipped elevator — in conversation" % _get_char_name())
+			return
 
 	_elevator_phase = ElevatorPhase.NONE
 
@@ -227,10 +259,15 @@ func _handle_ride_elevator(wp: Dictionary) -> void:
 	_elevator_phase = ElevatorPhase.RIDING
 	_ride_car_index = wp["car_index"]
 
+	var parent := get_parent()
+	if "char_data" in parent:
+		parent.char_data.is_riding_elevator = true
+
+	# Snap X to car center so _process() Y-follow tracks correctly
 	var car_node: Node3D = Pathfinder.get_car_node(_ride_car_index)
-	var parent := get_parent() as Node3D
-	if car_node and parent:
-		parent.position.x = car_node.position.x
+	var parent_node := parent as Node3D
+	if car_node and parent_node:
+		parent_node.position.x = car_node.position.x
 
 	if Settings.debug_console_logging:
 		print("[Movement] %s riding elevator %d to floor %d" % [
@@ -247,6 +284,9 @@ func _on_passenger_exited(car_index: int, char_id: String) -> void:
 	_elevator_phase = ElevatorPhase.NONE
 	_ride_car_index = -1
 
+	var parent := get_parent()
+	if "char_data" in parent:
+		parent.char_data.is_riding_elevator = false
 	# Snap Y to the next waypoint to prevent float drift after exit
 	var next_idx: int = _current_index + 1
 	if next_idx < _waypoints.size():
@@ -262,12 +302,16 @@ func _on_passenger_exited(car_index: int, char_id: String) -> void:
 const PROXIMITY_RANGE: float = 3.0  # units — how close two characters need to be
 
 func _check_proximity() -> void:
-	
 	var parent := get_parent()
 	if not "char_data" in parent:
 		return
 	var my_data: CharData = parent.char_data
 	var my_pos: Vector3 = parent.global_position
+
+	# Tag which floor we're physically on so hallway spot selection is correct
+	if _current_index < _waypoints.size():
+		var wp_y: float = _waypoints[_current_index].get("pos", Vector3.ZERO).y
+		my_data.transit_floor_index = Rooms.get_floor_index_by_y(wp_y)
 	
 	for other_body in _get_nearby_character_bodies():
 		if not "char_data" in other_body:
@@ -296,6 +340,15 @@ func _check_proximity() -> void:
 		# Fire the proximity event via Sim
 		Sim.fire_proximity_event(my_data, other_body.char_data)
 
+# Returns the waypoints not yet processed — from the next step onwards.
+# Called just before stop_movement() to save journey state for loiter resume.
+func get_remaining_waypoints() -> Array:
+	# _current_index points to the walk waypoint that just completed (triggered proximity).
+	# The next waypoint is _current_index + 1.
+	var next_index: int = _current_index + 1
+	if next_index >= _waypoints.size():
+		return []
+	return _waypoints.slice(next_index)
 
 func _get_nearby_character_bodies() -> Array:
 	# Walk up to the Characters container and check siblings

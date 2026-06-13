@@ -1553,6 +1553,47 @@ func _start_conversation(character: CharData, target, _args: Dictionary) -> Stri
 	# Guard: don't start if either is already in a sequence
 	if character.active_sequence != "" or target.active_sequence != "":
 		return DONE
+	# Guard: don't start if target is in transit outside this hallway
+	if target.is_in_transit and target.current_room != character.current_room:
+		return DONE
+	if target.is_riding_elevator:
+		return DONE
+	
+	# If in a hallway, claim lane spots for visual positioning
+	if Rooms.is_hallway(character.current_room):
+		var hallway_id: String = character.current_room
+
+		# Find the first lane with at least 2 free spots
+		var lane_name: String = ""
+		for zone in Rooms.get_zones(hallway_id):
+			var free_count: int = 0
+			for spot in zone["spots"]:
+				if spot["occupied_by"] == "":
+					free_count += 1
+			if free_count >= 2:
+				lane_name = zone["zone_name"]
+				break
+		if lane_name == "":
+			return DONE  # all lanes full
+
+		var spot_a: Dictionary = Rooms.get_available_spot(hallway_id, lane_name)
+		if spot_a.is_empty():
+			return DONE
+		Rooms.claim_spot(hallway_id, lane_name, spot_a["name"], character.char_id)
+
+		var spot_b: Dictionary = Rooms.get_available_spot(hallway_id, lane_name)
+		if spot_b.is_empty():
+			Rooms.release_spot(hallway_id, character.char_id)
+			return DONE
+		Rooms.claim_spot(hallway_id, lane_name, spot_b["name"], target.char_id)
+
+		character.zone_target_pos = spot_a["pos"]
+		target.zone_target_pos = spot_b["pos"]
+
+		if Settings.debug_console_logging:
+			print("[Actions] 💬🚶 %s and %s stopped in %s/%s for a hallway conversation" % [
+				character.char_name, target.char_name, hallway_id, lane_name])
+
 	return LOCK_SEQUENCE
 
 # Called by HALLWAY_CONVERSE proximity event.
@@ -1562,17 +1603,69 @@ func _start_hallway_conversation(character: CharData, target, _args: Dictionary)
 		return DONE
 	if character.active_sequence != "" or target.active_sequence != "":
 		return DONE
-	# Save destinations so movement resumes after the conversation
+
+	# Figure out which floor's hallway we're in.
+	# During transit, movement_target_room tells us the destination floor,
+	# and that's the hallway we're walking through (elevators handle floor changes).
+	# Use the physical floor the character is on (tagged by movement_controller).
+	# Falls back to current_room floor if not in transit.
+	var floor_index: int = character.transit_floor_index
+	if floor_index < 0:
+		floor_index = Rooms.get_floor_index(character.current_room)
+	if floor_index < 0:
+		return DONE
+
+	var hallway_id: String = Rooms.get_hallway_for_floor(floor_index)
+	if hallway_id == "":
+		return DONE
+
+	# Find the first lane with at least 2 free spots
+	var lane_name: String = ""
+	for zone in Rooms.get_zones(hallway_id):
+		var free_count: int = 0
+		for spot in zone["spots"]:
+			if spot["occupied_by"] == "":
+				free_count += 1
+		if free_count >= 2:
+			lane_name = zone["zone_name"]
+			break
+
+	if lane_name == "":
+		return DONE  # all lanes full — no room to stop and chat
+
+	# Claim two spots in the lane
+	var spot_a: Dictionary = Rooms.get_available_spot(hallway_id, lane_name)
+	if spot_a.is_empty():
+		return DONE
+	Rooms.claim_spot(hallway_id, lane_name, spot_a["name"], character.char_id)
+
+	var spot_b: Dictionary = Rooms.get_available_spot(hallway_id, lane_name)
+	if spot_b.is_empty():
+		Rooms.release_spot(hallway_id, character.char_id)
+		return DONE
+	Rooms.claim_spot(hallway_id, lane_name, spot_b["name"], target.char_id)
+
+	# Save journey state so we can resume after conversation
 	character.loiter_return_room = character.movement_target_room
-	target.loiter_return_room = target.movement_target_room
-	# Stop both mid-journey
+	character.loiter_hallway_id = hallway_id
+	character.loiter_lane = lane_name
 	character.is_in_transit = false
 	character.is_loitering = true
+
+	target.loiter_return_room = target.movement_target_room
+	target.loiter_hallway_id = hallway_id
+	target.loiter_lane = lane_name
 	target.is_in_transit = false
 	target.is_loitering = true
+
+	# Set zone target positions so character bodies tween to the spots
+	character.zone_target_pos = spot_a["pos"]
+	target.zone_target_pos = spot_b["pos"]
+
 	if Settings.debug_console_logging:
-		print("[Actions] 💬🚶 %s and %s stopped for a hallway conversation" % [
-			character.char_name, target.char_name])
+		print("[Actions] 💬🚶 %s and %s stopped in %s/%s for a hallway conversation" % [
+			character.char_name, target.char_name, hallway_id, lane_name])
+
 	return LOCK_SEQUENCE
 
 func _converse_open(_character: CharData, _target, _args: Dictionary) -> String:

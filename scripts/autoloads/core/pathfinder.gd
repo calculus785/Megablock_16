@@ -68,6 +68,10 @@ func _ready() -> void:
 # Called by Actions.start_movement() — result stored on CharData.waypoints.
 
 func plan_route(origin_room: String, dest_room: String) -> Array:
+	# Hallway origins skip the "exit room" waypoints — character is already in the corridor
+	if origin_room.begins_with("hallway_"):
+		return _plan_from_hallway(origin_room, dest_room)
+
 	var origin: Dictionary = Rooms.get_room_data(origin_room)
 	var dest: Dictionary = Rooms.get_room_data(dest_room)
 
@@ -192,7 +196,97 @@ func plan_route(origin_room: String, dest_room: String) -> Array:
 
 	return waypoints
 
+# Plans a route starting from a hallway corridor.
+# Skips room exit waypoints — character is already in the corridor.
+# Used when resuming movement after a hallway conversation.
+func _plan_from_hallway(origin_hallway: String, dest_room: String) -> Array:
+	var dest: Dictionary = Rooms.get_room_data(dest_room)
+	if dest.is_empty():
+		push_warning("[Pathfinder] Bad dest room: %s" % dest_room)
+		return []
 
+	# Parse floor index from hallway_fN
+	var origin_floor: int = int(origin_hallway.replace("hallway_f", ""))
+	var dest_floor: int = dest["floor_index"]
+
+	var origin_fd: Dictionary = Rooms.get_floor_data_by_index(origin_floor)
+	var lanes: Array = origin_fd.get("hallway_lanes", [
+		Vector3(0, 0, 0.3), Vector3(0, 0, 0.65), Vector3(0, 0, 1.0)])
+	var chosen_lane: Vector3 = lanes[randi() % lanes.size()]
+	var lane_z: float = chosen_lane.z
+
+	var waypoints: Array = []
+
+	if origin_floor != dest_floor:
+		# Walk to elevator, ride to dest floor
+		var car_index: int = _pick_elevator(dest["door_pos"].x)
+		var wait_key: String = "elevator_left_wait" if car_index == 0 else "elevator_right_wait"
+		var el_wait_pos: Vector3 = origin_fd.get(wait_key, Vector3.ZERO)
+		var origin_hallway_y: float = origin_fd.get("hallway_y", el_wait_pos.y)
+
+		waypoints.append({
+			"pos": Vector3(el_wait_pos.x, origin_hallway_y, lane_z),
+			"type": "walk",
+		})
+		waypoints.append({
+			"pos": Vector3(el_wait_pos.x, origin_hallway_y, lane_z),
+			"type": "wait_elevator",
+			"car_index": car_index,
+			"from_floor": origin_floor,
+			"to_floor": dest_floor,
+		})
+
+		var dest_fd: Dictionary = Rooms.get_floor_data_by_index(dest_floor)
+		var dest_wait_key: String = "elevator_left_wait" if car_index == 0 else "elevator_right_wait"
+		var el_dest_pos: Vector3 = dest_fd.get(dest_wait_key, Vector3.ZERO)
+		var dest_hallway_y: float = dest_fd.get("hallway_y", el_dest_pos.y)
+
+		waypoints.append({
+			"pos": Vector3(el_dest_pos.x, dest_hallway_y, lane_z),
+			"type": "ride_elevator",
+			"car_index": car_index,
+			"to_floor": dest_floor,
+		})
+		waypoints.append({
+			"pos": Vector3(el_dest_pos.x, dest_hallway_y, lane_z),
+			"type": "walk",
+		})
+		waypoints.append({
+			"pos": Vector3(dest["door_pos"].x, dest_hallway_y, lane_z),
+			"type": "walk",
+		})
+	else:
+		# Same floor — walk directly to dest door
+		var hallway_y: float = origin_fd.get("hallway_y", dest["door_pos"].y)
+		waypoints.append({
+			"pos": Vector3(dest["door_pos"].x, hallway_y, lane_z),
+			"type": "walk",
+		})
+
+	# Enter destination room — same as regular plan_route
+	waypoints.append({
+		"pos": dest["door_pos"],
+		"type": "wait_hallway_door",
+		"room_id": dest_room,
+	})
+	waypoints.append({
+		"pos": Rooms.get_doorway_pos(dest_room),
+		"type": "enter_doorway",
+		"room_id": dest_room,
+	})
+	waypoints.append({
+		"pos": Rooms.get_doorway_pos(dest_room),
+		"type": "wait_room_door",
+		"room_id": dest_room,
+	})
+	waypoints.append({
+		"pos": dest["spawn_pos"],
+		"type": "arrive",
+		"room_id": dest_room,
+	})
+
+	return waypoints
+	
 func can_reach(origin_room: String, dest_room: String) -> bool:
 	return not Rooms.get_room_data(origin_room).is_empty() \
 		and not Rooms.get_room_data(dest_room).is_empty()

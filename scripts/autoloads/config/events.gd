@@ -1433,6 +1433,7 @@ const EVENTS: Dictionary = {
 	"category": "social",
 	"magnitude": "minor",
 	"cooldown_events": 5,
+	"allow_hallway": true,
 	"requirements": {
 		"other_character_in_room": true,
 	},

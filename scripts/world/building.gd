@@ -48,6 +48,8 @@ func _build_floors() -> void:
 
 		_register_doors(floor_node, floor_def, type_def)
 
+		_register_hallway_spots(floor_node, floor_def, i)
+
 
 func _register_floor_rooms(
 	floor_node: Node3D,
@@ -322,6 +324,53 @@ func _register_doors(floor_node: Node3D, floor_def: Dictionary, type_def: Dictio
 			if room_door:
 				Rooms.register_room_door(room_id, room_door)
 
+func _register_hallway_spots(floor_node: Node3D, floor_def: Dictionary, floor_index: int) -> void:
+	var convo_node = floor_node.get_node_or_null("HallwayConvoSpots")
+	if convo_node == null:
+		return
+
+	var hallway_id: String = "hallway_f%d" % floor_index
+
+	# Register as a room so the existing zone/spot API works
+	Rooms.register_room(hallway_id, {
+		"type":        "hallway",
+		"floor_id":    floor_def["floor_id"],
+		"floor_index": floor_index,
+		"occupants":   [],
+		"spawn_pos":   Vector3.ZERO,
+		"door_pos":    Vector3.ZERO,
+		"doorway_pos": Vector3.ZERO,
+		"hallway_y":   0.0,
+		"room_size":   "hallway",
+	})
+
+	# Read Lane_* as zones, Spot_* as spots — same shape as room zones
+	var zone_data: Array = []
+	for lane in convo_node.get_children():
+		if not lane.name.begins_with("Lane_"):
+			continue
+		var spots: Array = []
+		for spot in lane.get_children():
+			if not spot.name.begins_with("Spot_"):
+				continue
+			spots.append({
+				"name":        spot.name,
+				"pos":         spot.global_position,
+				"occupied_by": "",
+			})
+		zone_data.append({
+			"zone_name": lane.name,
+			"spots":     spots,
+		})
+
+	Rooms.set_zones(hallway_id, zone_data)
+
+	if Settings.debug_console_logging:
+		var lane_count: int = zone_data.size()
+		var spot_count: int = 0
+		for z in zone_data:
+			spot_count += z["spots"].size()
+		print("[Building] 🛤️ %s: %d lanes, %d spots" % [hallway_id, lane_count, spot_count])
 
 # Store label nodes keyed by room_id so Bootstrap can update them later
 var _room_labels: Dictionary = {}

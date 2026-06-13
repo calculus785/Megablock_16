@@ -442,3 +442,8 @@ runtime. Not two separate events. Phase 4 extension session.
 **Heated Argument is a CONVERSE_SEQ beat** — Not a standalone event.
 Weight toward this beat increases as conversation turns negative (feelings
 and bond tracked through sequence context). Phase 4 extension session.
+
+Hallways-as-rooms replaces proximity detection — Characters register as hallway_fN room occupants during transit (on exit_hallway_doorway and ride_elevator waypoints). other_character_in_room requirement handles co-presence naturally. No new systems needed. Session 19.
+allow_hallway: true flag gates hallway events — Events must opt in. Prevents room-only events from firing during transit. Session 19.
+_plan_from_hallway skips room-exit waypoints — When current_room begins with hallway_, pathfinder generates a route starting from the corridor rather than trying to exit a room. Session 19.
+is_riding_elevator flag on CharData — Set by movement_controller during RIDING phase, cleared on exit. Guards _run_hallway_check so events don't fire while character is physically inside the elevator car. Session 19.
