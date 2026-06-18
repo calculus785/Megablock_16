@@ -159,6 +159,7 @@ func _run_pipeline(character: CharData) -> void:
 		var seq_key: String = event_def.get("sequence_key", "")
 		if seq_key != "" and target is CharData:
 			_start_sequence(character, target, seq_key)
+			character.sequence_context["origin_event_key"] = event_key
 
 	# ── 6. EXECUTE ──────────────────────────────────────────
 	_apply_outcomes(character, target, event_def)
@@ -169,6 +170,7 @@ func _run_pipeline(character: CharData) -> void:
 	# Set cooldown AFTER the event fires
 	_set_cooldown(character, event_key, event_def)
 	_event_counter += 1
+	character.action_count += 1
 	_apply_repetition_boredom(character, event_key)
 
 	# ── LOG ─────────────────────────────────────────────────
@@ -212,6 +214,7 @@ func force_fire_event(character: CharData, event_key: String) -> String:
 
 	# No cooldown set — forced events are debug, shouldn't block normal firing
 	_event_counter += 1
+	character.action_count += 1
 
 	if Settings.debug_console_logging:
 		print("[Sim] 🔧 FORCED → %s → %s" % [character.char_name, summary])
@@ -240,6 +243,7 @@ func force_fire_event_with_target(character: CharData,
 	_apply_outcomes(character, target, event_def)
 	var summary: String = _echo(character, target, event_key, event_def, frame)
 	_event_counter += 1
+	character.action_count += 1
  
 	if Settings.debug_console_logging:
 		print("[Sim] 🔧 FORCED → %s → %s" % [character.char_name, summary])
@@ -323,6 +327,7 @@ func _try_fire_intent(character: CharData) -> bool:
 	var summary: String = _echo(character, target, event_key, event_def, frame)
 	_set_cooldown(character, event_key, event_def)
 	_event_counter += 1
+	character.action_count += 1
 
 	if Settings.debug_console_logging:
 		print("[Sim] 📋 INTENT → %s → %s" % [character.char_name, summary])
@@ -452,14 +457,13 @@ func _check_and_flee_avoided(character: CharData) -> bool:
 func _is_on_cooldown(character: CharData, event_key: String) -> bool:
 	if not character.event_cooldowns.has(event_key):
 		return false
-	return _event_counter < character.event_cooldowns[event_key]
+	return character.action_count < character.event_cooldowns[event_key]
 
 
 func _set_cooldown(character: CharData, event_key: String, event_def: Dictionary) -> void:
 	var duration: int = event_def.get("cooldown_events", 0)
 	if duration > 0:
-		# Store the counter value when this event becomes available again
-		character.event_cooldowns[event_key] = _event_counter + duration
+		character.event_cooldowns[event_key] = character.action_count + duration
 
 
 # ─────────────────────────────────────────────────────────────
@@ -907,6 +911,7 @@ func _run_auto_fire(character: CharData) -> bool:
 
 	_set_cooldown(character, event_key, event_def)
 	_event_counter += 1
+	character.action_count += 1
 
 	if Settings.debug_console_logging:
 		print("[Sim] ⚡ %s → %s" % [character.char_name, summary])
@@ -1030,49 +1035,6 @@ func _advance_sequence(character: CharData) -> void:
 		if partner:
 			partner.sequence_beat = next_id
 
-# If a character stopped mid-journey for a hallway conversation,
-# resume movement to their saved destination.
-func _resume_from_loiter(character: CharData) -> void:
-	if not character.is_loitering:
-		return
-	character.is_loitering = false
-
-	# Release hallway spot
-	if character.loiter_hallway_id != "":
-		Rooms.release_spot(character.loiter_hallway_id, character.char_id)
-		if Settings.debug_console_logging:
-			print("[Sim] 🛤️ %s released spot in %s/%s" % [
-				character.char_name, character.loiter_hallway_id, character.loiter_lane])
-		character.loiter_hallway_id = ""
-		character.loiter_lane = ""
-
-	var dest: String = character.loiter_return_room
-	character.loiter_return_room = ""
-
-	if dest == "" or dest == character.current_room:
-		character.loiter_saved_waypoints = []
-		return
-
-	character.is_in_transit = true
-	character.movement_target_room = dest
-
-	# Use saved waypoints if available — avoids re-planning from a stale current_room.
-	# Saved waypoints capture the journey exactly where it was interrupted.
-	var saved: Array = character.loiter_saved_waypoints
-	character.loiter_saved_waypoints = []
-
-	if not saved.is_empty():
-		_restart_from_saved_waypoints(character)
-		if Settings.debug_console_logging:
-			print("[Sim] 🚶 %s resuming journey → %s (saved waypoints)" % [
-				character.char_name, dest])
-	else:
-		# Fallback: re-plan from current_room if no waypoints were saved
-		Actions.start_movement(character, dest)
-		if Settings.debug_console_logging:
-			print("[Sim] 🚶 %s resuming journey → %s (re-planned)" % [
-				character.char_name, dest])
-
 # Weighted roll for a branch beat (e.g. beat 1 of PLAY_POOL_SEQ).
 # Applies outcome-specific weight modifiers from the beat definition.
 func _roll_sequence_branch(character: CharData, beat: Dictionary) -> Dictionary:
@@ -1125,6 +1087,10 @@ func _clear_sequence(character: CharData) -> void:
 
 # Called when the final beat resolves. Clears both participants.
 func _end_sequence(initiator: CharData, partner: CharData) -> void:
+	# Extract origin event key before clearing context — used to refresh
+	# cooldown so characters don't immediately re-enter the same event
+	var origin_key: String = initiator.sequence_context.get("origin_event_key", "")
+
 	if Settings.debug_console_logging:
 		print("[Sim] ✅ %s ended for %s + %s" % [
 			initiator.active_sequence,
@@ -1138,6 +1104,15 @@ func _end_sequence(initiator: CharData, partner: CharData) -> void:
 	_resume_from_hallway(initiator)
 	if partner:
 		_resume_from_hallway(partner)
+	# Refresh cooldown — the original cooldown set at sequence start
+	# may have expired during the multi-beat conversation as other
+	# characters' pipeline events incremented _event_counter past
+	# the stored threshold.
+	if origin_key != "":
+		var origin_def: Dictionary = Events.get_event(origin_key)
+		_set_cooldown(initiator, origin_key, origin_def)
+		if partner:
+			_set_cooldown(partner, origin_key, origin_def)
 
 # If a character is in a hallway room after a sequence ends,
 # re-plan their journey to the original destination.
@@ -1146,6 +1121,13 @@ func _resume_from_hallway(character: CharData) -> void:
 		return
 	var dest: String = character.movement_target_room
 	if dest == "" or dest == character.current_room:
+		return
+	if Rooms.is_hallway(dest):
+		if Settings.debug_console_logging:
+			push_warning("[Sim] ⚠️ %s had hallway as resume dest (%s) — journey abandoned." % [
+				character.char_name, dest])
+		character.movement_target_room = ""
+		Rooms.release_all_spots(character.current_room, character.char_id)
 		return
 	# Release any hallway lane spots
 	Rooms.release_all_spots(character.current_room, character.char_id)
@@ -1204,6 +1186,7 @@ func _check_and_interrupt(character: CharData) -> bool:
 		var summary: String = _echo(character, target, event_key, event_def, frame)
 		_set_cooldown(character, event_key, event_def)
 		_event_counter += 1
+		character.action_count += 1
 
 		if Settings.debug_console_logging:
 			print("[Sim] ⚡ INTERRUPTED → %s → %s" % [character.char_name, summary])
@@ -1783,13 +1766,6 @@ func _apply_repetition_boredom(character: CharData, event_key: String) -> void:
 			])
 
 # ─────────────────────────────────────────────────────────────
-# PROXIMITY EVENTS
-# Fired by movement_controller when two in-transit characters
-# pass each other in a hallway. Light events don't interrupt,
-# heavy events pause both briefly.
-# ─────────────────────────────────────────────────────────────
-
-# ─────────────────────────────────────────────────────────────
 # HALLWAY EVENTS
 # Characters passing through a hallway get a limited event check.
 # Only events with allow_hallway: true can fire.
@@ -1822,8 +1798,9 @@ func _run_hallway_check(character: CharData) -> void:
 		if seq_key != "" and target is CharData:
 			if target.movement_target_room == "":
 				return
-			_set_cooldown(character, event_key, event_def)  # ← add this
-			_set_cooldown(target, event_key, event_def)     # ← and this
+			# Set cooldown now to block same-tick re-fire
+			_set_cooldown(character, event_key, event_def)
+			_set_cooldown(target, event_key, event_def)
 			var pos_a: Vector3 = character.zone_target_pos
 			var pos_b: Vector3 = target.zone_target_pos
 			_stop_character_movement(character)
@@ -1831,12 +1808,21 @@ func _run_hallway_check(character: CharData) -> void:
 			character.zone_target_pos = pos_a
 			target.zone_target_pos = pos_b
 			_start_sequence(character, target, seq_key)
-	return
+			# Store origin event key so _end_sequence can refresh the
+			# cooldown after the multi-beat conversation completes.
+			# Without this, the cooldown set above expires mid-conversation
+			# as other characters' pipeline events increment _event_counter.
+			character.sequence_context["origin_event_key"] = event_key
+		return
+	if event_def.has("sequence_key"):
+		return
 
+	# ── Non-sequence hallway events (nod, awkward pass, etc.) ──
 	_apply_outcomes(character, target, event_def)
 	var summary: String = _echo(character, target, event_key, event_def, frame)
 	_set_cooldown(character, event_key, event_def)
 	_event_counter += 1
+	character.action_count += 1
 
 	if Settings.debug_console_logging:
 		print("[Sim] 🚶 HALLWAY → %s + %s → %s" % [
@@ -1845,6 +1831,7 @@ func _run_hallway_check(character: CharData) -> void:
 			summary])
 
 	event_fired.emit(character.char_id, event_key, summary)
+
 
 
 func _get_eligible_hallway_events(character: CharData) -> Array:
@@ -1876,115 +1863,3 @@ func _stop_character_movement(character: CharData) -> void:
 				body.cancel_movement()
 			return
 
-func fire_proximity_event(actor: CharData, target: CharData) -> void:
-	var eligible: Array = _get_eligible_proximity_events(actor, target)
-	if eligible.is_empty():
-		return
-
-	var event_key: String = _weighted_roll(actor, eligible)
-	if event_key == "":
-		return
-
-	if _is_on_cooldown(actor, event_key):
-		return
-
-	var event_def: Dictionary = Events.get_event(event_key)
-	var frame: Dictionary = Context.build_frame(actor, target, event_def)
-
-	var action_name: String = event_def.get("call_action", "")
-	if action_name != "":
-		var result: String = Actions.call_action(action_name, actor, target, frame)
-		if result == Actions.LOCK_SEQUENCE:
-			var seq_key: String = event_def.get("sequence_key", "")
-			if seq_key != "" and target is CharData:
-				# Save waypoints BEFORE stop_movement() clears them
-				_save_loiter_waypoints(actor)
-				_save_loiter_waypoints(target)
-				_start_sequence(actor, target, seq_key)
-				if actor.zone_target_pos != Vector3.ZERO:
-					_tween_character_to_spot(actor, actor.zone_target_pos)
-					actor.zone_target_pos = Vector3.ZERO
-				if target.zone_target_pos != Vector3.ZERO:
-					_tween_character_to_spot(target, target.zone_target_pos)
-					target.zone_target_pos = Vector3.ZERO
-			return
-
-	_apply_outcomes(actor, target, event_def)
-	var summary: String = _echo(actor, target, event_key, event_def, frame)
-	_set_cooldown(actor, event_key, event_def)
-	_event_counter += 1
-
-	# ── PROXIMITY PAUSE for heavy events ────────────────────
-	if event_def.get("proximity_type", "light") == "heavy":
-		var pause_duration: float = 4.0 if event_key == "HALLWAY_CHAT" else 6.0
-		_pause_character_movement(actor, pause_duration)
-		_pause_character_movement(target, pause_duration)
-
-	if Settings.debug_console_logging:
-		print("[Sim] 🚶 PROXIMITY → %s + %s → %s" % [
-			actor.char_name, target.char_name, summary
-		])
-
-	event_fired.emit(actor.char_id, event_key, summary)
-
-
-func _pause_character_movement(character: CharData, duration: float) -> void:
-	# Find the character's body node and call pause_for_proximity on its movement controller
-	var container = get_node_or_null("/root/main/Building/Characters")
-	if container == null:
-		return
-	for body in container.get_children():
-		if "char_data" in body and body.char_data.char_id == character.char_id:
-			var ctrl = body.get_node_or_null("MovementController")
-			if ctrl and ctrl.has_method("pause_for_proximity"):
-				ctrl.pause_for_proximity(duration)
-			return
-
-# Cancels a character's movement and tweens them to a spot position.
-# Used after locking into a hallway conversation sequence.
-func _tween_character_to_spot(character: CharData, target_pos: Vector3) -> void:
-	var container = get_node_or_null("/root/main/Building/Characters")
-	if container == null:
-		return
-	for body in container.get_children():
-		if "char_data" in body and body.char_data.char_id == character.char_id:
-			var ctrl = body.get_node_or_null("MovementController")
-			if ctrl and ctrl.has_method("cancel_and_tween_to"):
-				ctrl.cancel_and_tween_to(target_pos)
-			elif ctrl and ctrl.has_method("stop_movement"):
-				ctrl.stop_movement()
-			return
-
-func _get_eligible_proximity_events(actor: CharData, _target: CharData) -> Array:
-	var eligible: Array = []
-	for event_key in Events.get_events_by_trigger("proximity"):
-		var event_def: Dictionary = Events.get_event(event_key)
-		if _check_requirements(actor, event_def.get("requirements", {})):
-			eligible.append(event_key)
-	return eligible
-
-# Saves the movement controller's remaining waypoints to CharData
-# before the controller is stopped for a loiter.
-func _save_loiter_waypoints(character: CharData) -> void:
-	var container = get_node_or_null("/root/main/Building/Characters")
-	if container == null:
-		return
-	for body in container.get_children():
-		if "char_data" in body and body.char_data.char_id == character.char_id:
-			var ctrl = body.get_node_or_null("MovementController")
-			if ctrl and ctrl.has_method("get_remaining_waypoints"):
-				character.loiter_saved_waypoints = ctrl.get_remaining_waypoints()
-			return
-
-
-# Restarts movement using saved waypoints rather than re-planning from current_room.
-func _restart_from_saved_waypoints(character: CharData) -> void:
-	var container = get_node_or_null("/root/main/Building/Characters")
-	if container == null:
-		return
-	for body in container.get_children():
-		if "char_data" in body and body.char_data.char_id == character.char_id:
-			var ctrl = body.get_node_or_null("MovementController")
-			if ctrl:
-				ctrl.start_movement(character.loiter_saved_waypoints)
-			return

@@ -447,3 +447,9 @@ Hallways-as-rooms replaces proximity detection — Characters register as hallwa
 allow_hallway: true flag gates hallway events — Events must opt in. Prevents room-only events from firing during transit. Session 19.
 _plan_from_hallway skips room-exit waypoints — When current_room begins with hallway_, pathfinder generates a route starting from the corridor rather than trying to exit a room. Session 19.
 is_riding_elevator flag on CharData — Set by movement_controller during RIDING phase, cleared on exit. Guards _run_hallway_check so events don't fire while character is physically inside the elevator car. Session 19.
+
+Per-character cooldowns replace global event counter — action_count on CharData increments only when that character fires a real event. Cooldowns are now meaningful: cooldown_events: 5 means "this character does 5 other things first." Global _event_counter kept for debug. Session 19.
+Hallway-to-hallway resume abandoned, not re-routed — If _resume_from_hallway finds movement_target_room is itself a hallway (chain interception), it clears the destination and logs a warning rather than routing into another hallway. Journey abandoned; character re-plans naturally next tick. Cleaner than attempted recovery. Session 19.
+Generation counter invalidates stale movement callbacks — _movement_gen increments on both start_movement and stop_movement. Door-open lambdas capture gen at creation time and bail if it doesn't match. Fixes ghost float caused by deferred tween/signal timing. Session 19.
+
+Cut HALLWAY_NOD/AWKWARD_HALLWAY_PASS/HALLWAY_BUMP rather than fix self-targeting bug — events were low-value flavor text left over from the old proximity system; not worth the upkeep. Session 21.

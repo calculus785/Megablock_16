@@ -20,8 +20,7 @@ var _waypoints: Array = []
 var _current_index: int = 0
 var _is_moving: bool = false
 var _tween: Tween
-var _proximity_fired: Array = []
-var _proximity_paused: bool = false
+var _movement_gen: int = 0
 
 # Elevator state
 enum ElevatorPhase { NONE, WAITING, RIDING }
@@ -36,16 +35,9 @@ var _pending_door_is_hallway: bool = false
 const BASE_SPEED: float = 6.0  # units per second
 
 
-var _pause_timer: Timer = null
-
 func _ready() -> void:
 	Pathfinder.passenger_boarded.connect(_on_passenger_boarded)
 	Pathfinder.passenger_exited.connect(_on_passenger_exited)
-	# Proximity pause timer
-	_pause_timer = Timer.new()
-	_pause_timer.one_shot = true
-	_pause_timer.timeout.connect(_on_pause_finished)
-	add_child(_pause_timer)
 
 
 
@@ -62,7 +54,7 @@ func _process(_delta: float) -> void:
 # ── PUBLIC ───────────────────────────────────────────────────
 
 func start_movement(waypoints: Array) -> void:
-	_proximity_fired.clear()
+	_movement_gen += 1
 	if waypoints.is_empty():
 		movement_completed.emit()
 		return
@@ -75,6 +67,7 @@ func start_movement(waypoints: Array) -> void:
 
 
 func stop_movement() -> void:
+	_movement_gen += 1
 	if _tween and _tween.is_valid():
 		_tween.kill()
 	_is_moving = false
@@ -83,22 +76,6 @@ func stop_movement() -> void:
 	_pending_door = null
 	_waypoints.clear()
 	_current_index = 0
-
-# Stops all movement and tweens the character body to a target position.
-# Used when a character is intercepted mid-journey for a hallway conversation.
-func cancel_and_tween_to(target_pos: Vector3) -> void:
-	stop_movement()
-	var parent := get_parent() as Node3D
-	if parent == null:
-		return
-	var distance: float = parent.position.distance_to(target_pos)
-	var duration: float = maxf(distance / BASE_SPEED, 0.05)
-	if _tween and _tween.is_valid():
-		_tween.kill()
-	_is_moving = true
-	_tween = create_tween()
-	_tween.tween_property(parent, "position", target_pos, duration)
-	_tween.finished.connect(func(): _is_moving = false, CONNECT_ONE_SHOT)
 
 func is_moving() -> bool:
 	return _is_moving
@@ -110,11 +87,7 @@ func is_moving() -> bool:
 
 
 func _move_to_next() -> void:
-	if _proximity_paused:
-		return
-	if _current_index >= _waypoints.size():
-		_is_moving = false
-		movement_completed.emit()
+	if not _is_moving:
 		return
 	if _current_index >= _waypoints.size():
 		_is_moving = false
@@ -135,21 +108,6 @@ func _move_to_next() -> void:
 		"exit_hallway_doorway":  _handle_exit_doorway(wp, true)
 		_:                       _tween_to(wp["pos"])
 
-func pause_for_proximity(duration: float) -> void:
-	if not _is_moving:
-		return
-	_proximity_paused = true
-	# Kill any active tween so character stops in place
-	if _tween and _tween.is_valid():
-		_tween.kill()
-	_pause_timer.start(duration)
-
-
-func _on_pause_finished() -> void:
-	_proximity_paused = false
-	if _is_moving:
-		_move_to_next()
-
 # ── TWEENING ─────────────────────────────────────────────────
 
 func _tween_to(target_pos: Vector3) -> void:
@@ -166,15 +124,10 @@ func _tween_to(target_pos: Vector3) -> void:
 
 
 func _on_tween_finished() -> void:
+	if not _is_moving:
+		return
 	var wp: Dictionary = _waypoints[_current_index]
 	waypoint_reached.emit(wp)
-	if wp["type"] == "walk":
-		_check_proximity()
-		# If proximity locked us into a sequence, don't advance to next waypoint
-		var _p := get_parent()
-		if "char_data" in _p and (_p.char_data.is_loitering or _p.char_data.active_sequence != ""):
-			_is_moving = false
-			return
 
 	if wp["type"] == "arrive":
 		var room_id: String = wp.get("room_id", "")
@@ -186,16 +139,15 @@ func _on_tween_finished() -> void:
 	if _pending_door != null:
 		var door = _pending_door
 		_pending_door = null
-
 		door.request_open()
-
 		if door.is_open():
-			# Door was already open — walk through immediately
 			_current_index += 1
 			_move_to_next()
 		else:
-			# Door is opening — wait for the signal before continuing
+			var gen: int = _movement_gen
 			door.door_opened.connect(func():
+				if _movement_gen != gen:
+					return
 				_current_index += 1
 				_move_to_next()
 			, CONNECT_ONE_SHOT)
@@ -232,7 +184,7 @@ func _on_passenger_boarded(car_index: int, char_id: String) -> void:
 	var parent := get_parent()
 	if "char_data" in parent:
 		var cd = parent.char_data
-		if cd.is_loitering or cd.active_sequence != "":
+		if cd.active_sequence != "":
 			_elevator_phase = ElevatorPhase.NONE
 			_is_moving = false
 			_waypoints.clear()
@@ -298,71 +250,6 @@ func _on_passenger_exited(car_index: int, char_id: String) -> void:
 	waypoint_reached.emit(_waypoints[_current_index])
 	_current_index += 1
 	_move_to_next()
-
-const PROXIMITY_RANGE: float = 3.0  # units — how close two characters need to be
-
-func _check_proximity() -> void:
-	var parent := get_parent()
-	if not "char_data" in parent:
-		return
-	var my_data: CharData = parent.char_data
-	var my_pos: Vector3 = parent.global_position
-
-	# Tag which floor we're physically on so hallway spot selection is correct
-	if _current_index < _waypoints.size():
-		var wp_y: float = _waypoints[_current_index].get("pos", Vector3.ZERO).y
-		my_data.transit_floor_index = Rooms.get_floor_index_by_y(wp_y)
-	
-	for other_body in _get_nearby_character_bodies():
-		if not "char_data" in other_body:
-			continue
-		if other_body.char_data.char_id == my_data.char_id:
-			continue
-		if not other_body.char_data.is_in_transit:
-			continue
-
-		var dist: float = my_pos.distance_to(other_body.global_position)
-		if dist > PROXIMITY_RANGE:
-			continue
-
-		# Same floor check
-		var my_floor: int = Rooms.get_floor_index(my_data.current_room)
-		var other_floor: int = Rooms.get_floor_index(other_body.char_data.current_room)
-		if my_floor != other_floor:
-			continue
-
-		# Don't fire twice for the same pair in the same journey
-		var pair_key: String = _make_pair_key(my_data.char_id, other_body.char_data.char_id)
-		if pair_key in _proximity_fired:
-			continue
-		_proximity_fired.append(pair_key)
-
-		# Fire the proximity event via Sim
-		Sim.fire_proximity_event(my_data, other_body.char_data)
-
-# Returns the waypoints not yet processed — from the next step onwards.
-# Called just before stop_movement() to save journey state for loiter resume.
-func get_remaining_waypoints() -> Array:
-	# _current_index points to the walk waypoint that just completed (triggered proximity).
-	# The next waypoint is _current_index + 1.
-	var next_index: int = _current_index + 1
-	if next_index >= _waypoints.size():
-		return []
-	return _waypoints.slice(next_index)
-
-func _get_nearby_character_bodies() -> Array:
-	# Walk up to the Characters container and check siblings
-	var container = get_parent().get_parent()
-	if container == null:
-		return []
-	return container.get_children()
-
-
-func _make_pair_key(id_a: String, id_b: String) -> String:
-	if id_a < id_b:
-		return id_a + ":" + id_b
-	return id_b + ":" + id_a
-
 
 # ── DOOR WAIT ────────────────────────────────────────────────
 # Tweens to the door position, then _on_tween_finished checks _pending_door.

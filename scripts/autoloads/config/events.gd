@@ -1233,140 +1233,6 @@ const EVENTS: Dictionary = {
 # SOCIAL — any room with other characters present
 # ═════════════════════════════════════════════════════════════
 
-"BRIEF_CONVERSATION": {
-	"scope": "character",
-	"trigger_mode": "proximity",
-	"proximity_type": "heavy",
-	"base_weight": 4,
-	"category": "social",
-	"magnitude": "minor",
-	"cooldown_events": 15,
-	"requirements": {
-		"stats_above": { "happiness": 35 },
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 2.0 },
-		{ "condition": { "has_trait": ["ANTISOCIAL"] }, "multiply": 0.1 },
-		{ "condition": { "stats_above": { "loneliness": 40 } }, "multiply": 2.0 },
-	],
-	"target_resolution": { "type": "self" },
-	"call_action": "brief_conversation",
-	"outcomes": {
-		"stats": { "loneliness": -10, "boredom": -5 },
-		"target_stats": { "loneliness": -10, "boredom": -5 },
-		"relationship": { "bond": 3, "familiarity": 2 },
-	},
-	"storybook_templates": [
-		"{name} and {target} stopped in the hallway. One of them said something real.",
-		"{name} caught {target} on the way out. They talked for a minute — actually talked.",
-		"It was just the hallway, but {name} and {target} stayed longer than they meant to.",
-	],
-},
-
-"HALLWAY_NOD": {
-	"scope": "character",
-	"trigger_mode": "proximity",
-	"proximity_type": "light",  # doesn't pause movement
-	"base_weight": 15,
-	"category": "social",
-	"magnitude": "minor",
-	"cooldown_events": 6,
-	"requirements": {},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["SHY"] }, "multiply": 1.8 },
-		{ "condition": { "has_trait": ["ANTISOCIAL"] }, "multiply": 1.5 },
-	],
-	"target_resolution": { "type": "self" },
-	"call_action": "hallway_nod",
-	"outcomes": {
-		"stats": { "loneliness": -2 },
-		"target_stats": { "loneliness": -2 },
-		"relationship": { "familiarity": 1 },
-	},
-	"storybook_templates": [
-		"{name} and {target} passed in the hall.",
-		"A nod. Nothing more needed.",
-	],
-},
-
-"HALLWAY_CONVERSE": {
-	"scope": "character",
-	"trigger_mode": "proximity",
-	"proximity_type": "heavy",
-	"base_weight": 4,
-	"category": "social",
-	"magnitude": "minor",
-	"cooldown_events": 10,
-	"requirements": {
-		"stats_above": { "happiness": 25 },
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 2.0 },
-		{ "condition": { "has_trait": ["ANTISOCIAL"] }, "multiply": 0.2 },
-		{ "condition": { "has_trait": ["SHY"] }, "multiply": 0.4 },
-		{ "condition": { "stats_above": { "loneliness": 50 } }, "multiply": 1.8 },
-	],
-	"call_action": "start_hallway_conversation",
-	"sequence_key": "CONVERSE_SEQ",
-	"outcomes": {},
-	"storybook_templates": [
-		"{name} and {target} stopped in the hallway to talk.",
-		"{name} caught {target} in the corridor. Neither was in that much of a hurry.",
-	],
-},
-
-"AWKWARD_HALLWAY_PASS": {
-	"scope": "character",
-	"trigger_mode": "proximity",
-	"proximity_type": "light",
-	"base_weight": 4,
-	"category": "social",
-	"magnitude": "minor",
-	"cooldown_events": 10,
-	"requirements": {
-		"stats_above": { "stress": 40 },
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_state": ["ANXIOUS"] }, "multiply": 2.0 },
-		{ "condition": { "has_trait": ["SHY"] }, "multiply": 2.5 },
-	],
-	"target_resolution": { "type": "self" },
-	"call_action": "awkward_pass",
-	"outcomes": {
-		"stats": { "stress": 3 },
-		"target_stats": { "stress": 2 },
-	},
-	"storybook_templates": [
-		"{name} and {target} passed each other. Neither looked up.",
-		"The hallway wasn't wide enough for both of them.",
-	],
-},
-
-"HALLWAY_BUMP": {
-	"scope": "character",
-	"trigger_mode": "proximity",
-	"proximity_type": "light",
-	"base_weight": 2,
-	"category": "comedy",
-	"magnitude": "minor",
-	"cooldown_events": 20,
-	"requirements": {},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["FORGETFUL"] }, "multiply": 3.0 },
-		{ "condition": { "has_trait": ["RECKLESS"] }, "multiply": 2.0 },
-		{ "condition": { "stats_below": { "energy": 30 } }, "multiply": 2.0 },
-	],
-	"target_resolution": { "type": "self" },
-	"call_action": "hallway_bump",
-	"outcomes": {
-		"stats": { "stress": 2 },
-	},
-	"storybook_templates": [
-		"{name} bumped into {target} coming around the corner.",
-		"{They} collided. {name} said sorry first.",
-	],
-},
-
 "NOD_IN_PASSING": {
 	"scope": "character",
 	"trigger_mode": "rolled",
@@ -1432,7 +1298,7 @@ const EVENTS: Dictionary = {
 	"base_weight": 8,
 	"category": "social",
 	"magnitude": "minor",
-	"cooldown_events": 5,
+	"cooldown_events": 12,
 	"allow_hallway": true,
 	"requirements": {
 		"other_character_in_room": true,

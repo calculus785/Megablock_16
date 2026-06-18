@@ -112,10 +112,13 @@ extends Resource
 # Entry shape: { intent_key, priority, target, patience, clearable }
 @export var intent_queue: Array = []
 
+@export var action_count: int = 0
+
 # Secrets this character knows about. Each entry is a dictionary:
 # { secret_id, original_owner_id, content, shared_by_id,
 #   betrayal_chain_known, betrayer_id, heard_at_tick }
 @export var secrets: Array = []
+
 
 # ═════════════════════════════════════════════════════════════
 # LOCATION & MOVEMENT
@@ -141,6 +144,8 @@ extends Resource
 @export var zone_target_pos: Vector3 = Vector3.ZERO
 
 
+
+
 # ═════════════════════════════════════════════════════════════
 # SEQUENCE STATE
 # When this character is locked in a multi-beat sequence (pool game, etc.)
@@ -151,12 +156,6 @@ extends Resource
 @export var sequence_partner_id: String = ""    # other participant's char_id
 @export var sequence_role: String = ""          # "initiator" / "responder" / etc.
 @export var sequence_context: Dictionary = {}   # arbitrary scratchpad for the sequence
-@export var is_loitering: bool = false
-@export var loiter_return_room: String = ""
-@export var loiter_hallway_id: String = ""   # which hallway room has our spot
-@export var loiter_lane: String = ""         # which lane we claimed
-@export var transit_floor_index: int = -1   # floor physically on during transit
-@export var loiter_saved_waypoints: Array = []
 
 
 # ═════════════════════════════════════════════════════════════

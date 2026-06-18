@@ -36,33 +36,29 @@ To resolve any duplication: **the table above wins.** If two docs disagree, the 
 
 ```
 Phase:        Phase 4 — Relationships & Social Drama (extension wave)
-Next session: 20
-Just shipped: CONVERSE_SEQ (pool-based conversations, mood tracking, arc detection,
-              beat pools, escalation, summaries), Hallway Conversations v2
-              (hallways-as-rooms architecture — characters register in hallway_fN
-              rooms during transit, CONVERSE fires via allow_hallway flag,
-              re-plan on resume via _plan_from_hallway).
-Working on:   Hallway conversation bugs — system is partially working but unstable.
-Known issues: 
-  1. Characters immediately re-entering CONVERSE after it ends (cooldown not set
-     on LOCK_SEQUENCE path in _run_hallway_check — fix identified, one line).
-  2. Characters floating through rooms / getting stuck in repeated convo loops.
-     Root cause unclear — likely a state leak when is_in_transit gets out of sync
-     with movement controller state, or zone_target_pos not clearing correctly.
-  3. Spot assignment: characters pick spots by lane order, not proximity — one
-     character sometimes walks across the full hallway to reach their spot.
-  4. Old proximity system (fire_proximity_event, loiter fields, etc.) still in
-     codebase alongside new system — dead code causing confusion.
+Next session: 22
+Just shipped: Claude Code dead-code sweep — full legacy proximity system removed
+              (char_data.gd loiter/transit fields, movement_controller.gd proximity
+              functions, sim.gd proximity firing logic, actions.gd hallway-converse
+              dispatcher). CONVERSE cooldown_events bumped to 12. HALLWAY_NOD,
+              AWKWARD_HALLWAY_PASS, HALLWAY_BUMP removed entirely (self-targeting
+              bug found post-conversion, decided to cut rather than fix).
+Working on:   Base event layer design (CALLOUT/VISIT_/FULFILL_NEED) — brainstorm
+              session next, no code written yet.
+Known issues: None outstanding from this session. Sim runs clean — hallway
+              conversations, CONVERSE_SEQ, elevators, relationships all confirmed
+              working in test run.
 Build order
-remaining:    0) DEBUG + CLEAN UP hallway conversations (see next session prompt)
-              1) Passive relationship decay (relationships.gd only)
-              2) Public Humiliation (context-severity)
-              3) Cold Phase (is_cold on RelationshipRecord)
-              4) Jealousy system (watching array, 3 intensity levels)
-              5) Lying system (lies array, contradiction exposure)
+remaining:    1) Brainstorm + implement base event layer (CALLOUT/VISIT_/
+                 FULFILL_NEED — see parking lot for prior design notes)
+              2) Passive relationship decay (relationships.gd only)
+              3) Public Humiliation (context-severity)
+              4) Cold Phase (is_cold on RelationshipRecord)
+              5) Jealousy system (watching array, 3 intensity levels)
+              6) Lying system (lies array, contradiction exposure)
 Parked:       BETRAY_SECRET redesign. ASK_TO_GO_STEADY/PROPOSE (needs UI).
               Grocery checkout (Phase 5). Group conversations.
-              Spot selection refinement (proximity-based, not lane-order).
+              CALLOUT/CHAIN interaction system (replaces proximity, see notes).
 ```
 
 ---
