@@ -453,3 +453,36 @@ Hallway-to-hallway resume abandoned, not re-routed — If _resume_from_hallway f
 Generation counter invalidates stale movement callbacks — _movement_gen increments on both start_movement and stop_movement. Door-open lambdas capture gen at creation time and bail if it doesn't match. Fixes ghost float caused by deferred tween/signal timing. Session 19.
 
 Cut HALLWAY_NOD/AWKWARD_HALLWAY_PASS/HALLWAY_BUMP rather than fix self-targeting bug — events were low-value flavor text left over from the old proximity system; not worth the upkeep. Session 21.
+
+Base event layer uses same-tick resolution (Option C), not intent-queue
+delay or two-pass pipeline — character "decides and acts" in one tick,
+matching original design intent — Session 21
+
+Boredom and loneliness are category-weight boosters on SOCIALIZE/VISIT,
+not FULFILL_NEED targets — keeps FULFILL_NEED scoped to physical/
+biological needs only — Session 21
+
+Intent queue soft cap of 3 with critical/world-event bypass and
+emergency-only flush — preserves in-progress plans across interruptions
+like lockdowns, only wipes on genuine emergencies — Session 21
+
+current_motivation context carrier lives on CharData, not memory —
+transient mid-chain state, not memorable content — Session 21
+
+Base event layer implementation stays in dev sessions, not Claude Code —
+architectural work needing incremental testing, not mechanical sweep —
+Session 21
+
+1. INTROSPECT vs IDLE distinction (memory-driven vs atmospheric). Session 23.
+
+2. GO_HOME → auto_fire priority 75 (needs-driven, not base-roll). Session 23.
+
+3. 10 events deleted, folding into CONVERSE_SEQ beats. Session 23.
+
+4. Conflict events get no base_category (reactive redesign). Session 23.
+
+5. VISIT events are travel steps — fulfills_need on payoff only. Session 23.
+
+6. fulfills_need supports arrays (Step 4 resolver must handle). Session 23.
+
+7. No 7th category — ASK_OUT stays SOCIALIZE, conflict bypasses base roll. Session 23.

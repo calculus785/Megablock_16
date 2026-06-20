@@ -241,20 +241,77 @@ megablock16/
 
 ```
 Every tick (5-8 real seconds), Sim loops every character:
-  1. Skip if sleeping
-  2. Skip if in transit (except proximity_reactive)
-  3. Check intent queue → fire if any
-  4. Check auto-fire pool → fire highest priority if Architect approves
-  5. If in sequence → advance to next beat
-  6. Otherwise → ROLL → RESOLVE → FRAME → PLAYER_GATE → ACT → EXECUTE → ECHO → CONTINUE
+
+Skip if sleeping
+Skip if in transit (except proximity_reactive)
+Check intent queue → fire if any
+Check auto-fire pool → fire highest priority if Architect approves
+If in sequence → advance to next beat
+Otherwise → BASE_ROLL → category sub-pool roll →
+
+RESOLVE → FRAME → PLAYER_GATE → ACT → EXECUTE → ECHO → CONTINUE
 
 Periodic:
-  Half-hour: Clock advances, FeelingDriver decays, StateDriver evaluates, Rooms ticks auras
-  Daily: Memory prunes, Relationships decays, Traits checks evolution, Architect evaluates mood + calendar, Clock updates season intensity
-  On room arrival: Sim fires one reactive event
-```
 
+Half-hour: Clock advances, FeelingDriver decays, StateDriver evaluates, Rooms ticks auras
+
+Daily: Memory prunes, Relationships decays, Traits checks evolution, Architect evaluates mood + calendar, Clock updates season intensity
+
+On room arrival: Sim fires one reactive event
+```
 ---
+
+## The Base Event Layer
+
+A filtering step ahead of the normal event roll, not a separate pipeline
+stage — resolves same-tick (decide and act in one tick).
+---
+
+BASE_ROLL:
+
+Roll a base category (FULFILL_NEED, SOCIALIZE, VISIT, INTROSPECT,
+
+IDLE, WORK), weighted by character state.
+
+Boredom/loneliness boost SOCIALIZE/VISIT weights, never trigger
+
+FULFILL_NEED directly.
+If intent_queue already has 3 entries (soft cap), base events
+
+don't fire — character stays on its current behavior.
+
+
+Category resolver filters events.gd by base_category (+ matching
+
+fulfills_need if category is FULFILL_NEED, comparing severity if
+
+multiple stats are in deficit).
+Roll a specific event from that filtered sub-pool — same weighted
+
+roll as before, just on a smaller pool.
+Unresolvable category (no valid sub-pool, e.g. SOCIALIZE with no
+
+target and nowhere to visit) → weight 0, doesn't fire that tick.
+Specific event proceeds through RESOLVE → FRAME → PLAYER_GATE →
+
+ACT → EXECUTE → ECHO as normal.
+
+**CALLOUT (SOCIALIZE, same-room target):** initiator picks a target,
+target rolls accept/decline (base 60 + bond*0.3 − busy_penalty per
+queued intent + mood/trait/feeling/energy modifiers, clamped 5–95).
+Decline produces minor/no storybook ("too busy to talk"). No target in
+room → SOCIALIZE resolves to VISIT instead.
+
+**current_motivation (CharData field):** `{type, need, plan}` — set when
+a base event resolves, cleared when the chain completes or the queue is
+flushed. Lets a future storybook helper narrate multi-step chains (e.g.
+FULFILL_NEED→hunger→no ingredients→BUY_GROCERIES→MAKE_FOOD) as one story
+instead of disconnected log lines.
+
+**Queue priority buffer:** critical/world events bypass the 3-item soft
+cap and push regardless (e.g. a lockdown doesn't erase an already-queued
+BUY_GROCERIES — it resumes after). Only genuine emergencies (injury,
+arrest) flush the queue outright.
 
 ## System Communication
 
@@ -302,7 +359,7 @@ INVENTORY:   held_items (max 2), carried_items,
 
 IMPRESSIONS: object_impressions (includes program impressions)
 
-SOCIAL:      faction_sentiment (Dict), faction_memberships (Array)
+SOCIAL:      faction_sentiment (Dict), faction_memberships (Array), current_motivation (Dict: type, need, plan)
 
 JOB:         job_satisfaction, is_employed, is_homeless
 

@@ -141,6 +141,10 @@ POOL_GAME_SEQ, ARGUMENT_SEQ, DATE_SEQ, NEGOTIATION_SEQ
 # SECTION 3 — FULL EVENT DATA SHAPE
 
 Every event in `events.gd` follows this structure. Fields marked (optional) can be omitted.
+Note: every "character"-scope event with trigger_mode "rolled" needs a
+base_category, or the base event layer can never select it. See "The
+Base Event Layer" reference (Architecture Reference) for how this feeds
+the tick loop.
 
 ```gdscript
 "EVENT_ID": {
@@ -162,6 +166,24 @@ Every event in `events.gd` follows this structure. Fields marked (optional) can 
 
     "bypass_architect": false,  # (optional) true = always fires, no Architect
                                 # gate. Only for calendar events (birthdays etc)
+
+    # ── BASE EVENT CATEGORY ─────────────────────────────────────
+    "base_category": "fulfill_need", # string | array of strings
+                                # "fulfill_need" | "socialize" | "visit" |
+                                # "introspect" | "idle" | "work"
+                                # Which base-event sub-pool(s) this event is
+                                # eligible for. Array if the event fits more
+                                # than one (e.g. VISIT_BAR can serve
+                                # fulfill_need, socialize, AND visit).
+                                # Omit only for reactive/auto_fire events
+                                # that bypass the base roll entirely
+                                # (WITNESS_EVENT, RIOT_BREAKS_OUT, etc).
+
+    "fulfills_need": "hunger",  # (optional, fulfill_need category only)
+                                # Which stat this event addresses. The
+                                # FULFILL_NEED resolver finds the character's
+                                # worst stat, then filters to events with a
+                                # matching fulfills_need before rolling.
 
     # ── BASE WEIGHT ────────────────────────────────────────────
     "base_weight": 10,          # Starting probability weight before modifiers.

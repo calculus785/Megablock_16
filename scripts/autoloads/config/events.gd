@@ -6,6 +6,29 @@
 # eligibility, rolls weighted picks, and calls Actions to execute outcomes.
 #
 # Sorted by location: Universal → Home → Bar → Cafe → Library → Grocery → Social
+#
+# ── BASE EVENT LAYER (Session 22) ────────────────────────────
+# Every rolled character-scope event gets a base_category field:
+#   "fulfill_need" | "socialize" | "visit" | "introspect" | "idle" | "work"
+# Array if multi-category. Omit for auto_fire events and conflict
+# events flagged for reactive redesign.
+#
+# Events with fulfill_need also get a fulfills_need field (string or
+# array) naming the stat(s) this event addresses.
+#
+# ── DELETIONS (Session 22) ───────────────────────────────────
+# Removed: GREET, COMPLIMENT, INSULT, ARGUE, SHARE_STORY,
+#   REMINISCE_TOGETHER, SHARE_SECRET, BETRAY_SECRET, SPILL_DRINK,
+#   DEEP_CONVERSATION
+# These are being folded into CONVERSE_SEQ as beats (future task)
+# or scrapped for Phase 5 redesign (SPILL_DRINK).
+# Their action functions remain in actions.gd — sequences call them.
+#
+# ── CONFLICT EVENTS (no base_category) ──────────────────────
+# MOCK, COLD_SHOULDER, PROVOKE, PHYSICAL_FIGHT, CONFRONT
+# Flagged for reactive/auto-fire redesign (relationship-proximity
+# trigger, not base-roll). Left in events.gd without base_category
+# so they don't enter the category pool.
 
 extends Node
 
@@ -19,6 +42,8 @@ const EVENTS: Dictionary = {
 "REST": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "fulfill_need",
+	"fulfills_need": "energy",
 	"base_weight": 12,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -44,6 +69,7 @@ const EVENTS: Dictionary = {
 "WANDER": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "idle",
 	"base_weight": 8,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -68,10 +94,15 @@ const EVENTS: Dictionary = {
 	],
 },
 
+# GO_HOME — converted to auto_fire (Session 22). Needs-driven:
+# tired, stressed, social battery depleted. Priority 75 sits below
+# SLEEP (90) and ENERGY_CRASH (95), intentionally soft enough that
+# drunk/distracted characters can miss the window.
 "GO_HOME": {
 	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 5,
+	"trigger_mode": "auto_fire",
+	"priority": 75,
+	"base_weight": 0,
 	"category": "daily_life",
 	"magnitude": "minor",
 	"cooldown_events": 8,
@@ -99,6 +130,7 @@ const EVENTS: Dictionary = {
 "DAYDREAM": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "idle",
 	"base_weight": 10,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -126,6 +158,7 @@ const EVENTS: Dictionary = {
 "THINK_ABOUT": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "introspect",
 	"base_weight": 10,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -151,6 +184,7 @@ const EVENTS: Dictionary = {
 "BROOD": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "introspect",
 	"base_weight": 5,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -180,6 +214,7 @@ const EVENTS: Dictionary = {
 "SMILE_AT_MEMORY": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "introspect",
 	"base_weight": 4,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -208,6 +243,7 @@ const EVENTS: Dictionary = {
 "CRY": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "introspect",
 	"base_weight": 4,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -237,6 +273,7 @@ const EVENTS: Dictionary = {
 "LATE_NIGHT_STARE": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "idle",
 	"base_weight": 6,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -265,6 +302,7 @@ const EVENTS: Dictionary = {
 "PACE_HALLWAY": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "idle",
 	"base_weight": 7,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -289,11 +327,12 @@ const EVENTS: Dictionary = {
 	],
 },
 
-# ── Auto-fire events ────────────────────────────────────────
+# ── Auto-fire events (no base_category — bypass base roll) ──
 
 "SLEEP": {
 	"scope": "character",
 	"trigger_mode": "auto_fire",
+	"priority": 90,
 	"base_weight": 15,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -347,6 +386,8 @@ const EVENTS: Dictionary = {
 "CHECK_FRIDGE": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": ["fulfill_need", "idle"],
+	"fulfills_need": "hunger",
 	"base_weight": 8,
 	"category": "daily_life",
 	"magnitude": "minor",
@@ -375,6 +416,7 @@ const EVENTS: Dictionary = {
 "SIT_AT_DESK": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "idle",
 	"base_weight": 6,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -405,6 +447,8 @@ const EVENTS: Dictionary = {
 "EAT_AT_HOME": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "fulfill_need",
+	"fulfills_need": "hunger",
 	"base_weight": 7,
 	"category": "daily_life",
 	"magnitude": "minor",
@@ -436,6 +480,7 @@ const EVENTS: Dictionary = {
 "LOOK_IN_MIRROR": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "idle",
 	"base_weight": 5,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -463,6 +508,8 @@ const EVENTS: Dictionary = {
 "LIE_IN_BED": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": ["fulfill_need", "idle"],
+	"fulfills_need": "energy",
 	"base_weight": 8,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -491,6 +538,8 @@ const EVENTS: Dictionary = {
 "COOK_MEAL": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "fulfill_need",
+	"fulfills_need": "hunger",
 	"base_weight": 6,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -525,6 +574,7 @@ const EVENTS: Dictionary = {
 "VISIT_BAR": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "visit",
 	"base_weight": 6,
 	"category": "social",
 	"magnitude": "minor",
@@ -556,6 +606,7 @@ const EVENTS: Dictionary = {
 "SIT_AT_BAR": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "idle",
 	"base_weight": 12,
 	"category": "social",
 	"magnitude": "minor",
@@ -584,6 +635,8 @@ const EVENTS: Dictionary = {
 "ORDER_DRINK": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": ["fulfill_need", "socialize", "idle"],
+	"fulfills_need": "stress",
 	"base_weight": 14,
 	"category": "social",
 	"magnitude": "minor",
@@ -611,9 +664,13 @@ const EVENTS: Dictionary = {
 	],
 },
 
+# DRINK_ALONE — parking lot: fold into ORDER_DRINK with force-roll
+# for drink location (counter vs lounge). Keeping as-is for now.
 "DRINK_ALONE": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": ["fulfill_need", "idle"],
+	"fulfills_need": "stress",
 	"base_weight": 6,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -648,6 +705,7 @@ const EVENTS: Dictionary = {
 "LEAN_ON_COUNTER": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "idle",
 	"base_weight": 6,
 	"category": "social",
 	"magnitude": "minor",
@@ -673,6 +731,7 @@ const EVENTS: Dictionary = {
 "NURSE_DRINK": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "idle",
 	"base_weight": 10,
 	"category": "social",
 	"magnitude": "minor",
@@ -703,6 +762,7 @@ const EVENTS: Dictionary = {
 "HANG_AT_LOUNGE": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "idle",
 	"base_weight": 8,
 	"category": "social",
 	"magnitude": "minor",
@@ -732,6 +792,7 @@ const EVENTS: Dictionary = {
 "WATCH_THE_ROOM": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "idle",
 	"base_weight": 10,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -761,6 +822,7 @@ const EVENTS: Dictionary = {
 "PLAY_POOL_INVITE": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "socialize",
 	"base_weight": 6,
 	"category": "social",
 	"magnitude": "minor",
@@ -795,35 +857,8 @@ const EVENTS: Dictionary = {
 	],
 },
 
-"SPILL_DRINK": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 1,
-	"category": "comedy",
-	"magnitude": "minor",
-	"cooldown_events": 25,
-	"requirements": {
-		"in_room": ["bar", "cafe"],
-		"other_character_in_room": true,
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["FORGETFUL"] }, "multiply": 3.0 },
-		{ "condition": { "has_trait": ["RECKLESS"] }, "multiply": 2.0 },
-		{ "condition": { "stats_below": { "energy": 30 } }, "multiply": 1.5 },
-	],
-	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
-	"call_action": "spill_drink",
-	"outcomes": {
-		"stats": { "happiness": -3 },
-		"feelings": ["HUMILIATED"],
-		"relationship": { "familiarity": 1 },
-	},
-	"storybook_templates": [
-		"{name} knocked their drink over. The whole place noticed.",
-		"It went everywhere. {name} pretended it didn't.",
-		"{name} spilled it. Right in front of {target}.",
-	],
-},
+# SPILL_DRINK — DELETED Session 22. Reintroduce in Phase 5 as
+# reaction event tied to inventory (character holding a drink).
 
 # ═════════════════════════════════════════════════════════════
 # CAFE
@@ -832,6 +867,7 @@ const EVENTS: Dictionary = {
 "VISIT_CAFE": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "visit",
 	"base_weight": 5,
 	"category": "social",
 	"magnitude": "minor",
@@ -860,6 +896,8 @@ const EVENTS: Dictionary = {
 "ORDER_FOOD": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": ["fulfill_need", "idle"],
+	"fulfills_need": "hunger",
 	"base_weight": 10,
 	"category": "social",
 	"magnitude": "minor",
@@ -888,6 +926,8 @@ const EVENTS: Dictionary = {
 "ORDER_COFFEE": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": ["fulfill_need", "idle"],
+	"fulfills_need": "energy",
 	"base_weight": 8,
 	"category": "social",
 	"magnitude": "minor",
@@ -914,6 +954,7 @@ const EVENTS: Dictionary = {
 "SIT_ALONE_CAFE": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "idle",
 	"base_weight": 5,
 	"category": "social",
 	"magnitude": "minor",
@@ -941,6 +982,7 @@ const EVENTS: Dictionary = {
 "SHARE_MEAL": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "socialize",
 	"base_weight": 5,
 	"category": "social",
 	"magnitude": "minor",
@@ -974,6 +1016,7 @@ const EVENTS: Dictionary = {
 "WINDOW_WATCH": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "idle",
 	"base_weight": 6,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -1005,6 +1048,7 @@ const EVENTS: Dictionary = {
 "VISIT_LIBRARY": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "visit",
 	"base_weight": 7,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -1033,6 +1077,8 @@ const EVENTS: Dictionary = {
 "READ_BOOK": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": ["idle", "fulfill_need"],
+	"fulfills_need": ["boredom", "stress"],
 	"base_weight": 14,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -1061,6 +1107,7 @@ const EVENTS: Dictionary = {
 "BROWSE_SHELVES": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "idle",
 	"base_weight": 10,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -1087,6 +1134,7 @@ const EVENTS: Dictionary = {
 "STUDY_TOGETHER": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "socialize",
 	"base_weight": 6,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -1116,6 +1164,7 @@ const EVENTS: Dictionary = {
 "QUIET_MOMENT_TOGETHER": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "socialize",
 	"base_weight": 3,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -1145,6 +1194,8 @@ const EVENTS: Dictionary = {
 "ADMIRE_STATUE": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": ["idle", "fulfill_need"],
+	"fulfills_need": ["boredom", "stress"],
 	"base_weight": 4,
 	"category": "psychology",
 	"magnitude": "minor",
@@ -1178,6 +1229,7 @@ const EVENTS: Dictionary = {
 "VISIT_GROCERY": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "visit",
 	"base_weight": 4,
 	"category": "daily_life",
 	"magnitude": "minor",
@@ -1206,6 +1258,7 @@ const EVENTS: Dictionary = {
 "CHECK_SUPPLIES": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": ["visit", "idle"],
 	"base_weight": 5,
 	"category": "daily_life",
 	"magnitude": "minor",
@@ -1236,6 +1289,7 @@ const EVENTS: Dictionary = {
 "NOD_IN_PASSING": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": ["socialize", "idle"],
 	"base_weight": 12,
 	"category": "social",
 	"magnitude": "minor",
@@ -1261,40 +1315,13 @@ const EVENTS: Dictionary = {
 	],
 },
 
-"GREET": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 9,
-	"category": "social",
-	"magnitude": "minor",
-	"cooldown_events": 6,
-	"requirements": {
-		"other_character_in_room": true,
-		"stats_below": { "loneliness": 70 },
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 2.0 },
-		{ "condition": { "has_trait": ["CHARMING"] }, "multiply": 1.6 },
-		{ "condition": { "has_trait": ["SHY"] }, "multiply": 0.4 },
-		{ "condition": { "has_state": ["LONELY"] }, "multiply": 1.8 },
-	],
-	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
-	"call_action": "greet",
-	"outcomes": {
-		"stats": { "loneliness": -8 },
-		"target_stats": { "loneliness": -5 },
-		"relationship": { "bond": 2, "familiarity": 2 },
-	},
-	"storybook_templates": [
-		"{name} said hello to {target}.",
-		"{name} introduced themselves to {target}. First time, maybe.",
-		"{name} caught {target}'s eye and smiled.",
-	],
-},
+# GREET — DELETED Session 22. Folding into CONVERSE_SEQ as a beat.
+# Action function _greet() stays in actions.gd for sequence use.
 
 "CONVERSE": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "socialize",
 	"base_weight": 8,
 	"category": "social",
 	"magnitude": "minor",
@@ -1320,107 +1347,16 @@ const EVENTS: Dictionary = {
 	],
 },
 
-"COMPLIMENT": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 5,
-	"category": "social",
-	"magnitude": "minor",
-	"cooldown_events": 8,
-	"requirements": {
-		"other_character_in_room": true,
-		"stats_above": { "happiness": 40 },
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["CHARMING"] }, "multiply": 2.0 },
-		{ "condition": { "has_trait": ["FLIRTATIOUS"] }, "multiply": 1.8 },
-		{ "condition": { "has_state": ["CONTENT"] }, "multiply": 1.5 },
-		{ "condition": { "stats_above": { "happiness": 70 } }, "multiply": 1.8 },
-	],
-	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
-	"call_action": "compliment",
-	"outcomes": {
-		"stats": { "happiness": 3 },
-		"target_stats": { "happiness": 8, "stress": -5 },
-		"relationship": { "bond": 4, "familiarity": 1 },
-	},
-	"storybook_templates": [
-		"{name} said something kind to {target}.",
-		"{name} told {target} they liked their jacket. Meant it.",
-		"{target} didn't expect the compliment. {name} gave it anyway.",
-	],
-},
+# COMPLIMENT — DELETED Session 22. Now a callable func / CONVERSE_SEQ beat only.
+# INSULT — DELETED Session 22. Now a callable func / CONVERSE_SEQ beat only.
+# ARGUE — DELETED Session 22. Now a callable func / CONVERSE_SEQ beat only.
 
-"INSULT": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 3,
-	"category": "social",
-	"magnitude": "minor",
-	"cooldown_events": 5,
-	"requirements": {
-		"other_character_in_room": true,
-		"stats_above": { "stress": 20 },
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["SHORT_TEMPERED"] }, "multiply": 3.0 },
-		{ "condition": { "has_trait": ["MEAN"] }, "multiply": 2.5 },
-		{ "condition": { "has_state": ["FURIOUS"] }, "multiply": 3.5 },
-		{ "condition": { "stats_above": { "stress": 75 } }, "multiply": 2.0 },
-	],
-	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
-	"call_action": "insult",
-	"outcomes": {
-		"stats": { "stress": -8 },
-		"target_stats": { "stress": 15, "happiness": -10 },
-		"target_feelings": ["UPSET_FEELING"],
-		"relationship": { "bond": -6, "trust": -3, "rivalry": 3 },
-	},
-	"storybook_templates": [
-		"{name} said something cutting to {target}.",
-		"{name} didn't hold back. {target} felt it.",
-		"The words came out wrong. Or exactly right, depending on who you asked.",
-	],
-},
-
-"ARGUE": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 4,
-	"category": "social",
-	"magnitude": "moderate",
-	"cooldown_events": 6,
-	"requirements": {
-		"other_character_in_room": true,
-		"stats_above": { "stress": 40 },
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["SHORT_TEMPERED"] }, "multiply": 3.0 },
-		{ "condition": { "has_trait": ["MEAN"] }, "multiply": 2.0 },
-		{ "condition": { "has_state": ["FURIOUS"] }, "multiply": 4.0 },
-		{ "condition": { "has_state": ["MISERABLE"] }, "multiply": 2.0 },
-		{ "condition": { "stats_above": { "stress": 80 } }, "multiply": 2.5 },
-	],
-	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
-	"call_action": "argue",
-	"outcomes": {
-		"stats": { "stress": 10 },
-		"target_stats": { "stress": 15, "happiness": -10 },
-		"feelings": ["UPSET_FEELING"],
-		"target_feelings": ["UPSET_FEELING"],
-		"relationship": { "bond": -8, "trust": -5, "rivalry": 5 },
-	},
-	"storybook_templates": [
-		"{name} got into it with {target}. Neither backed down.",
-		"It started small. By the end {name} and {target} were both red in the face.",
-		"{name} said something to {target} that couldn't be unsaid.",
-		"The argument had been building for a while. {name} finally let it out.",
-	],
-},
-
+# FLIRT — standalone kept for non-conversation flirting (the "wink" case).
+# Primary flirting path is FLIRT_BEAT inside CONVERSE_SEQ.
 "FLIRT": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "socialize",
 	"base_weight": 3,
 	"category": "romantic",
 	"magnitude": "moderate",
@@ -1447,16 +1383,24 @@ const EVENTS: Dictionary = {
 		"relationship": { "bond": 5, "familiarity": 2 },
 	},
 	"storybook_templates": [
-		"{name} flirted with {target}. Subtly, or not.",
-		"{name} said something to {target} that wasn't quite a compliment.",
-		"{target} caught {name} looking. {name} didn't look away.",
-		"{name} turned the charm on. {target} noticed.",
+		"{name} winked at {target} across the room.",
+		"{name} caught {target}'s eye and held it a beat too long.",
+		"{target} looked up. {name} was already smiling.",
+		"{name} found a reason to stand a little closer to {target}.",
 	],
 },
+
+# ── Conflict events — no base_category ──────────────────────
+# These don't enter the base-roll pool. Flagged for reactive/
+# auto-fire redesign: relationship-proximity trigger (enemy
+# enters room → chance to fire). Kept in events.gd so they
+# can still be force-fired via F3 and so their data shape is
+# preserved for the redesign.
 
 "CONFRONT": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	# no base_category — reactive redesign planned
 	"base_weight": 3,
 	"category": "social",
 	"magnitude": "moderate",
@@ -1486,41 +1430,10 @@ const EVENTS: Dictionary = {
 	],
 },
 
-
-"REMINISCE_TOGETHER": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 3,
-	"category": "social",
-	"magnitude": "moderate",
-	"cooldown_events": 20,
-	"requirements": {
-		"other_character_in_room": true,
-		"has_memorable_entries": true,
-		"time_of_day": ["evening", "night"],
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 1.5 },
-		{ "condition": { "has_state": ["LONELY"] }, "multiply": 2.0 },
-		{ "condition": { "stats_above": { "loneliness": 40 } }, "multiply": 1.5 },
-	],
-	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room", "exclude_robots": true },
-	"call_action": "reminisce_together",
-	"outcomes": {
-		"stats": { "loneliness": -15, "stress": -5, "happiness": 5 },
-		"target_stats": { "loneliness": -10, "stress": -3 },
-		"relationship": { "bond": 5, "trust": 3, "familiarity": 3 },
-	},
-	"storybook_templates": [
-		"{name} and {target} talked about something that happened a while back.",
-		"\"Remember when—\" {name} started. {target} already knew.",
-		"{name} brought up an old memory. {target} had a different version of it.",
-	],
-},
-
 "PHYSICAL_FIGHT": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	# no base_category — reactive redesign planned
 	"base_weight": 1,
 	"category": "violence",
 	"magnitude": "major",
@@ -1554,6 +1467,7 @@ const EVENTS: Dictionary = {
 "ASK_OUT": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "socialize",
 	"base_weight": 2,
 	"category": "romantic",
 	"magnitude": "major",
@@ -1583,6 +1497,7 @@ const EVENTS: Dictionary = {
 "APOLOGISE": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "socialize",
 	"base_weight": 3,
 	"category": "social",
 	"magnitude": "moderate",
@@ -1610,41 +1525,13 @@ const EVENTS: Dictionary = {
 	],
 },
 
-"SHARE_STORY": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 5,
-	"category": "social",
-	"magnitude": "minor",
-	"cooldown_events": 10,
-	"requirements": {
-		"other_character_in_room": true,
-		"relationship_familiarity_above": 5,
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 2.0 },
-		{ "condition": { "has_trait": ["FUNNY"] }, "multiply": 1.8 },
-		{ "condition": { "has_trait": ["ANTISOCIAL"] }, "multiply": 0.3 },
-		{ "condition": { "stats_above": { "happiness": 50 } }, "multiply": 1.5 },
-	],
-	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room" },
-	"call_action": "share_story",
-	"outcomes": {
-		"stats": { "loneliness": -8, "boredom": -10 },
-		"target_stats": { "loneliness": -5, "boredom": -8 },
-		"relationship": { "bond": 4, "trust": 2, "familiarity": 3 },
-	},
-	"storybook_templates": [
-		"{name} told {target} a story. The kind that needs a punchline.",
-		"{name} started talking and {target} didn't want them to stop.",
-		"It was a long one. {target} laughed at the right parts.",
-		"{name} shared something funny. {target} needed that.",
-	],
-},
+# SHARE_STORY — DELETED Session 22. Folding into CONVERSE_SEQ as a beat.
+# REMINISCE_TOGETHER — DELETED Session 22. Folding into CONVERSE_SEQ as a beat.
 
 "VENT_TO_FRIEND": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "socialize",
 	"base_weight": 4,
 	"category": "social",
 	"magnitude": "moderate",
@@ -1677,83 +1564,16 @@ const EVENTS: Dictionary = {
 },
 
 # ═════════════════════════════════════════════════════════════
-# RIVALRY & CONFLICT — events that push characters apart
+# RIVALRY & CONFLICT — no base_category (reactive redesign)
 # ═════════════════════════════════════════════════════════════
 
-"SHARE_SECRET": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 3,
-	"category": "social",
-	"magnitude": "moderate",
-	"cooldown_events": 25,
-	"memory_tags": ["secret_shared"],
-	"requirements": {
-		"other_character_in_room": true,
-		"relationship_bond_above": 50,
-		"relationship_tier_at_least": "FRIEND",
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 1.5 },
-		{ "condition": { "has_trait": ["ROMANTIC"] }, "multiply": 2.0 },
-		{ "condition": { "has_trait": ["SECRETIVE"] }, "multiply": 0.2 },
-		{ "condition": { "has_trait": ["PARANOID"] }, "multiply": 0.3 },
-		{ "condition": { "stats_above": { "loneliness": 50 } }, "multiply": 1.8 },
-		{ "condition": { "time_of_day": ["evening", "night"] }, "multiply": 1.5 },
-	],
-	"target_resolution": { "type": "character", "filter": "highest_affection", "scope": "same_room", "exclude_robots": true },
-	"call_action": "share_secret",
-	"outcomes": {
-		"stats": { "loneliness": -15, "stress": -8 },
-		"target_stats": { "loneliness": -10 },
-		"relationship": { "bond": 6, "trust": 10, "familiarity": 3 },
-	},
-	"storybook_templates": [
-		"{name} told {target} something {they} don't tell people.",
-		"{name} trusted {target} with something. The kind of thing you don't repeat.",
-		"It came out quiet. {name} hadn't planned to say it. {target} listened.",
-		"{name} shared something personal. It changed the air between them.",
-	],
-},
-
-"BETRAY_SECRET": {
-	"scope": "character",
-	"trigger_mode": "rolled",
-	"base_weight": 1,
-	"category": "social",
-	"magnitude": "major",
-	"cooldown_events": 40,
-	"memory_tags": ["betrayal"],
-	"requirements": {
-		"other_character_in_room": true,
-		"has_memory_tag": "secret_received",
-	},
-	"weight_modifiers": [
-		{ "condition": { "has_trait": ["MEAN"] }, "multiply": 3.0 },
-		{ "condition": { "has_trait": ["GOSSIP"] }, "multiply": 2.5 },
-		{ "condition": { "has_trait": ["NOSY"] }, "multiply": 2.0 },
-		{ "condition": { "has_trait": ["SECRETIVE"] }, "multiply": 0.3 },
-		{ "condition": { "has_trait": ["FORGIVING"] }, "multiply": 0.2 },
-		{ "condition": { "stats_above": { "stress": 60 } }, "multiply": 2.0 },
-	],
-	"target_resolution": { "type": "character", "filter": "same_room", "scope": "same_room", "exclude_robots": true },
-	"call_action": "betray_secret",
-	"outcomes": {
-		"stats": { "stress": -5 },
-		"target_stats": { "boredom": -10 },
-		"relationship": { "bond": 2, "familiarity": 3 },
-	},
-	"storybook_templates": [
-		"{name} told {target} something {they} {were_was} trusted not to repeat.",
-		"The secret wasn't {name}'s to share. {target} got it anyway.",
-		"{name} broke a promise without blinking. {target} leaned in.",
-		"It was supposed to stay between them. {name} made sure it didn't.",
-	],
-},
+# SHARE_SECRET — DELETED Session 22. Folding into CONVERSE_SEQ as a beat.
+# BETRAY_SECRET — DELETED Session 22. Folding into CONVERSE_SEQ as a beat.
 
 "MOCK": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	# no base_category — reactive redesign planned
 	"base_weight": 2,
 	"category": "social",
 	"magnitude": "moderate",
@@ -1789,6 +1609,7 @@ const EVENTS: Dictionary = {
 "COLD_SHOULDER": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	# no base_category — reactive redesign planned
 	"base_weight": 3,
 	"category": "social",
 	"magnitude": "minor",
@@ -1820,6 +1641,7 @@ const EVENTS: Dictionary = {
 "PROVOKE": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	# no base_category — reactive redesign planned
 	"base_weight": 2,
 	"category": "social",
 	"magnitude": "moderate",
@@ -1854,6 +1676,7 @@ const EVENTS: Dictionary = {
 "TELL_ON": {
 	"scope": "character",
 	"trigger_mode": "rolled",
+	"base_category": "socialize",
 	"base_weight": 2,
 	"category": "social",
 	"magnitude": "moderate",

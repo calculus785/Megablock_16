@@ -9,6 +9,20 @@
 #   DONE           — event complete, move on
 #   REPEAT         — fire same event again next tick
 #   LOCK_SEQUENCE  — start a multi-beat sequence (Phase 1+)
+#
+# ── CLEANUP (Session 22) ────────────────────────────────────
+# Removed dispatcher entries + functions for fully dead code:
+#   _chat, _spill_drink, _brief_conversation, _hallway_nod,
+#   _hallway_chat, _awkward_pass, _hallway_bump
+#
+# Removed dispatcher entries ONLY for events deleted from events.gd
+# (functions kept — called by CONVERSE_SEQ beat wrappers or
+# reserved for future beat integration):
+#   greet, compliment, insult, argue, gossip, deep_conversation,
+#   share_story, reminisce_together, share_secret, betray_secret
+#
+# Fixed duplicate FeelingDriver.push in _maybe_push_avoidance.
+# Removed 6 duplicate dispatcher entries.
 
 extends Node
 
@@ -42,6 +56,9 @@ func call_action(action_name: String, character: CharData, target, args: Diction
 		"sleep":                   return _sleep(character, target, args)
 		"energy_crash":            return _energy_crash(character, target, args)
 		# ── Home ─────────────────────────────────────────
+		"check_fridge":            return _check_fridge(character, target, args)
+		"sit_at_desk":             return _sit_at_desk(character, target, args)
+		"eat_at_home":             return _eat_at_home(character, target, args)
 		"look_in_mirror":          return _look_in_mirror(character, target, args)
 		"lie_in_bed":              return _lie_in_bed(character, target, args)
 		"cook_meal":               return _cook_meal(character, target, args)
@@ -76,44 +93,20 @@ func call_action(action_name: String, character: CharData, target, args: Diction
 		# ── Grocery ──────────────────────────────────────
 		"queue_intent_visit_grocery": return _queue_intent_visit_grocery(character, target, args)
 		"check_supplies":          return _check_supplies(character, target, args)
-		# ── Social (any room with others) ────────────────
-		"brief_conversation": return _brief_conversation(character, target, args)
-		"sit_at_bar":         return _sit_at_bar(character, target, args)
-		"lean_on_counter":    return _lean_on_counter(character, target, args)
-		"browse_shelves":     return _browse_shelves(character, target, args)
-		"window_watch":       return _window_watch(character, target, args)
-		"lie_in_bed":         return _lie_in_bed(character, target, args)
-		"check_supplies":     return _check_supplies(character, target, args)
-		"hallway_nod":        return _hallway_nod(character, target, args)
-		"hallway_chat":       return _hallway_chat(character, target, args)
-		"awkward_pass":       return _awkward_pass(character, target, args)
-		"hallway_bump":       return _hallway_bump(character, target, args)
+		# ── Social ───────────────────────────────────────
 		"nod_in_passing":          return _nod_in_passing(character, target, args)
-		"greet":                   return _greet(character, target, args)
-		"chat":                    return _chat(character, target, args)
-		"compliment":              return _compliment(character, target, args)
-		"insult":                  return _insult(character, target, args)
-		"argue":                   return _argue(character, target, args)
-		"deep_conversation":       return _deep_conversation(character, target, args)
 		"flirt":                   return _flirt(character, target, args)
 		"confront":                return _confront(character, target, args)
-		"gossip":                  return _gossip(character, target, args)
-		"reminisce_together":      return _reminisce_together(character, target, args)
-		"spill_drink":             return _spill_drink(character, target, args)
 		"physical_fight":          return _physical_fight(character, target, args)
-		"check_fridge":   return _check_fridge(character, target, args)
-		"sit_at_desk":    return _sit_at_desk(character, target, args)
-		"eat_at_home":    return _eat_at_home(character, target, args)
 		"ask_out":                 return _ask_out(character, target, args)
 		"apologise":               return _apologise(character, target, args)
-		"share_story":             return _share_story(character, target, args)
 		"vent_to_friend":          return _vent_to_friend(character, target, args)
-		"share_secret":            return _share_secret(character, target, args)
-		"betray_secret":           return _betray_secret(character, target, args)
+		# ── Rivalry & Conflict ───────────────────────────
 		"mock":                    return _mock(character, target, args)
 		"cold_shoulder":           return _cold_shoulder(character, target, args)
 		"provoke":                 return _provoke(character, target, args)
-		"tell_on": return _tell_on(character, target, args)
+		"tell_on":                 return _tell_on(character, target, args)
+		# ── Conversation Sequence ────────────────────────
 		"start_conversation":      return _start_conversation(character, target, args)
 		"converse_open":           return _converse_open(character, target, args)
 		"converse_positive_chat":  return _converse_positive_chat(character, target, args)
@@ -129,7 +122,7 @@ func call_action(action_name: String, character: CharData, target, args: Diction
 		"converse_rub_wrong_way":  return _converse_rub_wrong_way(character, target, args)
 		"converse_heated_argument": return _converse_heated_argument(character, target, args)
 		"converse_spit_on":        return _converse_spit_on(character, target, args)
-		"converse_flirt": return _converse_flirt(character, target, args)
+		"converse_flirt":          return _converse_flirt(character, target, args)
 		_:
 			push_warning("[Actions] Unknown action: '%s'" % action_name)
 			return DONE
@@ -195,17 +188,11 @@ func _maybe_push_avoidance(character: CharData, avoided: CharData,
 		"hours": hours,
 	})
 
-	FeelingDriver.push(character, "AVOIDING", {
-		"event_key": reason,
-		"at_tick": Clock.get_total_days(),
-		"summary": "avoiding %s" % avoided.char_name,
-		"target_id": avoided.char_id,
-		"hours": hours,
-	})
-
 	if Settings.debug_console_logging:
 		print("[Actions] 🚷 %s is now avoiding %s (%.0fh)" % [
 			character.char_name, avoided.char_name, hours])
+
+
 # ── MOVEMENT — room to room ─────────────────────────────────
 
 func start_movement(character: CharData, dest_room: String) -> void:
@@ -334,11 +321,11 @@ func _think_about(character: CharData, _target, _args: Dictionary) -> String:
 	if result == null:
 		modify_stat(character, "boredom", -5.0)
 		return DONE
- 
+
 	Memory.recall_entry(character, result["index"])
 	var entry: Dictionary = result["entry"]
 	var tone: String = _get_memory_tone(entry)
- 
+
 	# Check if the memory involves someone we have a relationship with
 	var target_id: String = entry.get("target_id", "")
 	if target_id != "" and target_id != character.char_id:
@@ -346,7 +333,7 @@ func _think_about(character: CharData, _target, _args: Dictionary) -> String:
 		var rivalry: float = Relationships.get_rivalry(character.char_id, target_id)
 		var target_char: CharData = Registry.get_character(target_id)
 		var target_name: String = target_char.char_name if target_char else "someone"
- 
+
 		# High bond — warm memories
 		if bond >= 30.0:
 			modify_stat(character, "happiness", 5.0)
@@ -360,7 +347,7 @@ func _think_about(character: CharData, _target, _args: Dictionary) -> String:
 					"summary": "thinking fondly about %s" % target_name,
 				})
 			return DONE
- 
+
 		# Negative bond — bitter memories
 		if bond <= -20.0:
 			modify_stat(character, "stress", 5.0)
@@ -368,14 +355,14 @@ func _think_about(character: CharData, _target, _args: Dictionary) -> String:
 			Relationships.set_directional_feeling(
 				character.char_id, target_id, "BITTER", 1.0)
 			return DONE
- 
+
 		# High rivalry — resentful regardless of bond
 		if rivalry >= 20.0:
 			modify_stat(character, "stress", 3.0)
 			Relationships.set_directional_feeling(
 				character.char_id, target_id, "RESENTFUL", 1.0)
 			return DONE
- 
+
 	# No relationship context — fall back to tone-based response (original logic)
 	match tone:
 		"positive":
@@ -437,7 +424,7 @@ func _energy_crash(character: CharData, _target, _args: Dictionary) -> String:
 		_move_to_zone(character, "Zone_Bed")
 		character.is_sleeping = true
 		return DONE
- 
+
 	# Not home — go home, queue critical sleep intent
 	start_movement(character, character.home_room)
 	Memory.push_intent(character, {
@@ -568,7 +555,7 @@ func _watch_the_room(character: CharData, _target, _args: Dictionary) -> String:
 		# Only try Zone_Lounge if it exists in this room
 		if not Rooms.get_zone(character.current_room, "Zone_Lounge").is_empty():
 			_move_to_zone(character, "Zone_Lounge")
-	return DONE 
+	return DONE
 
 
 # ── BAR — Pool sequence ─────────────────────────────────────
@@ -578,14 +565,11 @@ func _start_pool_game(character: CharData, target, _args: Dictionary) -> String:
 		return DONE
 	if target.active_sequence != "":
 		return DONE
-	if target.is_in_transit:     # ← add this
+	if target.is_in_transit:
 		return DONE
-	if character.is_in_transit:  # ← and this
+	if character.is_in_transit:
 		return DONE
-	if not target is CharData:
-		return DONE
-	if target.active_sequence != "":
-		return DONE
+
 	var accept_chance: float = 50.0
 	var target_traits: Array = target.get_all_active_traits()
 
@@ -756,6 +740,8 @@ func _quiet_moment_together(character: CharData, target, _args: Dictionary) -> S
 	if target is CharData:
 		_move_target_to_zone(target, "Zone_Shelves")
 	return DONE
+
+
 # ═════════════════════════════════════════════════════════════
 # GROCERY
 # ═════════════════════════════════════════════════════════════
@@ -781,75 +767,11 @@ func _check_supplies(character: CharData, _target, _args: Dictionary) -> String:
 
 
 # ═════════════════════════════════════════════════════════════
-# SOCIAL — any room with other characters
+# SOCIAL — events still in events.gd
 # ═════════════════════════════════════════════════════════════
-func _brief_conversation(_character: CharData, _target, _args: Dictionary) -> String:
-	return DONE
-
-func _hallway_nod(_character: CharData, _target, _args: Dictionary) -> String:
-	return DONE
-
-func _hallway_chat(_character: CharData, _target, _args: Dictionary) -> String:
-	return DONE
-
-func _awkward_pass(_character: CharData, _target, _args: Dictionary) -> String:
-	return DONE
-
-func _hallway_bump(_character: CharData, _target, _args: Dictionary) -> String:
-	return DONE
 
 func _nod_in_passing(character: CharData, _target, _args: Dictionary) -> String:
 	modify_stat(character, "loneliness", -3.0)
-	return DONE
-
-
-func _greet(character: CharData, target, _args: Dictionary) -> String:
-	modify_stat(character, "loneliness", -8.0)
-	if target is CharData:
-		modify_stat(target, "loneliness", -5.0)
-	return DONE
-
-
-func _chat(character: CharData, target, _args: Dictionary) -> String:
-	modify_stat(character, "loneliness", -12.0)
-	modify_stat(character, "boredom", -10.0)
-	modify_stat(character, "stress", -5.0)
-	if target is CharData:
-		modify_stat(target, "loneliness", -8.0)
-		modify_stat(target, "boredom", -8.0)
-	return DONE
-
-
-func _compliment(character: CharData, target, _args: Dictionary) -> String:
-	modify_stat(character, "happiness", 3.0)
-	if target is CharData:
-		modify_stat(target, "happiness", 8.0)
-		modify_stat(target, "stress", -5.0)
-	return DONE
-
-
-func _insult(character: CharData, target, _args: Dictionary) -> String:
-	modify_stat(character, "stress", -8.0)
-	if target is CharData:
-		modify_stat(target, "stress", 15.0)
-		modify_stat(target, "happiness", -10.0)
-	return DONE
-
-
-func _argue(character: CharData, target, _args: Dictionary) -> String:
-	modify_stat(character, "stress", 10.0)
-	if target is CharData:
-		modify_stat(target, "stress", 15.0)
-		modify_stat(target, "happiness", -10.0)
-	return DONE
-
-
-func _deep_conversation(character: CharData, target, _args: Dictionary) -> String:
-	modify_stat(character, "loneliness", -25.0)
-	modify_stat(character, "stress", -10.0)
-	if target is CharData:
-		modify_stat(target, "loneliness", -20.0)
-		modify_stat(target, "stress", -8.0)
 	return DONE
 
 
@@ -857,9 +779,9 @@ func _flirt(character: CharData, target, _args: Dictionary) -> String:
 	modify_stat(character, "happiness", 5.0)
 	if not target is CharData:
 		return DONE
- 
+
 	modify_stat(target, "happiness", 3.0)
- 
+
 	# Roll reciprocate chance: base 50%, +20% if actor has CHARMING,
 	# +15% if target has FLIRTATIOUS, -20% if target has bond < 10
 	var chance: float = 0.50
@@ -872,13 +794,13 @@ func _flirt(character: CharData, target, _args: Dictionary) -> String:
 	var bond: float = Relationships.get_bond(character.char_id, target.char_id)
 	if bond < 10.0:
 		chance -= 0.20
- 
+
 	# Check if target is attracted to actor
 	if not Identity.is_attracted_to(target.preference, character.pronouns):
 		chance = 0.0  # can't reciprocate if not attracted
- 
+
 	chance = clampf(chance, 0.05, 0.95)
- 
+
 	if randf() < chance:
 		# Reciprocated — push FLIRTY directional feeling on target toward actor
 		Relationships.set_directional_feeling(
@@ -893,45 +815,45 @@ func _flirt(character: CharData, target, _args: Dictionary) -> String:
 		if Settings.debug_console_logging:
 			print("[Actions] 💨 %s flirted with %s → not reciprocated" % [
 				character.char_name, target.char_name])
- 
+
 	return DONE
 
 func _ask_out(character: CharData, target, _args: Dictionary) -> String:
 	if not target is CharData:
 		return DONE
- 
+
 	# Acceptance chance: base 40%
 	var chance: float = 0.40
 	var bond: float = Relationships.get_bond(character.char_id, target.char_id)
- 
+
 	# Bond bonus: +1% per bond point above 60
 	chance += (bond - 60.0) * 0.01
- 
+
 	# Target has FLIRTY feeling toward actor → big boost
 	if Relationships.has_directional_feeling(target.char_id, character.char_id, "FLIRTY"):
 		chance += 0.30
- 
+
 	# Target has AFFECTIONATE feeling toward actor → moderate boost
 	if Relationships.has_directional_feeling(target.char_id, character.char_id, "AFFECTIONATE"):
 		chance += 0.15
- 
+
 	# Attraction check — if target isn't attracted, auto-reject
 	if not Identity.is_attracted_to(target.preference, character.pronouns):
 		chance = 0.0
- 
+
 	# Target already partnered → very unlikely
 	if Relationships.is_partnered(target.char_id):
 		chance *= 0.1
- 
+
 	chance = clampf(chance, 0.05, 0.95)
- 
+
 	if randf() < chance:
 		# ACCEPTED — set event-gated tier to ROMANTIC_INTEREST
 		Relationships.set_event_gated_tier(
 			character.char_id, target.char_id, "ROMANTIC_INTEREST")
 		Relationships.modify_bond(character.char_id, target.char_id, 15.0)
 		Relationships.modify_trust(character.char_id, target.char_id, 10.0)
- 
+
 		# Push feelings on both
 		FeelingDriver.push(character, "ELATED", {
 			"event_key": "ask_out_accepted",
@@ -943,13 +865,13 @@ func _ask_out(character: CharData, target, _args: Dictionary) -> String:
 			"at_tick": Clock.get_total_days(),
 			"summary": "%s asked, and it felt right" % character.char_name,
 		})
- 
+
 		# Set directional feelings
 		Relationships.set_directional_feeling(
 			character.char_id, target.char_id, "INFATUATED", 1.0)
 		Relationships.set_directional_feeling(
 			target.char_id, character.char_id, "INFATUATED", 1.0)
- 
+
 		if Settings.debug_console_logging:
 			print("[Actions] 💕💕 %s asked %s out → ACCEPTED! → ROMANTIC_INTEREST" % [
 				character.char_name, target.char_name])
@@ -963,34 +885,34 @@ func _ask_out(character: CharData, target, _args: Dictionary) -> String:
 		})
 		modify_stat(character, "happiness", -15.0)
 		modify_stat(character, "stress", 10.0)
- 
+
 		if Settings.debug_console_logging:
 			print("[Actions] 💔💔 %s asked %s out → REJECTED" % [
 				character.char_name, target.char_name])
- 
+
 	return DONE
 
 func _apologise(character: CharData, target, _args: Dictionary) -> String:
 	if not target is CharData:
 		return DONE
- 
+
 	modify_stat(character, "stress", -8.0)
- 
+
 	# Acceptance chance: base 50%, modified by bond
 	var bond: float = Relationships.get_bond(character.char_id, target.char_id)
 	var chance: float = 0.50
- 
+
 	# Bond modifier: easier to forgive near zero, harder deep negative
 	chance += bond * 0.01  # e.g. bond -30 → -0.30, bond +10 → +0.10
- 
+
 	# Traits
 	if "STUBBORN" in target.get_all_active_traits():
 		chance -= 0.20
 	if "FORGIVING" in target.get_all_active_traits():
 		chance += 0.25
- 
+
 	chance = clampf(chance, 0.15, 0.90)
- 
+
 	if randf() < chance:
 		# Accepted
 		Relationships.modify_bond(character.char_id, target.char_id, 12.0)
@@ -1006,7 +928,7 @@ func _apologise(character: CharData, target, _args: Dictionary) -> String:
 			target.char_id, character.char_id, "BITTER")
 		Relationships.clear_directional_feeling(
 			target.char_id, character.char_id, "RESENTFUL")
- 
+
 		if Settings.debug_console_logging:
 			print("[Actions] 🤝 %s apologised to %s → accepted" % [
 				character.char_name, target.char_name])
@@ -1018,14 +940,11 @@ func _apologise(character: CharData, target, _args: Dictionary) -> String:
 			"at_tick": Clock.get_total_days(),
 			"summary": "%s didn't accept the apology" % target.char_name,
 		})
- 
+
 		if Settings.debug_console_logging:
 			print("[Actions] ❌ %s apologised to %s → rejected" % [
 				character.char_name, target.char_name])
- 
-	return DONE
 
-func _share_story(_character: CharData, _target, _args: Dictionary) -> String:
 	return DONE
 
 func _vent_to_friend(character: CharData, target, _args: Dictionary) -> String:
@@ -1041,16 +960,65 @@ func _confront(character: CharData, target, _args: Dictionary) -> String:
 		_maybe_push_avoidance(target, character, 0.50, 12.0, "confronted_by")
 	return DONE
 
+func _physical_fight(character: CharData, target, _args: Dictionary) -> String:
+	character.trait_progress["fights"] = character.trait_progress.get("fights", 0) + 1
+	if target is CharData:
+		# Both sides want distance after a fight
+		_maybe_push_avoidance(character, target, 0.80, 24.0, "fought_with")
+		_maybe_push_avoidance(target, character, 0.80, 24.0, "fought_with")
+	return DONE
 
+
+# ═════════════════════════════════════════════════════════════
+# SEQUENCE-CALLABLE FUNCTIONS
+# No longer dispatched via events.gd (standalone events deleted
+# Session 22). Kept because CONVERSE_SEQ beat wrappers call them,
+# or they're reserved for future beat integration.
+# ═════════════════════════════════════════════════════════════
+
+# Called by _converse_compliment(). Future: callable beat in any sequence.
+func _compliment(character: CharData, target, _args: Dictionary) -> String:
+	modify_stat(character, "happiness", 3.0)
+	if target is CharData:
+		modify_stat(target, "happiness", 8.0)
+		modify_stat(target, "stress", -5.0)
+	return DONE
+
+
+# Called by _converse_insult(). Future: callable beat in any sequence.
+func _insult(character: CharData, target, _args: Dictionary) -> String:
+	modify_stat(character, "stress", -8.0)
+	if target is CharData:
+		modify_stat(target, "stress", 15.0)
+		modify_stat(target, "happiness", -10.0)
+	return DONE
+
+
+# Reserved: future CONVERSE_SEQ beat (GREET_BEAT).
+func _greet(character: CharData, target, _args: Dictionary) -> String:
+	modify_stat(character, "loneliness", -8.0)
+	if target is CharData:
+		modify_stat(target, "loneliness", -5.0)
+	return DONE
+
+
+# Reserved: future CONVERSE_SEQ beat (ARGUE_BEAT).
+func _argue(character: CharData, target, _args: Dictionary) -> String:
+	modify_stat(character, "stress", 10.0)
+	if target is CharData:
+		modify_stat(target, "stress", 15.0)
+		modify_stat(target, "happiness", -10.0)
+	return DONE
+
+
+# Called by _converse_gossip(). Full propagation, secondhand memory,
+# bystander overhear, secret spreading — all intact.
 func _gossip(character: CharData, target, _args: Dictionary) -> String:
 	character.trait_progress["gossip_shared"] = \
 		character.trait_progress.get("gossip_shared", 0) + 1
 
 	if not target is CharData:
 		return DONE
-	if target.char_id == character.char_id:
-		return DONE
-	# Guard: never gossip to yourself (catches force-fire misuse)
 	if target.char_id == character.char_id:
 		return DONE
 
@@ -1235,6 +1203,11 @@ func _propagate_secret_via_gossip(gossiper: CharData, listener: CharData,
 			break
 
 
+# Reserved: future CONVERSE_SEQ beat (SHARE_STORY_BEAT).
+func _share_story(_character: CharData, _target, _args: Dictionary) -> String:
+	return DONE
+
+# Reserved: future CONVERSE_SEQ beat (REMINISCE_BEAT).
 func _reminisce_together(character: CharData, _target, _args: Dictionary) -> String:
 	var result = Memory.pick_random_memorable(character)
 	if result:
@@ -1242,22 +1215,8 @@ func _reminisce_together(character: CharData, _target, _args: Dictionary) -> Str
 	return DONE
 
 
-func _spill_drink(_character: CharData, _target, _args: Dictionary) -> String:
-	return DONE
-
-
-func _physical_fight(character: CharData, target, _args: Dictionary) -> String:
-	character.trait_progress["fights"] = character.trait_progress.get("fights", 0) + 1
-	if target is CharData:
-		# Both sides want distance after a fight
-		_maybe_push_avoidance(character, target, 0.80, 24.0, "fought_with")
-		_maybe_push_avoidance(target, character, 0.80, 24.0, "fought_with")
-	return DONE
-
-# ═════════════════════════════════════════════════════════════
-# RIVALRY & CONFLICT
-# ═════════════════════════════════════════════════════════════
-
+# Reserved: future CONVERSE_SEQ beat (SHARE_SECRET_BEAT).
+# Full secret creation + storybook logic intact.
 func _share_secret(character: CharData, target, _args: Dictionary) -> String:
 	if not target is CharData:
 		return DONE
@@ -1317,6 +1276,8 @@ func _share_secret(character: CharData, target, _args: Dictionary) -> String:
 	return DONE
 
 
+# Reserved: future CONVERSE_SEQ beat (BETRAY_SECRET_BEAT).
+# Full betrayal + secret copy logic intact.
 func _betray_secret(character: CharData, target, _args: Dictionary) -> String:
 	character.trait_progress["gossip_shared"] = \
 		character.trait_progress.get("gossip_shared", 0) + 1
@@ -1387,10 +1348,13 @@ func _betray_secret(character: CharData, target, _args: Dictionary) -> String:
 
 	character.trait_progress["secrets_betrayed"] = \
 		character.trait_progress.get("secrets_betrayed", 0) + 1
-	
-	
+
 	return DONE
 
+
+# ═════════════════════════════════════════════════════════════
+# RIVALRY & CONFLICT
+# ═════════════════════════════════════════════════════════════
 
 func _mock(character: CharData, target, _args: Dictionary) -> String:
 	if not target is CharData:
@@ -1522,9 +1486,6 @@ func _tell_on(character: CharData, _target, _args: Dictionary) -> String:
 	# ── Mark this secret as told so we don't repeat ─────────
 	chosen_secret["told_owner"] = true
 
-	if Settings.debug_console_logging:
-		print("[Actions] 🫵 %s told %s that %s betrayed their secret!" % [
-			character.char_name, owner.char_name, betrayer_name])
 	# Owner now avoids the betrayer
 	if betrayer_id != "" and betrayer:
 		_maybe_push_avoidance(owner, betrayer, 0.90, 48.0, "secret_betrayed_by")
@@ -1534,6 +1495,7 @@ func _tell_on(character: CharData, _target, _args: Dictionary) -> String:
 			character.char_name, owner.char_name, betrayer_name])
 
 	return DONE
+
 
 # ═════════════════════════════════════════════════════════════
 # CONVERSATION SEQUENCE — beat action functions
@@ -1559,7 +1521,7 @@ func _start_conversation(character: CharData, target, _args: Dictionary) -> Stri
 		return DONE
 	if target.zone_target_pos != Vector3.ZERO:
 		return DONE
-	
+
 	# If in a hallway, claim lane spots for visual positioning
 	if Rooms.is_hallway(character.current_room):
 		var hallway_id: String = character.current_room

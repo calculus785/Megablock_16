@@ -36,29 +36,50 @@ To resolve any duplication: **the table above wins.** If two docs disagree, the 
 
 ```
 Phase:        Phase 4 — Relationships & Social Drama (extension wave)
-Next session: 22
-Just shipped: Claude Code dead-code sweep — full legacy proximity system removed
-              (char_data.gd loiter/transit fields, movement_controller.gd proximity
-              functions, sim.gd proximity firing logic, actions.gd hallway-converse
-              dispatcher). CONVERSE cooldown_events bumped to 12. HALLWAY_NOD,
-              AWKWARD_HALLWAY_PASS, HALLWAY_BUMP removed entirely (self-targeting
-              bug found post-conversion, decided to cut rather than fix).
-Working on:   Base event layer design (CALLOUT/VISIT_/FULFILL_NEED) — brainstorm
-              session next, no code written yet.
-Known issues: None outstanding from this session. Sim runs clean — hallway
-              conversations, CONVERSE_SEQ, elevators, relationships all confirmed
-              working in test run.
+Last session:   23 (dev) — Base event layer Step 1 complete.
+              Tagged 35 events with base_category + fulfills_need.
+              Deleted 10 standalone events (folding into CONVERSE_SEQ beats).
+              GO_HOME converted to auto_fire (priority 75).
+              Full actions.gd cleanup (22 dispatcher entries removed,
+              7 dead functions removed, 3 bug fixes).
+              FLIRT storybook updated for standalone wink-case.
+              Conflict events (MOCK, COLD_SHOULDER, PROVOKE, PHYSICAL_FIGHT,
+              CONFRONT) left without base_category — reactive redesign needed.
+Working on:   Base event layer — Step 2 of 6 (wire up base roll in sim.gd).
+Known issues: Conflict events (5) will go dark once Step 2 lands — they
+              have no base_category so they'll never be selected by the
+              category roll. Reactive trigger system needed before they
+              fire again. Not urgent (they're low-frequency already).
 Build order
-remaining:    1) Brainstorm + implement base event layer (CALLOUT/VISIT_/
-                 FULFILL_NEED — see parking lot for prior design notes)
-              2) Passive relationship decay (relationships.gd only)
-              3) Public Humiliation (context-severity)
-              4) Cold Phase (is_cold on RelationshipRecord)
-              5) Jealousy system (watching array, 3 intensity levels)
-              6) Lying system (lies array, contradiction exposure)
+remaining:    2) Add base roll to sim.gd (category roll → filtered
+                 sub-pool → weighted event roll). Needs: helper in
+                 events.gd, _roll_base_category() in sim.gd, modify
+                 _run_pipeline() ROLL stage. START HERE NEXT SESSION.
+              3) Add current_motivation field to CharData (set/clear only)
+              4) FULFILL_NEED resolver (worst stat → fulfills_need filter,
+                 must handle array values on fulfills_need field)
+              5) Intent queue soft cap of 3 + critical/world bypass +
+                 emergency flush
+              6) CALLOUT accept/decline mechanic (SOCIALIZE resolver)
+              7) Passive relationship decay (relationships.gd only)
+              8) Public Humiliation (context-severity)
+              9) Cold Phase (is_cold on RelationshipRecord)
+              10) Jealousy system (watching array, 3 intensity levels)
+              11) Lying system (lies array, contradiction exposure)
 Parked:       BETRAY_SECRET redesign. ASK_TO_GO_STEADY/PROPOSE (needs UI).
               Grocery checkout (Phase 5). Group conversations.
-              CALLOUT/CHAIN interaction system (replaces proximity, see notes).
+              FULFILL_GOAL base event (needs goal system first).
+              ASK_OUT → goal-event (needs goal system).
+              Conflict events → reactive trigger (CALLOUT's evil twin).
+              Generic VISIT_ refactor (wait until Step 2 is live).
+              CONVERSE_SEQ beat expansion (GREET, SHARE_STORY, REMINISCE,
+              SHARE_SECRET, BETRAY_SECRET, COMPLIMENT/INSULT as generic
+              callable beats across any sequence).
+              ENERGY_CRASH room-aware storybook templates.
+              DRINK_ALONE → fold into ORDER_DRINK (Phase 5 inventory).
+              SPILL_DRINK → reaction event (Phase 5 inventory).
+              Inventory: fridge/cupboard supplies, GET_SNACK, hold drinks.
+              Phase 5 shop rework: decoration/gift/smoke stores.
 ```
 
 ---
