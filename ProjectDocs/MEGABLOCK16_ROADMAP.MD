@@ -186,6 +186,8 @@ Phases are sequential. Don't skip ahead. Each phase produces something testable 
 - Targeted feelings integration
 - Faction sentiment field on CharData (institutional factions only for now)
 - EventInspector upgraded: show relationship tiers and directional feelings
+- RNG discipline — centralized RandomNumberGenerator instance, all random calls routed through it project-wide (required for deterministic rewind tool)
+- Debug tools — log format overhaul (typed multi-line keyword format + SANITY warning logs), enhanced EventInspector (second panel, multi-tag filter, Copy for Debugger button), character follow mode (click-to-track camera + detail popup), deterministic rewind/tick stepper, event frequency monitor (after CALLOUT).
 
 **Test criteria:** Characters form bonds over time. Tiers progress. Romantic chains fire with event gates. Gossip spreads. Grief propagates on death. Trait evolution triggers. F2 shows relationship data.
 
@@ -249,6 +251,9 @@ Core systems:
 - Distorted memory: tone shifted, magnitude exaggerated, or wrong target_id
 - Distortion boosted by MEAN trait, high rivalry, active jealousy
 - Contradiction exposure: rumour-spreader loses trust with all who heard it
+
+Arc Tracking (build alongside base event layer)" — current_arc_id on CharData, ARCOPEN/ARCCLOSE log lines, no consumer yet, feeds Phase 8 log summarizer and Phase 11 story generator.
+
 
 ## Phase 5 — World Objects & Inventory
 **Goal:** The world has stuff in it. Characters pick things up, break things, decorate apartments.
@@ -366,6 +371,7 @@ Core systems:
 - Scale testing: 10 → 25 characters
 - Performance fixes
 - Building layout expanded for 25 residents
+- Log summarizer — condensed per-arc debug summary generated from ARCOPEN/ARCCLOSE-bounded log ranges. Debug tool version of the story generator; structured and factual, not narrative
 
 **Test criteria:** 25 characters stable for 100+ in-game days. No crashes, leaks, or sub-30fps. SimRunner completes. Save file under 5MB.
 
@@ -423,6 +429,7 @@ Core systems:
 - Improved storybook templates (narrative tone)
 - 40-year rolling cap, 50 memorable entry soft cap
 - Story thread click-through to multi-POV Chronicle view
+- Story generator — fragment-based template stitching (no LLM). Fragment fields on events (text template + type + perspective), transition template table keyed on fragment-type pairs, story_arcs array on CharData. Relationship web viewer ships just before this.
 
 **Test criteria:** Pin entries, name timelines. Life view works. Pinned entries survive pruning. Storybook reads as narrative.
 

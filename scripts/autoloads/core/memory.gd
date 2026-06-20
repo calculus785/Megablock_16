@@ -21,6 +21,7 @@ const MAX_PER_CATEGORY: int = 2     # short-term slots per category
 const PRUNE_AGE_DAYS: int = 2       # non-memorable entries older than this get pruned
 const MEMORABLE_SOFT_CAP: int = 50  # memorable entry limit per character
 const STORYBOOK_HARD_CAP: int = 500 # absolute max entries (safety net)
+const INTENT_SOFT_CAP: int = 3     # max queued intents before pipeline stops
 
 # Maps event categories (from events.gd) to short-term memory categories.
 # Used by write_short_term_from_event() so Sim doesn't need to know the mapping.
@@ -232,8 +233,18 @@ func pick_random_memorable(character: CharData):
 # ─────────────────────────────────────────────────────────────
 
 # Add an intent, inserted in priority order (highest first).
-func push_intent(character: CharData, intent: Dictionary) -> void:
-	var new_priority: int = PRIORITY_VALUES.get(intent.get("priority", "normal"), 20)
+# Returns false if the queue is at soft cap and the intent isn't critical.
+func push_intent(character: CharData, intent: Dictionary) -> bool:
+	var priority_key: String = intent.get("priority", "normal")
+	var new_priority: int = PRIORITY_VALUES.get(priority_key, 20)
+
+	# Soft cap — only critical intents bypass
+	if character.intent_queue.size() >= INTENT_SOFT_CAP:
+		if priority_key != "critical":
+			if Settings.debug_console_logging:
+				print("[Memory] INTENT CAPPED | %s | dropping %s (queue full, not critical)" % [
+					character.char_name, intent.get("intent_key", "?")])
+			return false
 
 	# Find insertion point — keep sorted by priority descending
 	var insert_at: int = character.intent_queue.size()
@@ -246,6 +257,7 @@ func push_intent(character: CharData, intent: Dictionary) -> void:
 			break
 
 	character.intent_queue.insert(insert_at, intent)
+	return true
 
 
 # Return the top intent without removing it, or null if empty.

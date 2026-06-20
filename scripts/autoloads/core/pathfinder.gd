@@ -375,10 +375,6 @@ func _dispatch_car(car_index: int, target_floor: int) -> void:
 	)
 	car["tween"] = tween
 
-	if Settings.debug_console_logging:
-		print("[Pathfinder] 🛗 Car %d dispatched: floor %d → %d (%d passengers)" % [
-			car_index, car["floor"], target_floor, car["passengers"].size()
-		])
 
 
 # ── CAR ARRIVAL + DOOR MANAGEMENT ────────────────────────────
@@ -386,8 +382,6 @@ func _dispatch_car(car_index: int, target_floor: int) -> void:
 func _on_car_arrived(car_index: int, floor_index: int) -> void:
 	var car: Dictionary = _cars[car_index]
 	car["floor"] = floor_index
-	if Settings.debug_console_logging:
-		print("[Pathfinder] 🛗 Car %d arrived at floor %d" % [car_index, floor_index])
 	_open_doors_and_process(car_index)
 
 
@@ -400,10 +394,6 @@ func _open_doors_and_process(car_index: int) -> void:
 	var remaining: Array = []
 	for p in car["passengers"]:
 		if p["dest_floor"] == current_floor:
-			if Settings.debug_console_logging:
-				print("[Pathfinder] 🛗 %s exiting car %d at floor %d" % [
-					p["char_id"], car_index, current_floor
-				])
 			passenger_exited.emit(car_index, p["char_id"])
 		else:
 			remaining.append(p)
@@ -443,10 +433,6 @@ func _try_board_waiters(car_index: int) -> bool:
 				"char_id": req["requester_id"],
 				"dest_floor": req["dest_floor"],
 			})
-			if Settings.debug_console_logging:
-				print("[Pathfinder] 🛗 %s boarded car %d (→ floor %d)" % [
-					req["requester_id"], car_index, req["dest_floor"]
-				])
 			passenger_boarded.emit(car_index, req["requester_id"])
 			available -= 1
 			boarded_any = true

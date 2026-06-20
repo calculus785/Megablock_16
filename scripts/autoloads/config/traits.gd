@@ -148,6 +148,24 @@ const TRAITS: Dictionary = {
 	"conflicting_traits": ["RECLUSIVE"],
 	"flags": {"witnesses_other_events": true}
 },
+"SHY": {
+	"label": "Shy",
+	"hideable": true,
+	"weight": 8,
+	"description": "Wants connection but freezes up. Approaching someone takes everything they have.",
+	"stat_modifiers": {"loneliness": 15, "stress": 10},
+	"conflicting_traits": ["CHARMING", "FLIRTATIOUS"],
+	"flags": {"callout_penalty_as_actor": true, "callout_penalty_as_target": true}
+},
+"ANTISOCIAL": {
+	"label": "Antisocial",
+	"hideable": true,
+	"weight": 5,
+	"description": "Doesn't like people much. Conversations are work. Being approached is an intrusion.",
+	"stat_modifiers": {"loneliness": -15, "stress": 15, "happiness": -10},
+	"conflicting_traits": ["CHARMING", "FLIRTATIOUS", "GOSSIP", "FUNNY", "ROMANTIC"],
+	"flags": {"strong_callout_decline": true, "avoids_social_events": true, "conversations_go_negative": true}
+},
 
 # ── TIME OF DAY ──────────────────────────────────────────────────────────
 "MORNING_PERSON": {

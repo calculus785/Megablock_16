@@ -170,9 +170,6 @@ func _handle_wait_elevator(wp: Dictionary) -> void:
 
 	Pathfinder.request_elevator(wp["car_index"], wp["from_floor"], wp["to_floor"], char_id)
 
-	if Settings.debug_console_logging:
-		var n: String = parent.char_data.char_name if "char_data" in parent else "?"
-		print("[Movement] %s waiting for elevator %d at floor %d" % [n, wp["car_index"], wp["from_floor"]])
 
 
 func _on_passenger_boarded(car_index: int, char_id: String) -> void:
@@ -189,14 +186,10 @@ func _on_passenger_boarded(car_index: int, char_id: String) -> void:
 			_is_moving = false
 			_waypoints.clear()
 			_current_index = 0
-			if Settings.debug_console_logging:
-				print("[Movement] %s skipped elevator — in conversation" % _get_char_name())
 			return
 
 	_elevator_phase = ElevatorPhase.NONE
 
-	if Settings.debug_console_logging:
-		print("[Movement] %s boarded elevator %d" % [_get_char_name(), car_index])
 
 	# Advance past the wait_elevator waypoint into ride_elevator
 	waypoint_reached.emit(_waypoints[_current_index])
@@ -221,10 +214,6 @@ func _handle_ride_elevator(wp: Dictionary) -> void:
 	if car_node and parent_node:
 		parent_node.position.x = car_node.position.x
 
-	if Settings.debug_console_logging:
-		print("[Movement] %s riding elevator %d to floor %d" % [
-			_get_char_name(), _ride_car_index, wp["to_floor"]
-		])
 
 
 func _on_passenger_exited(car_index: int, char_id: String) -> void:
@@ -243,10 +232,6 @@ func _on_passenger_exited(car_index: int, char_id: String) -> void:
 	var next_idx: int = _current_index + 1
 	if next_idx < _waypoints.size():
 		(get_parent() as Node3D).position.y = _waypoints[next_idx]["pos"].y
-
-	if Settings.debug_console_logging:
-		print("[Movement] %s exiting elevator %d" % [_get_char_name(), car_index])
-
 	waypoint_reached.emit(_waypoints[_current_index])
 	_current_index += 1
 	_move_to_next()

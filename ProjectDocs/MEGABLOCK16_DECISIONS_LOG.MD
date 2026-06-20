@@ -486,3 +486,52 @@ Session 21
 6. fulfills_need supports arrays (Step 4 resolver must handle). Session 23.
 
 7. No 7th category — ASK_OUT stays SOCIALIZE, conflict bypasses base roll. Session 23.
+
+
+- **Story generator is template-based, not LLM-driven** — keeps stories
+  grounded in actual sim events rather than generated prose; fits the
+  project's "no LLMs for in-game story output" pillar. Quality target
+  is "clear and factual," not literary — that's an acceptable
+  tradeoff. Session 23.
+
+- **Arc tracking (current_arc_id) added during base event layer build,
+  not deferred to Phase 11** — stamps are free to collect now and
+  expensive to reconstruct retroactively. No consumer yet; pure data
+  collection. Session 23.
+
+- **RNG discipline (centralized RNG instance) moved to immediate
+  priority, ahead of further base event work** — required for
+  deterministic rewind tool. Cheaper to enforce now than to sweep the
+  whole codebase later once more systems depend on randf()/randi().
+  Session 23.
+
+- **Rewind tool will be deterministic replay (Approach B), not simple
+  state snapshot (Approach A)** — goal is witnessing missed story
+  beats/bugs exactly as they happened, not just inspecting past state.
+  Requires centralized RNG + ring-buffered snapshots. Buffer size
+  tunable, starting estimate ~50 ticks, adjust after testing memory
+  footprint. Session 23.
+
+- **Player-as-Mayor system parked, not abandoned** — strong direction
+  (building manager, income tied to performance, corpo cut) but needs
+  a dedicated brainstorm session before locking mechanics. Session 23.
+
+  Base event layer (all 6 steps) shipped — two-layer roll, FULFILL_NEED
+severity resolver with min-urgency gate, intent soft cap, CALLOUT
+accept/decline as the universal gate for character-targeted social
+interaction (base-roll AND hallway proximity). Session 24.
+
+CALLOUT equation: base 60 + bond*0.3 - busy_penalty(10)*queued_intents
++ stat/trait modifiers, clamped 5-95. Applies to any event with a
+sequence_key targeting another character, regardless of trigger path.
+Session 24.
+
+SHY and ANTISOCIAL added as distinct traits — SHY = wants connection,
+struggles to act on it (loneliness penetrates the CALLOUT penalty).
+ANTISOCIAL = doesn't want connection (no actor-side penalty, since
+they simply don't try; strong decline as target). Session 24.
+
+Minimum urgency threshold (20) added to FULFILL_NEED resolver — below
+threshold, no stat narrows the pool, full FULFILL_NEED pool used
+instead. Prevents near-zero-need stats from monopolizing event choice.
+Session 24.

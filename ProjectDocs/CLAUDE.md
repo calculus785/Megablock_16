@@ -36,50 +36,79 @@ To resolve any duplication: **the table above wins.** If two docs disagree, the 
 
 ```
 Phase:        Phase 4 — Relationships & Social Drama (extension wave)
-Last session:   23 (dev) — Base event layer Step 1 complete.
-              Tagged 35 events with base_category + fulfills_need.
-              Deleted 10 standalone events (folding into CONVERSE_SEQ beats).
-              GO_HOME converted to auto_fire (priority 75).
-              Full actions.gd cleanup (22 dispatcher entries removed,
-              7 dead functions removed, 3 bug fixes).
-              FLIRT storybook updated for standalone wink-case.
-              Conflict events (MOCK, COLD_SHOULDER, PROVOKE, PHYSICAL_FIGHT,
-              CONFRONT) left without base_category — reactive redesign needed.
-Working on:   Base event layer — Step 2 of 6 (wire up base roll in sim.gd).
-Known issues: Conflict events (5) will go dark once Step 2 lands — they
-              have no base_category so they'll never be selected by the
-              category roll. Reactive trigger system needed before they
-              fire again. Not urgent (they're low-frequency already).
+Next session: 25
+Just shipped: Base event layer COMPLETE — all 6 steps. Two-layer roll
+              (category → event), FULFILL_NEED resolver with severity
+              sort + minimum urgency gate, current_motivation field,
+              intent soft cap (3, critical bypass), CALLOUT accept/
+              decline gating BOTH base-roll socialize AND hallway
+              proximity conversations. SHY + ANTISOCIAL traits added.
+              RNG discipline landed in sim.gd (centralized rng instance,
+              all sim.gd randf/randi calls swept).
+Working on:   Base event layer is DONE. Next up: debug tools suite,
+              then continue Current Sprint build order below.
+Known issues: None outstanding. Sim confirmed clean across multiple
+              30x test runs.
 Build order
-remaining:    2) Add base roll to sim.gd (category roll → filtered
-                 sub-pool → weighted event roll). Needs: helper in
-                 events.gd, _roll_base_category() in sim.gd, modify
-                 _run_pipeline() ROLL stage. START HERE NEXT SESSION.
-              3) Add current_motivation field to CharData (set/clear only)
-              4) FULFILL_NEED resolver (worst stat → fulfills_need filter,
-                 must handle array values on fulfills_need field)
-              5) Intent queue soft cap of 3 + critical/world bypass +
-                 emergency flush
-              6) CALLOUT accept/decline mechanic (SOCIALIZE resolver)
-              7) Passive relationship decay (relationships.gd only)
+remaining:    1) ✅ Tag events with base_category / fulfills_need
+              2) ✅ Wire base roll into sim.gd
+              2.5) ✅ RNG discipline sweep (sim.gd only — other files
+                 still use global randf()/randi(), future sweep)
+              3) ✅ current_motivation field on CharData
+              3.5) ⏳ Arc tracking stamps — current_arc_id on CharData,
+                 ARCOPEN/ARCCLOSE log lines. NOT YET DONE — flagged
+                 during base layer work, never circled back. Do this
+                 before calling Phase 4 extension wave fully closed.
+              4) ✅ fulfills_need tags + FULFILL_NEED resolver (+ min
+                 urgency gate added after testing)
+              5) ✅ Intent queue soft cap of 3 + bypass
+              6) ✅ CALLOUT accept/decline mechanic (covers base-roll
+                 SOCIALIZE + hallway proximity CONVERSE_SEQ)
+              7) Passive relationship decay
               8) Public Humiliation (context-severity)
-              9) Cold Phase (is_cold on RelationshipRecord)
-              10) Jealousy system (watching array, 3 intensity levels)
-              11) Lying system (lies array, contradiction exposure)
-Parked:       BETRAY_SECRET redesign. ASK_TO_GO_STEADY/PROPOSE (needs UI).
-              Grocery checkout (Phase 5). Group conversations.
-              FULFILL_GOAL base event (needs goal system first).
-              ASK_OUT → goal-event (needs goal system).
-              Conflict events → reactive trigger (CALLOUT's evil twin).
-              Generic VISIT_ refactor (wait until Step 2 is live).
-              CONVERSE_SEQ beat expansion (GREET, SHARE_STORY, REMINISCE,
-              SHARE_SECRET, BETRAY_SECRET, COMPLIMENT/INSULT as generic
-              callable beats across any sequence).
-              ENERGY_CRASH room-aware storybook templates.
-              DRINK_ALONE → fold into ORDER_DRINK (Phase 5 inventory).
-              SPILL_DRINK → reaction event (Phase 5 inventory).
-              Inventory: fridge/cupboard supplies, GET_SNACK, hold drinks.
-              Phase 5 shop rework: decoration/gift/smoke stores.
+              9) Cold Phase
+              10) Jealousy system
+              11) Lying system
+Debug tools
+(build now —
+base events
+are done):    1) Log format overhaul — typed multi-line format with
+                 fixed keyword vocabulary (BASEROLL, MOVEMENT, ACTION,
+                 STATCHANGE, PROXIMITY, RESPONSE, SEQUENCE, MOOD,
+                 RELATIONSHIP, MEMORY, INTENT, ARCOPEN, ARCCLOSE) +
+                 SANITY warning logs for impossible states. Current
+                 logs are single-line — this is a real rewrite, not
+                 a tweak.
+              2) Deterministic rewind / tick stepper — ring-buffered
+                 snapshots + centralized RNG (RNG instance exists in
+                 sim.gd now, ready for this). Scrub back/forward,
+                 resume live.
+              3) Enhanced EventInspector — second panel, multi-tag
+                 filter, "Copy for Debugger" button.
+              4) Character follow mode — click character, camera
+                 tracks, detail popup with stats/queue/recent logs.
+              5) Event frequency monitor
+              6) State injector — add if straightforward
+              7) "Why did this fire?" decision trace — parked
+              8) Hot-reload event data — parked
+              9) Interesting-moment auto-flag — parked
+              10) Relationship web viewer — just before story gen
+                 (Phase 11)
+Tuning notes
+(not bugs,
+revisit later): INTROSPECT rolls empty often early-game (needs memories
+              to exist first) — more INTROSPECT events or lower base
+              weight once more content exists. CALLOUT fires even for
+              trivial events like NOD_IN_PASSING — harmless, but a
+              skip_callout flag could exempt ambient micro-interactions
+              if it starts feeling odd.
+Parked:       Player-as-Mayor system (building manager, income tied to
+              building performance, corpo cut) — needs a dedicated
+              brainstorm session. BETRAY_SECRET redesign.
+              ASK_TO_GO_STEADY/PROPOSE (needs UI). Grocery checkout
+              (Phase 5). FULFILL_GOAL base event (needs goal system).
+              randf()/randi() sweep outside sim.gd (actions.gd,
+              context.gd, etc.) — not urgent, sim.gd was the priority.
 ```
 
 ---

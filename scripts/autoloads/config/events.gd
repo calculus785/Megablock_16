@@ -574,7 +574,7 @@ const EVENTS: Dictionary = {
 "VISIT_BAR": {
 	"scope": "character",
 	"trigger_mode": "rolled",
-	"base_category": "visit",
+	"base_category": ["visit", "socialize"],
 	"base_weight": 6,
 	"category": "social",
 	"magnitude": "minor",
@@ -867,7 +867,7 @@ const EVENTS: Dictionary = {
 "VISIT_CAFE": {
 	"scope": "character",
 	"trigger_mode": "rolled",
-	"base_category": "visit",
+	"base_category": ["visit", "socialize"],
 	"base_weight": 5,
 	"category": "social",
 	"magnitude": "minor",
@@ -1748,4 +1748,18 @@ func get_events_by_trigger(trigger_mode: String) -> Array:
 	for key in EVENTS:
 		if EVENTS[key].get("trigger_mode", "rolled") == trigger_mode:
 			result.append(key)
+	return result
+
+# Returns all event keys whose base_category matches the given category.
+# Handles both string and array base_category values.
+func get_events_by_base_category(category: String) -> Array:
+	var result: Array = []
+	for key in EVENTS:
+		var bc = EVENTS[key].get("base_category", "")
+		if bc is String:
+			if bc == category:
+				result.append(key)
+		elif bc is Array:
+			if category in bc:
+				result.append(key)
 	return result

@@ -157,6 +157,15 @@ extends Resource
 @export var sequence_role: String = ""          # "initiator" / "responder" / etc.
 @export var sequence_context: Dictionary = {}   # arbitrary scratchpad for the sequence
 
+# ═════════════════════════════════════════════════════════════
+# MOTIVATION
+# Transient context set by Sim when a base category rolls.
+# Persists through intent/sequence chains until next pipeline run.
+# Shape: { type: String, need: String (optional), plan: String (optional) }
+# Feeds future storybook narration for multi-step chains.
+# ═════════════════════════════════════════════════════════════
+
+@export var current_motivation: Dictionary = {}
 
 # ═════════════════════════════════════════════════════════════
 # INVENTORY

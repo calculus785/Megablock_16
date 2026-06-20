@@ -302,6 +302,8 @@ queued intent + mood/trait/feeling/energy modifiers, clamped 5–95).
 Decline produces minor/no storybook ("too busy to talk"). No target in
 room → SOCIALIZE resolves to VISIT instead.
 
+CALLOUT applies to any sequence-locking event with a character target, regardless of trigger path (base-roll or proximity, excludes autofire events).
+
 **current_motivation (CharData field):** `{type, need, plan}` — set when
 a base event resolves, cleared when the chain completes or the queue is
 flushed. Lets a future storybook helper narrate multi-step chains (e.g.
@@ -364,6 +366,8 @@ SOCIAL:      faction_sentiment (Dict), faction_memberships (Array), current_moti
 JOB:         job_satisfaction, is_employed, is_homeless
 
 FAMILY:      parent_ids, child_ids, sibling_ids
+
+current_arc_id: int, story_arcs: Array (populated Phase 11, stamped from Phase 4)
 ```
 
 ---

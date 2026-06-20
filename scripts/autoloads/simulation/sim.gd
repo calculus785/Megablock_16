@@ -29,10 +29,76 @@ signal event_fired(char_id: String, event_key: String, summary: String)
 # regardless of sim speed.
 var _event_counter: int = 0
 
+# ── CENTRALIZED RNG ──────────────────────────────────────────
+# All random calls in the simulation route through this instance.
+# Seed is randomized on startup for normal play. Deterministic replay
+# will set a known seed before re-running the tick loop.
+var rng := RandomNumberGenerator.new()
+
+# ── BASE CATEGORY TUNING ────────────────────────────────────
+# Base weights — equal starting chance for each category when no
+# stats are extreme. Tweak these to shift the overall feel.
+var base_cat_weights := {
+	"fulfill_need": 20.0,
+	"socialize": 20.0,
+	"visit": 20.0,
+	"introspect": 20.0,
+	"idle": 20.0,
+}
+
+# Stat-driven boosts — each entry is checked independently.
+# "above" = stat >= threshold. "below" = stat <= threshold.
+# Multipliers stack per-category (hunger 60 + energy 30 gives
+# fulfill_need 20 × 2.0 × 1.5 = 60).
+var base_cat_boosts := [
+	{ "stat": "hunger",     "compare": "above", "threshold": 50.0, "category": "fulfill_need", "multiply": 2.0 },
+	{ "stat": "energy",     "compare": "below", "threshold": 40.0, "category": "fulfill_need", "multiply": 1.5 },
+	{ "stat": "stress",     "compare": "above", "threshold": 50.0, "category": "fulfill_need", "multiply": 1.5 },
+	{ "stat": "stress",     "compare": "above", "threshold": 50.0, "category": "introspect",   "multiply": 1.5 },
+	{ "stat": "loneliness", "compare": "above", "threshold": 50.0, "category": "socialize",    "multiply": 2.0 },
+	{ "stat": "loneliness", "compare": "above", "threshold": 50.0, "category": "visit",        "multiply": 1.5 },
+	{ "stat": "boredom",    "compare": "above", "threshold": 50.0, "category": "socialize",    "multiply": 1.5 },
+	{ "stat": "boredom",    "compare": "above", "threshold": 50.0, "category": "visit",        "multiply": 1.5 },
+]
+
+# ── FULFILL_NEED RESOLVER ───────────────────────────────────
+# When the base roll picks FULFILL_NEED, the resolver finds the
+# character's worst stat and narrows the pool to events that address
+# it. Tries each stat in urgency order — first match wins.
+# "high_is_bad" = urgency is the stat value (hunger 70 = urgency 70)
+# "low_is_bad"  = urgency is 100 - value (energy 30 = urgency 70)
+var fulfill_need_stats := [
+	{ "stat": "hunger",  "direction": "high_is_bad" },
+	{ "stat": "energy",  "direction": "low_is_bad" },
+	{ "stat": "stress",  "direction": "high_is_bad" },
+	{ "stat": "boredom", "direction": "high_is_bad" },
+]
+
+# Below this urgency, the resolver doesn't narrow — uses full fulfill_need pool.
+# Prevents characters ordering drinks at urgency 0 when nothing is actually wrong.
+var fulfill_need_min_urgency: float = 20.0
+
+# ── CALLOUT (SOCIALIZE accept/decline) ──────────────────────
+# When a SOCIALIZE event targets another character, the target
+# rolls accept/decline. Equation from Session 21-22 design:
+# base + bond*factor - busy_penalty*queued_intents + stat/trait mods
+var callout_base_chance: float = 60.0
+var callout_bond_factor: float = 0.3
+var callout_busy_penalty: float = 10.0    # per queued intent on target
+var callout_clamp_min: float = 5.0
+var callout_clamp_max: float = 95.0
+
+var callout_decline_templates: Array = [
+	"{name} tried to get {target}'s attention. No luck.",
+	"{name} looked over at {target}. Nothing came of it.",
+	"{name} wanted to talk. {target} wasn't having it.",
+	"{name} started to say something. {target} didn't notice.",
+]
 
 func _ready() -> void:
 	Clock.tick.connect(_on_tick)
 	Clock.half_hour_ticked.connect(_on_half_hour)
+	rng.randomize()
 	print("[Sim] Loaded. Listening to Clock.tick.")
 
 
@@ -68,6 +134,8 @@ func _on_tick() -> void:
 				continue
 		# ── NORMAL PIPELINE ─────────────────────────────────
 		if _run_auto_fire(character):
+			continue
+		if character.intent_queue.size() >= Memory.INTENT_SOFT_CAP:
 			continue
 		_run_pipeline(character)
 
@@ -115,6 +183,183 @@ func _try_wake(character: CharData) -> void:
 
 	event_fired.emit(character.char_id, "WAKE", summary)
 
+# ─────────────────────────────────────────────────────────────
+# BASE CATEGORY ROLL
+# Picks which kind of thing a character wants to do this tick.
+# Reads from base_cat_weights and base_cat_boosts — edit those
+# vars to tune without touching this function.
+# ─────────────────────────────────────────────────────────────
+
+func _roll_base_category(character: CharData) -> String:
+	# Copy base weights so boosts don't mutate the originals
+	var weights := {}
+	for cat in base_cat_weights:
+		weights[cat] = base_cat_weights[cat]
+
+	# Apply stat-driven boosts
+	var stats: Dictionary = character.stats
+	for boost in base_cat_boosts:
+		var stat_val: float = stats.get(boost["stat"], 0.0)
+		var threshold: float = boost["threshold"]
+		var met: bool = false
+		if boost["compare"] == "above":
+			met = stat_val >= threshold
+		elif boost["compare"] == "below":
+			met = stat_val <= threshold
+		if met:
+			weights[boost["category"]] *= boost["multiply"]
+
+	# Weighted roll using centralized RNG
+	var total: float = 0.0
+	for cat in weights:
+		total += weights[cat]
+
+	var roll: float = rng.randf() * total
+	var running: float = 0.0
+	for cat in weights:
+		running += weights[cat]
+		if roll <= running:
+			return cat
+
+	return "idle"
+
+# ─────────────────────────────────────────────────────────────
+# FULFILL_NEED RESOLVER
+# Finds the character's most urgent need, then narrows the
+# fulfill_need pool to events whose fulfills_need field matches.
+# Tries stats in urgency order — first stat with matching events wins.
+# Returns the filtered array. Falls back to full pool if nothing matches.
+# Also sets current_motivation["need"] for storybook narration.
+# ─────────────────────────────────────────────────────────────
+
+func _resolve_fulfill_need(character: CharData, pool: Array) -> Array:
+	# Build urgency list from character's current stats
+	var urgencies: Array = []
+	for need_def in fulfill_need_stats:
+		var stat_val: float = character.stats.get(need_def["stat"], 0.0)
+		var urgency: float
+		if need_def["direction"] == "low_is_bad":
+			urgency = 100.0 - stat_val
+		else:
+			urgency = stat_val
+		urgencies.append({ "stat": need_def["stat"], "urgency": urgency })
+
+	# Sort by urgency descending — worst stat first
+	urgencies.sort_custom(func(a, b): return a["urgency"] > b["urgency"])
+
+	# If nothing is actually urgent, don't narrow — use full pool
+	if urgencies[0]["urgency"] < fulfill_need_min_urgency:
+		if Settings.debug_console_logging:
+			print("[Sim] NEEDROLL SKIP | %s | no urgent needs (best: %s at %.0f)" % [
+				character.char_name, urgencies[0]["stat"], urgencies[0]["urgency"]])
+		return pool
+
+	# Try each stat in urgency order
+	for entry in urgencies:
+		if entry["urgency"] < fulfill_need_min_urgency:
+			break
+		var stat_name: String = entry["stat"]
+		var matching: Array = []
+		for event_key in pool:
+			var ev: Dictionary = Events.get_event(event_key)
+			var fn = ev.get("fulfills_need", "")
+			if fn is String and fn == stat_name:
+				matching.append(event_key)
+			elif fn is Array and stat_name in fn:
+				matching.append(event_key)
+		if not matching.is_empty():
+			character.current_motivation["need"] = stat_name
+			if Settings.debug_console_logging:
+				print("[Sim] NEEDROLL %s | %s | urgency %.0f | pool: %d" % [
+					stat_name.to_upper(), character.char_name,
+					entry["urgency"], matching.size()])
+			return matching
+
+	# No stat-specific events available — use full fulfill_need pool
+	if Settings.debug_console_logging:
+		print("[Sim] NEEDROLL FALLBACK | %s | full pool: %d" % [
+			character.char_name, pool.size()])
+	return pool
+
+# ─────────────────────────────────────────────────────────────
+# CALLOUT — SOCIALIZE ACCEPT/DECLINE
+# Target decides whether to engage. Equation:
+# base + bond*factor − busy_penalty per queued intent + modifiers.
+# Returns true if the target accepts the social interaction.
+# ─────────────────────────────────────────────────────────────
+
+func _check_callout_accept(character: CharData, target: CharData) -> bool:
+	var chance: float = callout_base_chance
+
+	# Bond — closer relationships are more receptive
+	var bond: float = Relationships.get_bond(character.char_id, target.char_id)
+	chance += bond * callout_bond_factor
+
+	# Busy penalty — each queued intent makes the target less available
+	chance -= target.intent_queue.size() * callout_busy_penalty
+
+	# Auto-decline if target's queue is at soft cap ("too busy")
+	if target.intent_queue.size() >= Memory.INTENT_SOFT_CAP:
+		if Settings.debug_console_logging:
+			print("[Sim] CALLOUT BUSY | %s → %s | queue full" % [
+				character.char_name, target.char_name])
+		return false
+
+	# Target stats — lonely targets are receptive, stressed/tired less so
+	var t_stats: Dictionary = target.stats
+	if t_stats.get("loneliness", 0.0) >= 50.0:  chance += 10.0
+	if t_stats.get("boredom", 0.0) >= 50.0:     chance += 5.0
+	if t_stats.get("stress", 0.0) >= 60.0:      chance -= 10.0
+	if t_stats.get("energy", 0.0) <= 30.0:      chance -= 10.0
+
+	# Target traits
+	var t_traits: Array = target.get_all_active_traits()
+	if "SOCIAL" in t_traits:      chance += 10.0
+	if "SHY" in t_traits:         chance -= 15.0
+	if "ANTISOCIAL" in t_traits:  chance -= 20.0
+
+	# Actor traits — charismatic people are harder to brush off
+	var a_traits: Array = character.get_all_active_traits()
+	if "CHARMING" in a_traits:    chance += 10.0
+
+	# Clamp 5-95 — always a chance either way
+	chance = clampf(chance, callout_clamp_min, callout_clamp_max)
+
+	var roll: float = rng.randf() * 100.0
+	var accepted: bool = roll < chance
+
+	if Settings.debug_console_logging:
+		var result: String = "ACCEPT" if accepted else "DECLINE"
+		print("[Sim] CALLOUT %s | %s → %s | chance %.0f%% (roll %.0f)" % [
+			result, character.char_name, target.char_name, chance, roll])
+
+	return accepted
+
+
+# Writes a storybook entry when a CALLOUT is declined.
+# Minor magnitude, not memorable — just atmosphere.
+func _echo_callout_decline(character: CharData, target: CharData,
+		_event_key: String, frame: Dictionary) -> void:
+	var template: String = callout_decline_templates[rng.randi() % callout_decline_templates.size()]
+	var summary: String = Context.fill_template(template, frame)
+
+	Memory.write_storybook(character, {
+		"event_key":         "CALLOUT_DECLINED",
+		"summary":           summary,
+		"at_tick":           Clock.get_total_days(),
+		"target_id":         target.char_id,
+		"magnitude":         "minor",
+		"memorable":         false,
+		"memory_tags":       ["social_rejection"],
+		"times_recalled":    0,
+		"last_recalled_day": 0,
+		"pinned_to_story":   false,
+	})
+
+	if Settings.debug_console_logging:
+		print("[Sim] %s → %s" % [character.char_name, summary])
+
+	event_fired.emit(character.char_id, "CALLOUT_DECLINED", summary)
 
 # ─────────────────────────────────────────────────────────────
 # PIPELINE
@@ -123,16 +368,53 @@ func _try_wake(character: CharData) -> void:
 func _run_pipeline(character: CharData) -> void:
 
 	# ── 1. ROLL ─────────────────────────────────────────────
+	# Two-layer decision: pick a category, then pick an event in it.
+	# FULFILL_NEED adds a third layer: pick worst stat, filter to matching events.
+	var category: String = _roll_base_category(character)
+
+	# Set motivation — persists through intent/sequence chains until
+	# the next pipeline run overwrites it.
+	character.current_motivation = { "type": category }
+
 	var eligible: Array = _get_eligible_events(character)
 	if eligible.is_empty():
+		character.current_motivation = {}
 		return
 
-	var event_key: String = _weighted_roll(character, eligible)
+	# Filter eligible pool to events matching the rolled category
+	var filtered: Array = []
+	for key in eligible:
+		var ev: Dictionary = Events.get_event(key)
+		var bc = ev.get("base_category", "")
+		if bc is String and bc == category:
+			filtered.append(key)
+		elif bc is Array and category in bc:
+			filtered.append(key)
+
+	if filtered.is_empty():
+		if Settings.debug_console_logging:
+			print("[Sim] BASEROLL %s | %s | pool empty — skipping" % [
+				category.to_upper(), character.char_name])
+		character.current_motivation = {}
+		return
+
+	if Settings.debug_console_logging:
+		print("[Sim] BASEROLL %s | %s | pool: %d" % [
+			category.to_upper(), character.char_name, filtered.size()])
+
+	# FULFILL_NEED resolver — narrow to events matching worst need stat.
+	# Falls back to full filtered pool if no stat-specific events match.
+	if category == "fulfill_need":
+		filtered = _resolve_fulfill_need(character, filtered)
+
+	var event_key: String = _weighted_roll(character, filtered)
 	if event_key == "":
+		character.current_motivation = {}
 		return
 
 	# Check cooldown — skip if this event fired too recently
 	if _is_on_cooldown(character, event_key):
+		character.current_motivation = {}
 		return
 
 	var event_def: Dictionary = Events.get_event(event_key)
@@ -142,6 +424,15 @@ func _run_pipeline(character: CharData) -> void:
 
 	# ── 3. FRAME ────────────────────────────────────────────
 	var frame: Dictionary = Context.build_frame(character, target, event_def)
+
+	# ── 3.5 CALLOUT GATE ───────────────────────────────────
+	# SOCIALIZE events targeting another character require acceptance.
+	# Decline aborts the pipeline — minor storybook entry, no outcomes.
+	if category == "socialize" and target is CharData and target.char_id != character.char_id:
+		if not _check_callout_accept(character, target):
+			_echo_callout_decline(character, target, event_key, frame)
+			character.current_motivation = {}
+			return
 
 	# ── 4. PLAYER_GATE ──────────────────────────────────────
 	# Skipped — no player character yet. Phase 1+ adds this.
@@ -738,7 +1029,7 @@ func _weighted_roll(character: CharData, eligible: Array) -> String:
 	for entry in pool:
 		total += entry[1]
 
-	var roll: float = randf() * total
+	var roll: float = rng.randf() * total
 	var running: float = 0.0
 	for entry in pool:
 		running += entry[1]
@@ -844,7 +1135,7 @@ func _echo(character: CharData, _target, event_key: String,
 	if templates.is_empty():
 		summary = "%s → %s" % [character.char_name, event_key]
 	else:
-		var template: String = templates[randi() % templates.size()]
+		var template: String = templates[rng.randi() % templates.size()]
 		summary = Context.fill_template(template, frame)
 
 	# Target ID for memory lookups
@@ -1056,7 +1347,7 @@ func _roll_sequence_branch(character: CharData, beat: Dictionary) -> Dictionary:
 	for entry in pool:
 		total += entry["weight"]
 
-	var roll: float    = randf() * total
+	var roll: float    = rng.randf() * total
 	var running: float = 0.0
 	for entry in pool:
 		running += entry["weight"]
@@ -1787,6 +2078,13 @@ func _run_hallway_check(character: CharData) -> void:
 	var target = Context.resolve_target(character, event_def)
 	var frame: Dictionary = Context.build_frame(character, target, event_def)
 
+	# ── CALLOUT GATE (hallway conversations) ────────────────
+	# Sequence-locking events need target acceptance, same as pipeline.
+	if target is CharData and target.char_id != character.char_id and event_def.has("sequence_key"):
+		if not _check_callout_accept(character, target):
+			_echo_callout_decline(character, target, event_key, frame)
+			return
+	
 	var action_name: String = event_def.get("call_action", "")
 	if action_name == "":
 		return
