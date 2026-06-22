@@ -256,7 +256,7 @@ const SEQUENCES: Dictionary = {
 			],
 		},
 		"GOSSIP_BEAT": {
-			"base_weight": 6,
+			"base_weight": 8,
 			"mood_delta": -3,
 			"call_action": "converse_gossip",
 			"storybook_templates": [
@@ -293,6 +293,52 @@ const SEQUENCES: Dictionary = {
 			],
 			"requirements": {
 				"shares_interest_with_target": true,
+			},
+		},
+		"SHARE_SECRET_BEAT": {
+			"base_weight": 6,
+			"mood_delta": 5,
+			"call_action": "converse_share_secret",
+			"storybook_templates": [
+				"{name} lowered {their} voice. Told {target} something personal.",
+				"The conversation got quiet. {name} trusted {target} with something.",
+				"{name} hesitated, then shared something {they}'d never said out loud.",
+			],
+			"continued_templates": [
+				"{name} kept going. More than {they}'d planned to share.",
+			],
+			"weight_modifiers": [
+				{ "condition": { "mood_above": 10 }, "multiply": 1.5 },
+				{ "condition": { "has_trait": ["SECRETIVE"] }, "multiply": 0.3 },
+				{ "condition": { "has_trait": ["SOCIAL"] }, "multiply": 1.3 },
+				{ "condition": { "relationship_bond_above": 15 }, "multiply": 1.4 },
+				{ "condition": { "relationship_bond_above": 40 }, "multiply": 1.6 },
+			],
+			"requirements": {
+				"relationship_bond_above": 5,
+			},
+		},
+		"BETRAY_SECRET_BEAT": {
+			"base_weight": 3,
+			"mood_delta": -8,
+			"call_action": "converse_betray_secret",
+			"storybook_templates": [
+				"{name} couldn't resist. Told {target} something that wasn't {their} to tell.",
+				"{name} let it slip. About someone who trusted {them}.",
+				"{name} shared a secret that didn't belong to {them}.",
+			],
+			"continued_templates": [
+				"{name} had more to say. None of it was {their} business to share.",
+			],
+			"weight_modifiers": [
+				{ "condition": { "has_trait": ["GOSSIP"] }, "multiply": 2.0 },
+				{ "condition": { "has_trait": ["MEAN"] }, "multiply": 1.8 },
+				{ "condition": { "has_trait": ["SECRETIVE"] }, "multiply": 0.1 },
+				{ "condition": { "mood_below": -10 }, "multiply": 1.6 },
+				{ "condition": { "relationship_bond_above": 30 }, "multiply": 1.4 },
+			],
+			"requirements": {
+				"has_secrets": true,
 			},
 		},
 		"UNSOLICITED_ADVICE": {

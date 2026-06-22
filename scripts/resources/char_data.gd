@@ -168,6 +168,21 @@ extends Resource
 @export var current_motivation: Dictionary = {}
 
 # ═════════════════════════════════════════════════════════════
+# ARC TRACKING
+# Every base-roll decision opens an arc. The arc accumulates
+# every event_key fired as a downstream consequence until the
+# next base roll closes it and opens a new one.
+# Data spine for Phase 8 log summarizer and Phase 11 story gen.
+# No consumer yet — pure plumbing.
+# ═════════════════════════════════════════════════════════════
+
+@export var current_arc_id: int = -1             # -1 = no arc open
+@export var current_arc_data: Dictionary = {}    # live working arc
+# Shape: { arc_id: int, base_event: String, opened_tick: int, event_keys: Array }
+# On close: closed_tick stamped, pushed to story_arcs, then reset.
+@export var story_arcs: Array = []               # closed arcs accumulate here
+
+# ═════════════════════════════════════════════════════════════
 # INVENTORY
 # What they're holding, carrying, wearing, and storing at home.
 # ═════════════════════════════════════════════════════════════

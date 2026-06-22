@@ -242,8 +242,9 @@ func push_intent(character: CharData, intent: Dictionary) -> bool:
 	if character.intent_queue.size() >= INTENT_SOFT_CAP:
 		if priority_key != "critical":
 			if Settings.debug_console_logging:
-				print("[Memory] INTENT CAPPED | %s | dropping %s (queue full, not critical)" % [
-					character.char_name, intent.get("intent_key", "?")])
+				print("[T%d A%d] MEMORY | %s | intent capped — dropping %s (queue full, not critical)" % [
+					Clock.total_ticks, character.current_arc_id, character.char_name,
+					intent.get("intent_key", "?")])
 			return false
 
 	# Find insertion point — keep sorted by priority descending
@@ -378,8 +379,9 @@ func _add_impression(character: CharData, interactable_key: String, delta: int) 
 
 	# Log tier transitions
 	if new_tier != old_tier and Settings.debug_console_logging:
-		print("[Memory] %s → %s impression: %s (%d)" % [
-			character.char_name, interactable_key, new_tier, current + delta
+		print("[T%d A%d] MEMORY | %s | %s impression now %s (%d)" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name,
+			interactable_key, new_tier, current + delta
 		])
 
 
@@ -426,8 +428,8 @@ func add_secret(character: CharData, secret: Dictionary) -> void:
 		var owner_char: CharData = Registry.get_character(
 			secret.get("original_owner_id", ""))
 		var owner_name: String = owner_char.char_name if owner_char else "unknown"
-		print("[Memory] 🤫 %s now knows a secret about %s" % [
-			character.char_name, owner_name])
+		print("[T%d A%d] SECRET | %s | now knows a secret about %s" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name, owner_name])
 
 
 # Check if character already knows a specific secret by ID.
@@ -650,8 +652,8 @@ func daily_prune(character: CharData) -> void:
 		character.storybook = final
 
 	if pruned_count > 0 and Settings.debug_console_logging:
-		print("[Memory] Pruned %d entries from %s's storybook." % [
-			pruned_count, character.char_name
+		print("[T%d A%d] MEMORY | %s | pruned %d entries from storybook" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name, pruned_count
 		])
 
 

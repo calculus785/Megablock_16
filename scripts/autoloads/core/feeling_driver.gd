@@ -89,7 +89,8 @@ func push(character, feeling_key: String, cause: Dictionary = {},
 
 	if Settings.debug_console_logging:
 		var summary: String = cause.get("summary", "no cause")
-		print("[FeelingDriver] %s → %s (%s)" % [character.char_name, feeling_key, summary])
+		print("[T%d A%d] FEELING | %s | pushed %s (%s)" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name, feeling_key, summary])
 
 
 # ─────────────────────────────────────────────────────────────
@@ -107,8 +108,9 @@ func _decay_feelings(character) -> void:
 		if instance["hours_remaining"] <= 0.0:
 			character.feelings.remove_at(i)
 			if Settings.debug_console_logging:
-				print("[FeelingDriver] %s lost feeling: %s" % [
-					character.char_name, instance["feeling_key"]
+				print("[T%d A%d] FEELING | %s | expired %s" % [
+					Clock.total_ticks, character.current_arc_id, character.char_name,
+					instance["feeling_key"]
 				])
 		i -= 1
 

@@ -80,6 +80,8 @@ var current_year: int = 1
 var current_season: String = "summer"
 var season_intensity: float = 0.0   # 0.0 to 7.0 — peaks at mid-month
 
+var total_ticks: int = 0        # monotonic counter, never resets — arc timestamps
+
 # Internal tick counter (tracks half-hour subdivisions)
 var _tick_in_half_hour: int = 0
 var _timer: Timer
@@ -104,7 +106,7 @@ func _ready() -> void:
 
 
 func _on_tick() -> void:
-
+	total_ticks += 1
 	# Emit the base tick — Sim listens to this
 	tick.emit()
 

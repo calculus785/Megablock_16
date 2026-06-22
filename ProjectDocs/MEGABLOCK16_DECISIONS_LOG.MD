@@ -535,3 +535,8 @@ Minimum urgency threshold (20) added to FULFILL_NEED resolver — below
 threshold, no stat narrows the pool, full FULFILL_NEED pool used
 instead. Prevents near-zero-need stats from monopolizing event choice.
 Session 24.
+
+Arc boundary rule: An arc closes when the original motivation no longer exists, not merely when it's delayed. Auto-fire/sequence interrupts append to the current arc; FLEE_AVOIDED force-closes and opens new.
+current_arc_id / current_arc_data kept separate on CharData — redundant byte cost accepted for inspector/logging clarity over collapsing into one dict.
+Clock.total_ticks added as the monotonic tick counter for arc/log timestamps — get_total_days() confirmed too coarse.
+Large mechanical multi-file rewrites delegate to Claude Code; chat handles design decisions, ambiguous judgment calls, and small surgical diffs.

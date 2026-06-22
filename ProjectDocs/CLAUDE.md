@@ -35,80 +35,42 @@ To resolve any duplication: **the table above wins.** If two docs disagree, the 
 ## ▶ CURRENT SPRINT  *(update this at the end of every session — it's the fast handoff)*
 
 ```
-Phase:        Phase 4 — Relationships & Social Drama (extension wave)
-Next session: 25
-Just shipped: Base event layer COMPLETE — all 6 steps. Two-layer roll
-              (category → event), FULFILL_NEED resolver with severity
-              sort + minimum urgency gate, current_motivation field,
-              intent soft cap (3, critical bypass), CALLOUT accept/
-              decline gating BOTH base-roll socialize AND hallway
-              proximity conversations. SHY + ANTISOCIAL traits added.
-              RNG discipline landed in sim.gd (centralized rng instance,
-              all sim.gd randf/randi calls swept).
-Working on:   Base event layer is DONE. Next up: debug tools suite,
-              then continue Current Sprint build order below.
-Known issues: None outstanding. Sim confirmed clean across multiple
-              30x test runs.
-Build order
-remaining:    1) ✅ Tag events with base_category / fulfills_need
-              2) ✅ Wire base roll into sim.gd
-              2.5) ✅ RNG discipline sweep (sim.gd only — other files
-                 still use global randf()/randi(), future sweep)
-              3) ✅ current_motivation field on CharData
-              3.5) ⏳ Arc tracking stamps — current_arc_id on CharData,
-                 ARCOPEN/ARCCLOSE log lines. NOT YET DONE — flagged
-                 during base layer work, never circled back. Do this
-                 before calling Phase 4 extension wave fully closed.
-              4) ✅ fulfills_need tags + FULFILL_NEED resolver (+ min
-                 urgency gate added after testing)
-              5) ✅ Intent queue soft cap of 3 + bypass
-              6) ✅ CALLOUT accept/decline mechanic (covers base-roll
-                 SOCIALIZE + hallway proximity CONVERSE_SEQ)
-              7) Passive relationship decay
-              8) Public Humiliation (context-severity)
-              9) Cold Phase
-              10) Jealousy system
-              11) Lying system
-Debug tools
-(build now —
-base events
-are done):    1) Log format overhaul — typed multi-line format with
-                 fixed keyword vocabulary (BASEROLL, MOVEMENT, ACTION,
-                 STATCHANGE, PROXIMITY, RESPONSE, SEQUENCE, MOOD,
-                 RELATIONSHIP, MEMORY, INTENT, ARCOPEN, ARCCLOSE) +
-                 SANITY warning logs for impossible states. Current
-                 logs are single-line — this is a real rewrite, not
-                 a tweak.
-              2) Deterministic rewind / tick stepper — ring-buffered
-                 snapshots + centralized RNG (RNG instance exists in
-                 sim.gd now, ready for this). Scrub back/forward,
-                 resume live.
-              3) Enhanced EventInspector — second panel, multi-tag
-                 filter, "Copy for Debugger" button.
-              4) Character follow mode — click character, camera
-                 tracks, detail popup with stats/queue/recent logs.
-              5) Event frequency monitor
-              6) State injector — add if straightforward
-              7) "Why did this fire?" decision trace — parked
-              8) Hot-reload event data — parked
-              9) Interesting-moment auto-flag — parked
-              10) Relationship web viewer — just before story gen
-                 (Phase 11)
-Tuning notes
-(not bugs,
-revisit later): INTROSPECT rolls empty often early-game (needs memories
-              to exist first) — more INTROSPECT events or lower base
-              weight once more content exists. CALLOUT fires even for
-              trivial events like NOD_IN_PASSING — harmless, but a
-              skip_callout flag could exempt ambient micro-interactions
-              if it starts feeling odd.
-Parked:       Player-as-Mayor system (building manager, income tied to
-              building performance, corpo cut) — needs a dedicated
-              brainstorm session. BETRAY_SECRET redesign.
-              ASK_TO_GO_STEADY/PROPOSE (needs UI). Grocery checkout
-              (Phase 5). FULFILL_GOAL base event (needs goal system).
-              randf()/randi() sweep outside sim.gd (actions.gd,
-              context.gd, etc.) — not urgent, sim.gd was the priority.
+PHASE 4 — Base Event Layer + Social Systems
+
+DONE THIS SESSION:
+✅ Gossip/secret fix — SHARE_SECRET_BEAT + BETRAY_SECRET_BEAT wired into
+   CONVERSE_SEQ beat pool, bond gates tuned (5 for share, has_secrets for
+   betray). Both confirmed firing in live tests.
+✅ Arc tracking stamps — current_arc_id/current_arc_data/story_arcs on
+   CharData, Clock.total_ticks added, _open_arc/_close_arc/_append_arc
+   wired into ~15 call sites in sim.gd. Confirmed working across two
+   live test runs.
+✅ Log format overhaul — full [T<tick> A<arc_id>] KEYWORD | char | detail
+   format across sim.gd, actions.gd, memory.gd, state_driver.gd,
+   feeling_driver.gd. RELCHANGE split into per-character lines. Arc-id
+   ordering bug on BASEROLL/NEEDROLL/SEQINTERRUPT fixed (deferred-print
+   pattern). Confirmed correct across two live test runs.
+
+NEXT UP (in order):
+1. Deterministic rewind / tick stepper — RNG instance ready, ring buffer
+   ~50 ticks, deterministic replay. Flagged urgent before codebase grows.
+2. Enhanced EventInspector — multi-tag filter panel, "Copy for Debugger"
+   button, character follow mode.
+3. Passive relationship decay (Sprint item 7)
+4. Public Humiliation → Cold Phase → Jealousy → Lying (locked order)
+
+PRE-PHASE-5 PARKING LOT:
+- Circular floating hands on character bodies — so characters can visibly
+  hold drinks/books. New this session, needed before inventory/grocery
+  checkout work lands.
+- Full event audit + actions.gd cleanup pass — after debug tools are
+  solid. Go through all events, add missing ones, clean up actions.gd.
+  Alexander flagged this explicitly this session.
+- GREET/ARGUE/SHARE_STORY/REMINISCE_TOGETHER — still reserved, not wired
+  into CONVERSE_SEQ. Deliberately left out this session, fold into the
+  event audit pass above.
+- Minor: arc base_event for hallway CONVERSE_SEQ locks reads as generic
+  "CONVERSE" instead of something more descriptive — cosmetic, not urgent.
 ```
 
 ---

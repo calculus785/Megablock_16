@@ -29,6 +29,10 @@ signal event_fired(char_id: String, event_key: String, summary: String)
 # regardless of sim speed.
 var _event_counter: int = 0
 
+# ── ARC TRACKING ─────────────────────────────────────────────
+# Sequential ID for arcs. Each base-roll decision opens a new arc.
+var _arc_counter: int = 0
+
 # ── CENTRALIZED RNG ──────────────────────────────────────────
 # All random calls in the simulation route through this instance.
 # Seed is randomized on startup for normal play. Deterministic replay
@@ -94,6 +98,7 @@ var callout_decline_templates: Array = [
 	"{name} wanted to talk. {target} wasn't having it.",
 	"{name} started to say something. {target} didn't notice.",
 ]
+
 
 func _ready() -> void:
 	Clock.tick.connect(_on_tick)
@@ -179,7 +184,8 @@ func _try_wake(character: CharData) -> void:
 	})
 
 	if Settings.debug_console_logging:
-		print("[Sim] %s → %s" % [character.char_name, summary])
+		print("[T%d A%d] WAKE | %s | %s" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name, summary])
 
 	event_fired.emit(character.char_id, "WAKE", summary)
 
@@ -232,7 +238,7 @@ func _roll_base_category(character: CharData) -> String:
 # Also sets current_motivation["need"] for storybook narration.
 # ─────────────────────────────────────────────────────────────
 
-func _resolve_fulfill_need(character: CharData, pool: Array) -> Array:
+func _resolve_fulfill_need(character: CharData, pool: Array) -> Dictionary:
 	# Build urgency list from character's current stats
 	var urgencies: Array = []
 	for need_def in fulfill_need_stats:
@@ -249,10 +255,11 @@ func _resolve_fulfill_need(character: CharData, pool: Array) -> Array:
 
 	# If nothing is actually urgent, don't narrow — use full pool
 	if urgencies[0]["urgency"] < fulfill_need_min_urgency:
+		var log_line: String = ""
 		if Settings.debug_console_logging:
-			print("[Sim] NEEDROLL SKIP | %s | no urgent needs (best: %s at %.0f)" % [
-				character.char_name, urgencies[0]["stat"], urgencies[0]["urgency"]])
-		return pool
+			log_line = "skip — no urgent needs (best: %s at %.0f)" % [
+				urgencies[0]["stat"], urgencies[0]["urgency"]]
+		return { "pool": pool, "log_line": log_line }
 
 	# Try each stat in urgency order
 	for entry in urgencies:
@@ -269,17 +276,17 @@ func _resolve_fulfill_need(character: CharData, pool: Array) -> Array:
 				matching.append(event_key)
 		if not matching.is_empty():
 			character.current_motivation["need"] = stat_name
+			var log_line: String = ""
 			if Settings.debug_console_logging:
-				print("[Sim] NEEDROLL %s | %s | urgency %.0f | pool: %d" % [
-					stat_name.to_upper(), character.char_name,
-					entry["urgency"], matching.size()])
-			return matching
+				log_line = "resolved %s, urgency %.0f, pool: %d" % [
+					stat_name.to_upper(), entry["urgency"], matching.size()]
+			return { "pool": matching, "log_line": log_line }
 
 	# No stat-specific events available — use full fulfill_need pool
+	var log_line: String = ""
 	if Settings.debug_console_logging:
-		print("[Sim] NEEDROLL FALLBACK | %s | full pool: %d" % [
-			character.char_name, pool.size()])
-	return pool
+		log_line = "fallback — full pool: %d" % pool.size()
+	return { "pool": pool, "log_line": log_line }
 
 # ─────────────────────────────────────────────────────────────
 # CALLOUT — SOCIALIZE ACCEPT/DECLINE
@@ -301,8 +308,8 @@ func _check_callout_accept(character: CharData, target: CharData) -> bool:
 	# Auto-decline if target's queue is at soft cap ("too busy")
 	if target.intent_queue.size() >= Memory.INTENT_SOFT_CAP:
 		if Settings.debug_console_logging:
-			print("[Sim] CALLOUT BUSY | %s → %s | queue full" % [
-				character.char_name, target.char_name])
+			print("[T%d A%d] CALLOUT | %s | tried to reach %s — busy, queue full" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, target.char_name])
 		return false
 
 	# Target stats — lonely targets are receptive, stressed/tired less so
@@ -330,8 +337,9 @@ func _check_callout_accept(character: CharData, target: CharData) -> bool:
 
 	if Settings.debug_console_logging:
 		var result: String = "ACCEPT" if accepted else "DECLINE"
-		print("[Sim] CALLOUT %s | %s → %s | chance %.0f%% (roll %.0f)" % [
-			result, character.char_name, target.char_name, chance, roll])
+		print("[T%d A%d] CALLOUT | %s | %s from %s — chance %.0f%% (roll %.0f)" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name,
+			result, target.char_name, chance, roll])
 
 	return accepted
 
@@ -357,9 +365,54 @@ func _echo_callout_decline(character: CharData, target: CharData,
 	})
 
 	if Settings.debug_console_logging:
-		print("[Sim] %s → %s" % [character.char_name, summary])
+		print("[T%d A%d] CALLOUT | %s | declined — %s" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name, summary])
 
 	event_fired.emit(character.char_id, "CALLOUT_DECLINED", summary)
+	_append_arc(character, "CALLOUT_DECLINED")
+
+# ─────────────────────────────────────────────────────────────
+# ARC TRACKING
+# An arc is the event trail for one base-roll decision.
+# Opens when a character commits to a new motivation, closes
+# when the next motivation replaces it. Everything that fires
+# in between (intents, sequence beats, give-ups, interrupts)
+# gets logged into the arc's event_keys array.
+# ─────────────────────────────────────────────────────────────
+
+func _open_arc(character: CharData, base_event: String) -> void:
+	character.current_arc_id = _arc_counter
+	character.current_arc_data = {
+		"arc_id": _arc_counter,
+		"base_event": base_event,
+		"opened_tick": Clock.total_ticks,
+		"event_keys": [],
+	}
+	_arc_counter += 1
+	if Settings.debug_console_logging:
+		print("[Sim] ARCOPEN %d | %s | %s" % [
+			character.current_arc_id, character.char_name, base_event])
+
+
+func _close_arc(character: CharData) -> void:
+	if character.current_arc_id == -1:
+		return
+	character.current_arc_data["closed_tick"] = Clock.total_ticks
+	character.story_arcs.append(character.current_arc_data.duplicate(true))
+	if Settings.debug_console_logging:
+		var data: Dictionary = character.current_arc_data
+		print("[Sim] ARCCLOSE %d | %s | %s | %d events" % [
+			character.current_arc_id, character.char_name,
+			data.get("base_event", "?"),
+			data.get("event_keys", []).size()])
+	character.current_arc_id = -1
+	character.current_arc_data = {}
+
+
+func _append_arc(character: CharData, event_key: String) -> void:
+	if character.current_arc_id == -1:
+		return
+	character.current_arc_data["event_keys"].append(event_key)
 
 # ─────────────────────────────────────────────────────────────
 # PIPELINE
@@ -393,19 +446,25 @@ func _run_pipeline(character: CharData) -> void:
 
 	if filtered.is_empty():
 		if Settings.debug_console_logging:
-			print("[Sim] BASEROLL %s | %s | pool empty — skipping" % [
-				category.to_upper(), character.char_name])
+			print("[T%d A%d] BASEROLL | %s | %s — pool empty, skipping" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, category.to_upper()])
 		character.current_motivation = {}
 		return
 
+	# BASEROLL "pool: %d" is deferred — held until after the arc transition
+	# below so it logs under the NEW arc id, not the one it's replacing.
+	var baseroll_log_line: String = ""
 	if Settings.debug_console_logging:
-		print("[Sim] BASEROLL %s | %s | pool: %d" % [
-			category.to_upper(), character.char_name, filtered.size()])
+		baseroll_log_line = "%s — pool: %d" % [category.to_upper(), filtered.size()]
 
 	# FULFILL_NEED resolver — narrow to events matching worst need stat.
 	# Falls back to full filtered pool if no stat-specific events match.
+	# Its log line is deferred the same way as BASEROLL above.
+	var needroll_log_line: String = ""
 	if category == "fulfill_need":
-		filtered = _resolve_fulfill_need(character, filtered)
+		var resolved: Dictionary = _resolve_fulfill_need(character, filtered)
+		filtered = resolved["pool"]
+		needroll_log_line = resolved["log_line"]
 
 	var event_key: String = _weighted_roll(character, filtered)
 	if event_key == "":
@@ -418,6 +477,19 @@ func _run_pipeline(character: CharData) -> void:
 		return
 
 	var event_def: Dictionary = Events.get_event(event_key)
+
+	# ── ARC TRANSITION ──────────────────────────────────
+	_close_arc(character)
+	_open_arc(character, event_key)
+
+	# Now print the held BASEROLL/NEEDROLL lines — character.current_arc_id
+	# is the NEW arc at this point.
+	if Settings.debug_console_logging:
+		print("[T%d A%d] BASEROLL | %s | %s" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name, baseroll_log_line])
+		if needroll_log_line != "":
+			print("[T%d A%d] NEEDROLL | %s | %s" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, needroll_log_line])
 
 	# ── 2. RESOLVE ──────────────────────────────────────────
 	var target = Context.resolve_target(character, event_def)
@@ -466,9 +538,13 @@ func _run_pipeline(character: CharData) -> void:
 
 	# ── LOG ─────────────────────────────────────────────────
 	if Settings.debug_console_logging:
-		print("[Sim] %s → %s" % [character.char_name, summary])
+		print("[T%d A%d] EVENT | %s | %s" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name, summary])
 
 	event_fired.emit(character.char_id, event_key, summary)
+	_append_arc(character, event_key)
+
+	
 
 # ─────────────────────────────────────────────────────────────
 # FORCE FIRE (debug)
@@ -508,7 +584,8 @@ func force_fire_event(character: CharData, event_key: String) -> String:
 	character.action_count += 1
 
 	if Settings.debug_console_logging:
-		print("[Sim] 🔧 FORCED → %s → %s" % [character.char_name, summary])
+		print("[T%d A%d] EVENT_FORCE | %s | %s" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name, summary])
 
 	event_fired.emit(character.char_id, event_key, summary)
 	return summary
@@ -535,10 +612,11 @@ func force_fire_event_with_target(character: CharData,
 	var summary: String = _echo(character, target, event_key, event_def, frame)
 	_event_counter += 1
 	character.action_count += 1
- 
+
 	if Settings.debug_console_logging:
-		print("[Sim] 🔧 FORCED → %s → %s" % [character.char_name, summary])
- 
+		print("[T%d A%d] EVENT_FORCE | %s | %s" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name, summary])
+
 	event_fired.emit(character.char_id, event_key, summary)
 	return summary
 
@@ -596,6 +674,11 @@ func _try_fire_intent(character: CharData) -> bool:
 	# Requirements met — pop the intent and fire the event
 	Memory.pop_intent(character)
 
+	# If no arc is open (e.g. character just woke up with queued intents),
+	# open one for this intent — it's its own motivation now.
+	if character.current_arc_id == -1:
+		_open_arc(character, event_key)
+
 	var target = Context.resolve_target(character, event_def)
 
 	# If intent has a specific target_id, try to use that instead
@@ -621,9 +704,11 @@ func _try_fire_intent(character: CharData) -> bool:
 	character.action_count += 1
 
 	if Settings.debug_console_logging:
-		print("[Sim] 📋 INTENT → %s → %s" % [character.char_name, summary])
+		print("[T%d A%d] EVENT_INTENT | %s | %s" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name, summary])
 
 	event_fired.emit(character.char_id, event_key, summary)
+	_append_arc(character, event_key)
 	return true
 
 
@@ -658,9 +743,11 @@ func _fire_give_up(character: CharData, expired_key: String) -> void:
 	})
 
 	if Settings.debug_console_logging:
-		print("[Sim] ❌ %s → %s" % [character.char_name, summary])
+		print("[T%d A%d] GIVEUP | %s | %s" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name, summary])
 
 	event_fired.emit(character.char_id, "GIVE_UP", summary)
+	_append_arc(character, "GIVE_UP")
 
 # ─────────────────────────────────────────────────────────────
 # AVOIDANCE CHECK
@@ -731,8 +818,14 @@ func _check_and_flee_avoided(character: CharData) -> bool:
 		})
 
 		if Settings.debug_console_logging:
-			print("[Sim] 🚷 %s spotted %s — leaving %s" % [
-				character.char_name, avoided.char_name, room_id])
+			print("[T%d A%d] FLEE | %s | spotted %s — leaving %s" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name,
+				avoided.char_name, room_id])
+
+		# ── ARC: flee replaces the original motivation ──
+		_close_arc(character)
+		_open_arc(character, "FLEE_AVOIDED")
+		_append_arc(character, "FLEE_AVOIDED")
 
 		event_fired.emit(character.char_id, "FLEE_AVOIDED", summary)
 		return true
@@ -1101,7 +1194,7 @@ func _apply_outcomes(character: CharData, target, event_def: Dictionary) -> void
 		var rel: Dictionary = outcomes["relationship"]
 		# ... existing modify calls ...
 		
-		# Debug log
+		# Debug log — split per character so each line carries its own arc id
 		if Settings.debug_console_logging:
 			var bond_now: float = Relationships.get_bond(
 				character.char_id, target.char_id)
@@ -1116,9 +1209,14 @@ func _apply_outcomes(character: CharData, target, event_def: Dictionary) -> void
 				parts.append("rivalry %+.0f" % rel["rivalry"])
 			if rel.has("familiarity"):
 				parts.append("fam %+.0f" % rel["familiarity"])
-			print("[Sim] 💛 %s ↔ %s: %s (→%.0f %s)" % [
-				character.char_name, target.char_name,
-				", ".join(parts), bond_now, tier
+			var detail: String = ", ".join(parts)
+			print("[T%d A%d] RELCHANGE | %s | %s with %s (→%.0f %s)" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name,
+				detail, target.char_name, bond_now, tier
+			])
+			print("[T%d A%d] RELCHANGE | %s | %s with %s (→%.0f %s)" % [
+				Clock.total_ticks, target.current_arc_id, target.char_name,
+				detail, character.char_name, bond_now, tier
 			])
 
 
@@ -1191,6 +1289,10 @@ func _run_auto_fire(character: CharData) -> bool:
 	var target = Context.resolve_target(character, event_def)
 	var frame: Dictionary = Context.build_frame(character, target, event_def)
 
+	# ── ARC: auto-fire replaces the current motivation ──
+	_close_arc(character)
+	_open_arc(character, event_key)
+
 	var action_name: String = event_def.get("call_action", "")
 	if action_name == "":
 		return false
@@ -1205,9 +1307,11 @@ func _run_auto_fire(character: CharData) -> bool:
 	character.action_count += 1
 
 	if Settings.debug_console_logging:
-		print("[Sim] ⚡ %s → %s" % [character.char_name, summary])
+		print("[T%d A%d] EVENT_AUTO | %s | %s" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name, summary])
 
 	event_fired.emit(character.char_id, event_key, summary)
+	_append_arc(character, event_key)
 	return true
 
 	# ─────────────────────────────────────────────────────────────
@@ -1233,8 +1337,9 @@ func _start_sequence(initiator: CharData, responder: CharData, seq_key: String) 
 	responder.sequence_context  = {}
 
 	if Settings.debug_console_logging:
-		print("[Sim] 🎱 %s + %s locked into %s" % [
-			initiator.char_name, responder.char_name, seq_key
+		print("[T%d A%d] SEQSTART | %s | locked into %s with %s" % [
+			Clock.total_ticks, initiator.current_arc_id, initiator.char_name,
+			seq_key, responder.char_name
 		])
 
 
@@ -1299,9 +1404,14 @@ func _advance_sequence(character: CharData) -> void:
 		})
 
 		if Settings.debug_console_logging:
-			print("[Sim] 🎱 %s (beat %d) → %s" % [seq_key, beat_id, summary])
+			print("[T%d A%d] SEQBEAT | %s | %s beat %d — %s" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name,
+				seq_key, beat_id, summary])
 
 		event_fired.emit(character.char_id, seq_key, summary)
+		_append_arc(character, seq_key + "_B" + str(beat_id))
+		if partner:
+			_append_arc(partner, seq_key + "_B" + str(beat_id))
 
 	# Determine next beat
 	var next_beat = "END"
@@ -1383,9 +1493,9 @@ func _end_sequence(initiator: CharData, partner: CharData) -> void:
 	var origin_key: String = initiator.sequence_context.get("origin_event_key", "")
 
 	if Settings.debug_console_logging:
-		print("[Sim] ✅ %s ended for %s + %s" % [
+		print("[T%d A%d] SEQEND | %s | %s ended, with %s" % [
+			Clock.total_ticks, initiator.current_arc_id, initiator.char_name,
 			initiator.active_sequence,
-			initiator.char_name,
 			partner.char_name if partner else "unknown"
 		])
 	_clear_sequence(initiator)
@@ -1415,16 +1525,17 @@ func _resume_from_hallway(character: CharData) -> void:
 		return
 	if Rooms.is_hallway(dest):
 		if Settings.debug_console_logging:
-			push_warning("[Sim] ⚠️ %s had hallway as resume dest (%s) — journey abandoned." % [
-				character.char_name, dest])
+			push_warning("[T%d A%d] MOVEMENT | %s | had hallway as resume dest (%s) — journey abandoned" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, dest])
 		character.movement_target_room = ""
 		Rooms.release_all_spots(character.current_room, character.char_id)
 		return
 	# Release any hallway lane spots
 	Rooms.release_all_spots(character.current_room, character.char_id)
 	if Settings.debug_console_logging:
-		print("[Sim] 🚶 %s resuming → %s (re-planned from %s)" % [
-			character.char_name, dest, character.current_room])
+		print("[T%d A%d] MOVEMENT | %s | resuming → %s (re-planned from %s)" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name,
+			dest, character.current_room])
 	Actions.start_movement(character, dest)
 
 # Checks if any interruptible auto_fire event is eligible for a locked character.
@@ -1479,10 +1590,16 @@ func _check_and_interrupt(character: CharData) -> bool:
 		_event_counter += 1
 		character.action_count += 1
 
-		if Settings.debug_console_logging:
-			print("[Sim] ⚡ INTERRUPTED → %s → %s" % [character.char_name, summary])
-
 		event_fired.emit(character.char_id, event_key, summary)
+		# ── ARC: interrupt kills the original motivation ──
+		_close_arc(character)
+		_open_arc(character, event_key)
+		_append_arc(character, event_key)
+
+		if Settings.debug_console_logging:
+			print("[T%d A%d] SEQINTERRUPT | %s | %s" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, summary])
+
 		return true
 
 	return false
@@ -1588,10 +1705,14 @@ func _advance_pool_sequence(character: CharData) -> void:
 		})
 
 		if Settings.debug_console_logging:
-			print("[Sim] 💬 %s (beat %d, mood %.0f) → %s" % [
+			print("[T%d A%d] SEQBEAT | %s | %s beat %d, mood %.0f — %s" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name,
 				seq_key, beat_count, mood, summary])
 
 		event_fired.emit(character.char_id, seq_key, summary)
+		_append_arc(character, seq_key + "_" + beat_key)
+		if partner:
+			_append_arc(partner, seq_key + "_" + beat_key)
 
 	ctx["last_beat_key"] = beat_key
 
@@ -1600,7 +1721,8 @@ func _advance_pool_sequence(character: CharData) -> void:
 	var end_chance: float = beat_def.get("ends_conversation_chance", 0.0)
 	if end_chance > 0.0 and randf() < end_chance:
 		if Settings.debug_console_logging:
-			print("[Sim] 💬 %s escalation ended conversation" % beat_key)
+			print("[T%d A%d] SEQEND | %s | %s escalation ended the conversation" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, beat_key])
 		_end_pool_sequence(character, partner, seq_key, seq_def)
 		return
 
@@ -1660,9 +1782,13 @@ func _fire_converse_opening(character: CharData, partner: CharData,
 		})
 
 		if Settings.debug_console_logging:
-			print("[Sim] 💬 %s OPEN → %s" % [seq_key, summary])
+			print("[T%d A%d] SEQBEAT | %s | %s OPEN — %s" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, seq_key, summary])
 
 		event_fired.emit(character.char_id, seq_key, summary)
+		_append_arc(character, seq_key + "_OPEN")
+		if partner:
+			_append_arc(partner, seq_key + "_OPEN")
 
 	# Sync to partner
 	if partner:
@@ -1743,6 +1869,11 @@ func _check_converse_reqs(character: CharData, partner: CharData,
 	if reqs.has("has_gossipable_memory") and reqs["has_gossipable_memory"]:
 		var entry = Memory.pick_gossipable_entry(character, partner)
 		if entry == null:
+			return false
+
+	# Actor has secrets they could share/betray
+	if reqs.has("has_secrets") and reqs["has_secrets"]:
+		if not Memory.has_any_secrets(character):
 			return false
 
 	# Shared interests between the two characters
@@ -1845,13 +1976,20 @@ func _end_pool_sequence(character: CharData, partner: CharData,
 		})
 
 		if Settings.debug_console_logging:
-			print("[Sim] 💬 %s END (%s, mood %.0f) → %s" % [
+			print("[T%d A%d] SEQEND | %s | %s END (%s, mood %.0f) — %s" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name,
 				seq_key, end_key, mood, summary])
 
 		event_fired.emit(character.char_id, seq_key, summary)
+		_append_arc(character, seq_key + "_END_" + end_key)
+		if partner:
+			_append_arc(partner, seq_key + "_END_" + end_key)
 
 	# ── WRITE SUMMARY ───────────────────────────────────────
 	_write_converse_summary(character, partner, seq_key, seq_def)
+	_append_arc(character, seq_key + "_SUMMARY")
+	if partner:
+		_append_arc(partner, seq_key + "_SUMMARY")
 
 	# ── FINAL RELATIONSHIP DELTAS ───────────────────────────
 	if partner:
@@ -1868,8 +2006,14 @@ func _end_pool_sequence(character: CharData, partner: CharData,
 			Relationships.modify_rivalry(character.char_id, partner.char_id, 2.0)
 
 		if Settings.debug_console_logging:
-			print("[Sim] 💬 %s ↔ %s: convo done (mood %.0f, bond %+.1f, fam +%.1f)" % [
-				character.char_name, partner.char_name, mood, bond_delta, fam_delta])
+			var convo_detail: String = "convo done (mood %.0f, bond %+.1f, fam +%.1f)" % [
+				mood, bond_delta, fam_delta]
+			print("[T%d A%d] RELCHANGE | %s | %s with %s" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name,
+				convo_detail, partner.char_name])
+			print("[T%d A%d] RELCHANGE | %s | %s with %s" % [
+				Clock.total_ticks, partner.current_arc_id, partner.char_name,
+				convo_detail, character.char_name])
 
 	# ── STAT EFFECTS ────────────────────────────────────────
 	# Base loneliness/boredom reduction scales with length (capped)
@@ -1993,8 +2137,9 @@ func _write_converse_summary(character: CharData, partner: CharData,
 		Memory.write_storybook(partner, partner_entry)
 
 	if Settings.debug_console_logging:
-		print("[Sim] 💬 SUMMARY (%s, mood %.0f%s) → %s" % [
-			arc, mood, " ⭐" if is_memorable else "", summary])
+		print("[T%d A%d] SEQSUMMARY | %s | %s (%s, mood %.0f%s)" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name,
+			summary, arc, mood, " memorable" if is_memorable else ""])
 
 
 # Figures out the conversation arc from mood history.
@@ -2052,8 +2197,9 @@ func _apply_repetition_boredom(character: CharData, event_key: String) -> void:
 		var boredom_delta: float = 5.0 * repeat_count
 		Actions.modify_stat(character, "boredom", boredom_delta)
 		if Settings.debug_console_logging:
-			print("[Sim] 😒 %s bored of %s (+%.0f boredom)" % [
-				character.char_name, event_key, boredom_delta
+			print("[T%d A%d] STATCHANGE | %s | bored of %s (+%.0f boredom)" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name,
+				event_key, boredom_delta
 			])
 
 # ─────────────────────────────────────────────────────────────
@@ -2111,6 +2257,7 @@ func _run_hallway_check(character: CharData) -> void:
 			# Without this, the cooldown set above expires mid-conversation
 			# as other characters' pipeline events increment _event_counter.
 			character.sequence_context["origin_event_key"] = event_key
+			_append_arc(character, event_key)
 		return
 	if event_def.has("sequence_key"):
 		return
@@ -2123,12 +2270,13 @@ func _run_hallway_check(character: CharData) -> void:
 	character.action_count += 1
 
 	if Settings.debug_console_logging:
-		print("[Sim] 🚶 HALLWAY → %s + %s → %s" % [
-			character.char_name,
-			target.char_name if target is CharData else "",
-			summary])
+		print("[T%d A%d] EVENT_HALLWAY | %s | %s%s" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name,
+			summary,
+			(" (with %s)" % target.char_name) if target is CharData else ""])
 
 	event_fired.emit(character.char_id, event_key, summary)
+	_append_arc(character, event_key)
 
 
 

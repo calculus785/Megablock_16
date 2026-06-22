@@ -116,6 +116,8 @@ func call_action(action_name: String, character: CharData, target, args: Diction
 		"converse_insult":         return _converse_insult(character, target, args)
 		"converse_gossip":         return _converse_gossip(character, target, args)
 		"converse_share_interest": return _converse_share_interest(character, target, args)
+		"converse_share_secret":   return _converse_share_secret(character, target, args)
+		"converse_betray_secret":  return _converse_betray_secret(character, target, args)
 		"converse_unsolicited_advice": return _converse_unsolicited_advice(character, target, args)
 		"converse_show_off":       return _converse_show_off(character, target, args)
 		"converse_deep_moment":    return _converse_deep_moment(character, target, args)
@@ -144,9 +146,9 @@ func modify_faction(character: CharData, faction: String, delta: float) -> void:
 	var current: float = character.faction_sentiment.get(faction, 50.0)
 	character.faction_sentiment[faction] = clampf(current + delta, 0.0, 100.0)
 	if Settings.debug_console_logging:
-		print("[Actions] 🏛 %s faction %s %+.0f (→%.0f)" % [
-			character.char_name, faction, delta,
-			character.faction_sentiment[faction]
+		print("[T%d A%d] FACTION | %s | %s %+.0f (→%.0f)" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name,
+			faction, delta, character.faction_sentiment[faction]
 		])
 
 # ── AVOIDANCE HELPER ────────────────────────────────────────
@@ -189,8 +191,9 @@ func _maybe_push_avoidance(character: CharData, avoided: CharData,
 	})
 
 	if Settings.debug_console_logging:
-		print("[Actions] 🚷 %s is now avoiding %s (%.0fh)" % [
-			character.char_name, avoided.char_name, hours])
+		print("[T%d A%d] AVOID | %s | now avoiding %s (%.0fh)" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name,
+			avoided.char_name, hours])
 
 
 # ── MOVEMENT — room to room ─────────────────────────────────
@@ -210,8 +213,9 @@ func start_movement(character: CharData, dest_room: String) -> void:
 	character.waypoint_index = 0
 
 	if Settings.debug_console_logging:
-		print("[Actions] %s moving: %s → %s" % [
-			character.char_name, character.current_room, dest_room
+		print("[T%d A%d] MOVEMENT | %s | moving from %s to %s" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name,
+			character.current_room, dest_room
 		])
 
 
@@ -227,8 +231,9 @@ func _move_to_zone(character: CharData, zone_name: String) -> bool:
 	var spot: Dictionary = Rooms.get_available_spot(character.current_room, zone_name)
 	if spot.is_empty():
 		if Settings.debug_console_logging:
-			print("[Actions] ⛔ %s → %s full in %s" % [
-				character.char_name, zone_name, character.current_room
+			print("[T%d A%d] ZONEMOVE | %s | %s full in %s" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name,
+				zone_name, character.current_room
 			])
 		return false
 
@@ -236,8 +241,9 @@ func _move_to_zone(character: CharData, zone_name: String) -> bool:
 	character.zone_target_pos = spot["pos"]
 
 	if Settings.debug_console_logging:
-		print("[Actions] 📍 %s → %s/%s in %s" % [
-			character.char_name, zone_name, spot["name"], character.current_room
+		print("[T%d A%d] ZONEMOVE | %s | claimed %s/%s in %s" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name,
+			zone_name, spot["name"], character.current_room
 		])
 	return true
 
@@ -600,8 +606,8 @@ func _start_pool_game(character: CharData, target, _args: Dictionary) -> String:
 			modify_stat(character, "stress", 3.0)
 
 		if Settings.debug_console_logging:
-			print("[Sim] 🚫 %s asked %s to play pool — refused." % [
-				character.char_name, target.char_name
+			print("[T%d A%d] SOCIAL | %s | asked %s to play pool — refused" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, target.char_name
 			])
 		return DONE
 
@@ -807,14 +813,14 @@ func _flirt(character: CharData, target, _args: Dictionary) -> String:
 			target.char_id, character.char_id, "FLIRTY", 1.0)
 		Relationships.modify_bond(character.char_id, target.char_id, 3.0)
 		if Settings.debug_console_logging:
-			print("[Actions] 💨 %s flirted with %s → reciprocated!" % [
-				character.char_name, target.char_name])
+			print("[T%d A%d] SOCIAL | %s | flirted with %s — reciprocated" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, target.char_name])
 	else:
 		# Rejected — mild awkwardness
 		modify_stat(character, "stress", 3.0)
 		if Settings.debug_console_logging:
-			print("[Actions] 💨 %s flirted with %s → not reciprocated" % [
-				character.char_name, target.char_name])
+			print("[T%d A%d] SOCIAL | %s | flirted with %s — not reciprocated" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, target.char_name])
 
 	return DONE
 
@@ -873,8 +879,8 @@ func _ask_out(character: CharData, target, _args: Dictionary) -> String:
 			target.char_id, character.char_id, "INFATUATED", 1.0)
 
 		if Settings.debug_console_logging:
-			print("[Actions] 💕💕 %s asked %s out → ACCEPTED! → ROMANTIC_INTEREST" % [
-				character.char_name, target.char_name])
+			print("[T%d A%d] SOCIAL | %s | asked %s out — accepted, now ROMANTIC_INTEREST" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, target.char_name])
 	else:
 		# REJECTED
 		Relationships.modify_bond(character.char_id, target.char_id, -10.0)
@@ -887,8 +893,8 @@ func _ask_out(character: CharData, target, _args: Dictionary) -> String:
 		modify_stat(character, "stress", 10.0)
 
 		if Settings.debug_console_logging:
-			print("[Actions] 💔💔 %s asked %s out → REJECTED" % [
-				character.char_name, target.char_name])
+			print("[T%d A%d] SOCIAL | %s | asked %s out — rejected" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, target.char_name])
 
 	return DONE
 
@@ -930,8 +936,8 @@ func _apologise(character: CharData, target, _args: Dictionary) -> String:
 			target.char_id, character.char_id, "RESENTFUL")
 
 		if Settings.debug_console_logging:
-			print("[Actions] 🤝 %s apologised to %s → accepted" % [
-				character.char_name, target.char_name])
+			print("[T%d A%d] SOCIAL | %s | apologised to %s — accepted" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, target.char_name])
 	else:
 		# Rejected
 		Relationships.modify_bond(character.char_id, target.char_id, -5.0)
@@ -942,8 +948,8 @@ func _apologise(character: CharData, target, _args: Dictionary) -> String:
 		})
 
 		if Settings.debug_console_logging:
-			print("[Actions] ❌ %s apologised to %s → rejected" % [
-				character.char_name, target.char_name])
+			print("[T%d A%d] SOCIAL | %s | apologised to %s — rejected" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, target.char_name])
 
 	return DONE
 
@@ -1027,8 +1033,8 @@ func _gossip(character: CharData, target, _args: Dictionary) -> String:
 
 	if result == null:
 		if Settings.debug_console_logging:
-			print("[Actions] 🗣️ %s gossiped to %s — nothing juicy to share" % [
-				character.char_name, target.char_name])
+			print("[T%d A%d] GOSSIP | %s | tried to gossip to %s — nothing juicy to share" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, target.char_name])
 		return DONE
 
 	var entry: Dictionary = result["entry"]
@@ -1056,18 +1062,21 @@ func _gossip(character: CharData, target, _args: Dictionary) -> String:
 				Relationships.modify_trust(target.char_id, subject_id, -2.0)
 				modify_stat(target, "stress", 3.0)
 				if Settings.debug_console_logging:
-					print("[Actions] 🗣️ %s told %s something bad about %s → bond -3, trust -2" % [
-						character.char_name, target.char_name, subject_name])
+					print("[T%d A%d] GOSSIP | %s | told %s something bad about %s — bond -3, trust -2" % [
+						Clock.total_ticks, character.current_arc_id, character.char_name,
+						target.char_name, subject_name])
 			"positive":
 				Relationships.modify_bond(target.char_id, subject_id, 2.0)
 				modify_stat(target, "happiness", 2.0)
 				if Settings.debug_console_logging:
-					print("[Actions] 🗣️ %s told %s something nice about %s → bond +2" % [
-						character.char_name, target.char_name, subject_name])
+					print("[T%d A%d] GOSSIP | %s | told %s something nice about %s — bond +2" % [
+						Clock.total_ticks, character.current_arc_id, character.char_name,
+						target.char_name, subject_name])
 			_:
 				if Settings.debug_console_logging:
-					print("[Actions] 🗣️ %s told %s about %s — neutral gossip" % [
-						character.char_name, target.char_name, subject_name])
+					print("[T%d A%d] GOSSIP | %s | told %s about %s — neutral" % [
+						Clock.total_ticks, character.current_arc_id, character.char_name,
+						target.char_name, subject_name])
 
 	# ── Subject fame adjustment ─────────────────────────────
 	if subject_char:
@@ -1093,8 +1102,9 @@ func _gossip(character: CharData, target, _args: Dictionary) -> String:
 		Relationships.modify_bond(target.char_id, character.char_id, -5.0)
 		Relationships.modify_trust(target.char_id, character.char_id, -8.0)
 		if Settings.debug_console_logging:
-			print("[Actions] 🗣️😳 %s accidentally gossiped about %s TO %s!" % [
-				character.char_name, target.char_name, target.char_name])
+			print("[T%d A%d] GOSSIP | %s | accidentally gossiped about %s to %s" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name,
+				target.char_name, target.char_name])
 		return DONE
 
 	# ── LISTEN_IN: bystanders overhear ──────────────────────
@@ -1146,8 +1156,9 @@ func _gossip(character: CharData, target, _args: Dictionary) -> String:
 				})
 				character.storybook[entry_index]["shared_to"].append(occ_id)
 				if Settings.debug_console_logging:
-					print("[Actions] 👂😳 %s overheard %s gossiping about THEM!" % [
-						bystander.char_name, character.char_name])
+					print("[T%d A%d] GOSSIP | %s | overheard %s gossiping about them" % [
+						Clock.total_ticks, bystander.current_arc_id, bystander.char_name,
+						character.char_name])
 				continue
 
 			# ── Normal overhear ─────────────────────────────
@@ -1165,8 +1176,9 @@ func _gossip(character: CharData, target, _args: Dictionary) -> String:
 						Relationships.modify_bond(occ_id, subject_id, 1.0)
 
 			if Settings.debug_console_logging:
-				print("[Actions] 👂 %s overheard %s gossiping about %s" % [
-					bystander.char_name, character.char_name, subject_name])
+				print("[T%d A%d] GOSSIP | %s | overheard %s gossiping about %s" % [
+					Clock.total_ticks, bystander.current_arc_id, bystander.char_name,
+					character.char_name, subject_name])
 
 	return DONE
 
@@ -1198,8 +1210,8 @@ func _propagate_secret_via_gossip(gossiper: CharData, listener: CharData,
 				var owner: CharData = Registry.get_character(
 					sec.get("original_owner_id", ""))
 				var owner_name: String = owner.char_name if owner else "someone"
-				print("[Actions] 🤫📢 %s now knows %s's secret via gossip" % [
-					listener.char_name, owner_name])
+				print("[T%d A%d] SECRET | %s | now knows %s's secret via gossip" % [
+					Clock.total_ticks, listener.current_arc_id, listener.char_name, owner_name])
 			break
 
 
@@ -1271,8 +1283,9 @@ func _share_secret(character: CharData, target, _args: Dictionary) -> String:
 	Relationships.modify_trust(character.char_id, target.char_id, 8.0)
 
 	if Settings.debug_console_logging:
-		print("[Actions] 🤫 %s shared a secret with %s (id: %s)" % [
-			character.char_name, target.char_name, secret_id])
+		print("[T%d A%d] SECRET | %s | shared a secret with %s (id: %s)" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name,
+			target.char_name, secret_id])
 	return DONE
 
 
@@ -1291,8 +1304,8 @@ func _betray_secret(character: CharData, target, _args: Dictionary) -> String:
 	var betrayable: Array = Memory.get_betrayable_secrets(character)
 	if betrayable.is_empty():
 		if Settings.debug_console_logging:
-			print("[Actions] 💔 %s wanted to betray a secret but has none" % [
-				character.char_name])
+			print("[T%d A%d] SECRET | %s | wanted to betray a secret but has none" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name])
 		return DONE
 
 	var picked: Dictionary = betrayable[randi() % betrayable.size()]
@@ -1303,8 +1316,8 @@ func _betray_secret(character: CharData, target, _args: Dictionary) -> String:
 	# Skip if target already knows this secret
 	if Memory.has_secret(target, secret_id):
 		if Settings.debug_console_logging:
-			print("[Actions] 💔 %s tried to betray a secret to %s but they already knew" % [
-				character.char_name, target.char_name])
+			print("[T%d A%d] SECRET | %s | tried to betray a secret to %s — they already knew" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, target.char_name])
 		return DONE
 
 	# Skip if target IS the original owner (don't betray Sara's secret TO Sara)
@@ -1343,8 +1356,8 @@ func _betray_secret(character: CharData, target, _args: Dictionary) -> String:
 	})
 
 	if Settings.debug_console_logging:
-		print("[Actions] 💔 %s betrayed %s's secret to %s (no rivalry yet — needs TELL_ON)" % [
-			character.char_name, orig_name, target.char_name])
+		print("[T%d A%d] SECRET | %s | betrayed %s's secret to %s (no rivalry yet — needs TELL_ON)" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name, orig_name, target.char_name])
 
 	character.trait_progress["secrets_betrayed"] = \
 		character.trait_progress.get("secrets_betrayed", 0) + 1
@@ -1372,8 +1385,8 @@ func _mock(character: CharData, target, _args: Dictionary) -> String:
 		character.trait_progress.get("insults_given", 0) + 1
 
 	if Settings.debug_console_logging:
-		print("[Actions] 🎭 %s mocked %s" % [
-			character.char_name, target.char_name])
+		print("[T%d A%d] SOCIAL | %s | mocked %s" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name, target.char_name])
 	return DONE
 
 
@@ -1386,8 +1399,8 @@ func _cold_shoulder(_character: CharData, target, _args: Dictionary) -> String:
 		target.char_id, _character.char_id, "BITTER", 1.0)
 
 	if Settings.debug_console_logging:
-		print("[Actions] 🧊 %s gave %s the cold shoulder" % [
-			_character.char_name, target.char_name])
+		print("[T%d A%d] SOCIAL | %s | gave %s the cold shoulder" % [
+			Clock.total_ticks, _character.current_arc_id, _character.char_name, target.char_name])
 	return DONE
 
 
@@ -1408,8 +1421,8 @@ func _provoke(character: CharData, target, _args: Dictionary) -> String:
 		character.trait_progress.get("provocations", 0) + 1
 
 	if Settings.debug_console_logging:
-		print("[Actions] 🔥 %s provoked %s" % [
-			character.char_name, target.char_name])
+		print("[T%d A%d] SOCIAL | %s | provoked %s" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name, target.char_name])
 	return DONE
 
 func _tell_on(character: CharData, _target, _args: Dictionary) -> String:
@@ -1491,8 +1504,9 @@ func _tell_on(character: CharData, _target, _args: Dictionary) -> String:
 		_maybe_push_avoidance(owner, betrayer, 0.90, 48.0, "secret_betrayed_by")
 
 	if Settings.debug_console_logging:
-		print("[Actions] 🫵 %s told %s that %s betrayed their secret!" % [
-			character.char_name, owner.char_name, betrayer_name])
+		print("[T%d A%d] SOCIAL | %s | told %s that %s betrayed their secret" % [
+			Clock.total_ticks, character.current_arc_id, character.char_name,
+			owner.char_name, betrayer_name])
 
 	return DONE
 
@@ -1554,8 +1568,9 @@ func _start_conversation(character: CharData, target, _args: Dictionary) -> Stri
 		target.zone_target_pos = spot_b["pos"]
 
 		if Settings.debug_console_logging:
-			print("[Actions] 💬🚶 %s and %s stopped in %s/%s for a hallway conversation" % [
-				character.char_name, target.char_name, hallway_id, lane_name])
+			print("[T%d A%d] ZONEMOVE | %s | stopped in %s/%s for a hallway conversation with %s" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name,
+				hallway_id, lane_name, target.char_name])
 
 	return LOCK_SEQUENCE
 
@@ -1607,6 +1622,11 @@ func _converse_share_interest(character: CharData, target, _args: Dictionary) ->
 		Relationships.modify_bond(character.char_id, target.char_id, 2.0)
 	return DONE
 
+func _converse_share_secret(character: CharData, target, args: Dictionary) -> String:
+	return _share_secret(character, target, args)
+
+func _converse_betray_secret(character: CharData, target, args: Dictionary) -> String:
+	return _betray_secret(character, target, args)
 
 func _converse_unsolicited_advice(character: CharData, target, _args: Dictionary) -> String:
 	# Giver feels helpful, receiver feels annoyed

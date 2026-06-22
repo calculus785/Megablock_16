@@ -72,14 +72,16 @@ func _add_state(character, state_key: String) -> void:
 	if state_key not in character.states:
 		character.states.append(state_key)
 		if Settings.debug_console_logging:
-			print("[StateDriver] %s gained state: %s" % [character.char_name, state_key])
+			print("[T%d A%d] STATE | %s | gained state: %s" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, state_key])
 
 
 func _remove_state(character, state_key: String) -> void:
 	if state_key in character.states:
 		character.states.erase(state_key)
 		if Settings.debug_console_logging:
-			print("[StateDriver] %s lost state: %s" % [character.char_name, state_key])
+			print("[T%d A%d] STATE | %s | lost state: %s" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, state_key])
 
 
 # ─────────────────────────────────────────────────────────────
@@ -95,16 +97,16 @@ func set_persistent_state(character, state_key: String) -> void:
 	if state_key not in character.persistent_states:
 		character.persistent_states.append(state_key)
 		if Settings.debug_console_logging:
-			print("[StateDriver] %s gained persistent state: %s" % [
-				character.char_name, state_key
+			print("[T%d A%d] PERSISTSTATE | %s | gained persistent state: %s" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, state_key
 			])
 
 func clear_persistent_state(character, state_key: String) -> void:
 	if state_key in character.persistent_states:
 		character.persistent_states.erase(state_key)
 		if Settings.debug_console_logging:
-			print("[StateDriver] %s cleared persistent state: %s" % [
-				character.char_name, state_key
+			print("[T%d A%d] PERSISTSTATE | %s | cleared persistent state: %s" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name, state_key
 			])
 
 func has_persistent_state(character, state_key: String) -> bool:

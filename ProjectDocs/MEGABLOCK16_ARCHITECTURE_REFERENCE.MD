@@ -260,7 +260,10 @@ Daily: Memory prunes, Relationships decays, Traits checks evolution, Architect e
 On room arrival: Sim fires one reactive event
 ```
 ---
-
+- total_ticks: int — monotonic, never resets. Added Session 26 for arc
+  timestamps and log prefixes (get_total_days() was too coarse — multiple
+  arcs open/close within one in-game day).
+  
 ## The Base Event Layer
 
 A filtering step ahead of the normal event roll, not a separate pipeline
@@ -369,7 +372,54 @@ FAMILY:      parent_ids, child_ids, sibling_ids
 
 current_arc_id: int, story_arcs: Array (populated Phase 11, stamped from Phase 4)
 ```
+## ARC TRACKING (added Session 26)
 
+Fields on CharData:
+
+- current_arc_id: int
+  -1 = no arc open. Otherwise a sequential int, unique across the whole
+  session (assigned from Sim._arc_counter).
+
+- current_arc_data: Dictionary
+  The live, in-progress arc. Mirrors current_arc_id deliberately — not
+  collapsed into one field, for inspector/logging readability.
+  Shape while open:
+    {
+      "arc_id": int,
+      "base_event": String,      # the event_key that opened this arc
+      "opened_tick": int,        # Clock.total_ticks at open
+      "event_keys": Array,       # every event_key fired during this arc
+    }
+  Gets "closed_tick": int appended at close, then the whole dict is
+  duplicated into story_arcs and current_arc_data resets to {}.
+
+- story_arcs: Array
+  Closed arcs only. Each entry is the full dict shape above, including
+  closed_tick.
+
+## What an arc is
+
+An arc is the event trail for one base-roll decision, start to finish —
+not a relationship/drama arc. Opens when Sim commits a character to a
+new motivation (a base category roll that successfully fires an event).
+Everything that happens as a downstream consequence of that motivation —
+intent queue items, sequence beats, give-ups, auto-fire interrupts —
+appends into the same arc's event_keys. Closes when the character is
+free to roll a new base motivation.
+
+Dividing line for whether something appends vs. closes-and-opens:
+does the original motivation still exist after this happens?
+  - Auto-fire interrupt mid-sequence → append (motivation survives,
+    character just got knocked off course)
+  - FLEE_AVOIDED → close + open new (motivation replaced outright;
+    the original goal is abandoned, not delayed)
+
+No consumer logic exists yet. This is plumbing for the Phase 8 log
+summarizer and Phase 11 Chronicle generator. Built in Session 26
+alongside the related Clock.total_ticks field (see Clock section) and
+the [T<tick> A<arc_id>] log format (see Log Format section).
+
+Owning functions (sim.gd): _open_arc(), _close_arc(), _append_arc().
 ---
 
 ## Calendar
