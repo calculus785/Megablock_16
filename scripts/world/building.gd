@@ -331,19 +331,6 @@ func _register_hallway_spots(floor_node: Node3D, floor_def: Dictionary, floor_in
 
 	var hallway_id: String = "hallway_f%d" % floor_index
 
-	# Register as a room so the existing zone/spot API works
-	Rooms.register_room(hallway_id, {
-		"type":        "hallway",
-		"floor_id":    floor_def["floor_id"],
-		"floor_index": floor_index,
-		"occupants":   [],
-		"spawn_pos":   Vector3.ZERO,
-		"door_pos":    Vector3.ZERO,
-		"doorway_pos": Vector3.ZERO,
-		"hallway_y":   0.0,
-		"room_size":   "hallway",
-	})
-
 	# Read Lane_* as zones, Spot_* as spots — same shape as room zones
 	var zone_data: Array = []
 	for lane in convo_node.get_children():
@@ -363,6 +350,24 @@ func _register_hallway_spots(floor_node: Node3D, floor_def: Dictionary, floor_in
 			"spots":     spots,
 		})
 
+	# Use the first lane marker as fallback spawn — hallway characters
+	# rarely "arrive" here, but rewind needs a valid position
+	var lane0 = floor_node.get_node_or_null("HallwayLane0")
+	var hallway_spawn: Vector3 = lane0.global_position if lane0 else Vector3.ZERO
+	var hallway_y: float = hallway_spawn.y
+
+	Rooms.register_room(hallway_id, {
+		"type":        "hallway",
+		"floor_id":    floor_def["floor_id"],
+		"floor_index": floor_index,
+		"occupants":   [],
+		"spawn_pos":   hallway_spawn,
+		"door_pos":    Vector3.ZERO,
+		"doorway_pos": Vector3.ZERO,
+		"hallway_y":   hallway_y,
+		"room_size":   "hallway",
+	})
+
 	Rooms.set_zones(hallway_id, zone_data)
 
 	if Settings.debug_console_logging:
@@ -370,7 +375,8 @@ func _register_hallway_spots(floor_node: Node3D, floor_def: Dictionary, floor_in
 		var spot_count: int = 0
 		for z in zone_data:
 			spot_count += z["spots"].size()
-		print("[Building] 🛤️ %s: %d lanes, %d spots" % [hallway_id, lane_count, spot_count])
+		print("[Building] 🛤️ %s: %d lanes, %d spots (spawn: %s)" % [
+			hallway_id, lane_count, spot_count, hallway_spawn])
 
 # Store label nodes keyed by room_id so Bootstrap can update them later
 var _room_labels: Dictionary = {}

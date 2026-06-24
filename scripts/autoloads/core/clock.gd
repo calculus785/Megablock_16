@@ -217,6 +217,13 @@ func _update_season_intensity() -> void:
 func _absolute_day_in_month() -> int:
 	return (current_week - 1) * DAYS_PER_WEEK + current_day
 
+# Returns 0.0 → 1.0 for how far through the current tick we are.
+# Used by the visual layer to interpolate between tick positions.
+func get_tick_progress() -> float:
+	if _timer.is_stopped():
+		return 1.0
+	return 1.0 - (_timer.time_left / _timer.wait_time)
+
 # Absolute day count since start of game
 func get_total_days() -> int:
 	return (current_year - 1) * DAYS_PER_YEAR \

@@ -323,3 +323,24 @@ func _get_char_id() -> String:
 func _get_char_name() -> String:
 	var parent := get_parent()
 	return parent.char_data.char_name if "char_data" in parent else "?"
+
+# ── REWIND SUPPORT ───────────────────────────────────────────
+
+func get_waypoint_index() -> int:
+	return _current_index
+
+
+func resume_at(pos: Vector3, waypoints: Array, index: int) -> void:
+	# Clean slate — kill any active tween/elevator/door state
+	stop_movement()
+	if waypoints.is_empty() or index >= waypoints.size():
+		return
+	# Teleport body to the snapshot position
+	var parent := get_parent() as Node3D
+	parent.global_position = pos
+	# Set up internal state and resume from the correct waypoint
+	_waypoints = waypoints
+	_current_index = index
+	_is_moving = true
+	_movement_gen += 1
+	_move_to_next()

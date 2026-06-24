@@ -1,6 +1,7 @@
 # MegaBlock 16 — Architecture Reference
 *Project knowledge document. Reference for all chat sessions.*
 *Created: Architecture Planning Meeting, Session 3-4*
+*Last updated: Session 29 — Frame-based movement refactor*
 
 ---
 
@@ -31,10 +32,10 @@ megablock16/
 │   │   │   └── interactables.gd
 │   │   │
 │   │   ├── core/                # Tier 2 — reads Tier 1
-│   │   │   ├── clock.gd             # calendar, seasons, signals
+│   │   │   ├── clock.gd             # calendar, seasons, signals, get_tick_progress()
 │   │   │   ├── registry.gd          # character list, generation
 │   │   │   ├── rooms.gd             # occupancy, zones, aura ticking
-│   │   │   ├── pathfinder.gd        # routing, elevators, blockages
+│   │   │   ├── pathfinder.gd        # routing, elevators, blockages, snapshot_cars/restore_cars
 │   │   │   └── memory.gd            # short/long-term, intent, pruning
 │   │   │
 │   │   ├── systems/             # Tier 3 — reads Tier 1 + 2
@@ -75,9 +76,9 @@ megablock16/
 │   │   ├── world_state.gd
 │   │   └── save_meta.gd
 │   │
-│   ├── characters/
-│   │   ├── character_body.gd
-│   │   └── movement_controller.gd
+│   ├── world/
+│   │   ├── character_body.gd        # visual only — reads movement_sim_pos
+│   │   └── movement_controller.gd   # DISABLED (Session 29) — not deleted, not instantiated
 │   │
 │   ├── building/
 │   │   ├── building.gd
@@ -183,10 +184,10 @@ megablock16/
 
 | Autoload | Purpose | Absorbed |
 |---|---|---|
-| Clock | Heartbeat, calendar, seasons, intensity curve, signals | — |
+| Clock | Heartbeat, calendar, seasons, intensity curve, signals, get_tick_progress() | — |
 | Registry | Master character list, generation, ID lookup | — |
 | Rooms | Occupant tracking, zone/spot occupancy, aura ticking (occupied rooms only) | AuraManager |
-| Pathfinder | Room-to-room routing, elevator dispatch + car state, blockages | ElevatorManager |
+| Pathfinder | Room-to-room routing, elevator dispatch + car state, snapshot_cars/restore_cars | ElevatorManager |
 | Memory | Short/long-term read/write, intent queue, daily pruning | — |
 
 ### Tier 3 — Systems (7) — Reads Tier 1 + 2
@@ -205,7 +206,7 @@ megablock16/
 
 | Autoload | Purpose | Absorbed |
 |---|---|---|
-| Sim | The 7-stage pipeline. Per-character tick loop. | — |
+| Sim | 7-stage tick pipeline + frame-based movement engine (_process). | — |
 
 ### Tier 5 — Domain (6) — Meta systems
 
@@ -243,13 +244,19 @@ megablock16/
 Every tick (5-8 real seconds), Sim loops every character:
 
 Skip if sleeping
-Skip if in transit (except proximity_reactive)
+Skip if in transit (except hallway proximity check)
 Check intent queue → fire if any
 Check auto-fire pool → fire highest priority if Architect approves
 If in sequence → advance to next beat
 Otherwise → BASE_ROLL → category sub-pool roll →
 
 RESOLVE → FRAME → PLAYER_GATE → ACT → EXECUTE → ECHO → CONTINUE
+
+Every frame (_process):
+Sim._process(delta) advances all in-transit characters along their
+waypoint paths at constant speed. Boundary crossings (room occupancy
+changes) fire immediately when characters reach tagged waypoints.
+Elevator riders track car Y every frame.
 
 Periodic:
 
@@ -259,11 +266,60 @@ Daily: Memory prunes, Relationships decays, Traits checks evolution, Architect e
 
 On room arrival: Sim fires one reactive event
 ```
+
 ---
+
+## Movement Architecture (added Session 29)
+
+Movement runs every frame in Sim._process(delta), NOT per tick.
+Ticks decide events. Movement decides physical position.
+
+Key separation:
+  Sim._process(delta) — advances movement_sim_pos along waypoint path
+  Sim._on_tick()      — event pipeline, skips in-transit characters
+  character_body._process() — reads movement_sim_pos, sets visual position
+
+Movement phases (CharData.movement_phase):
+  ""                 — idle, not moving
+  "walking"          — advancing along waypoints at BASE_MOVEMENT_SPEED * speed_multiplier
+  "waiting_elevator" — at shaft, waiting for car. Pathfinder signal advances.
+  "riding_elevator"  — following car Y. Pathfinder signal exits.
+  "paused"           — frozen for interaction (hallway conversation etc.)
+
+Speed modes (CharData.movement_speed_mode → Sim.MOVEMENT_SPEED_MULTIPLIERS):
+  "walk": 1.0  |  "run": 1.8  |  "sneak": 0.4  |  "limp": 0.3
+
+Boundary crossings fire in _on_sim_waypoint_arrived() when a character
+reaches a tagged waypoint. This replaces the old tween-callback approach
+in character_body.gd. Waypoint types that trigger state changes:
+  wait_room_door_exit  → remove_occupant(room), release spots
+  exit_hallway_doorway → add_occupant(hallway)
+  wait_hallway_door    → remove_occupant(hallway)
+  wait_elevator        → remove_occupant(hallway), phase → waiting_elevator
+  ride_elevator        → add_occupant(dest_hallway)
+
+movement_controller.gd is DISABLED (not instantiated by character_body).
+File kept for reference; will be deleted in a future cleanup pass.
+
+Rewind: movement_sim_pos is on CharData and included in snapshot/restore.
+On rewind, bodies snap to restored movement_sim_pos. Mid-elevator
+characters cancel their trip and return to current_room.
+
+Elevator cars still use tweens (Pathfinder). Tick-driving them is a
+future task. Pathfinder.snapshot_cars()/restore_cars() handle rewind.
+
+---
+
+## Clock
+
 - total_ticks: int — monotonic, never resets. Added Session 26 for arc
   timestamps and log prefixes (get_total_days() was too coarse — multiple
   arcs open/close within one in-game day).
-  
+- get_tick_progress() → float 0.0–1.0 — how far through the current tick.
+  Added Session 29. Used by visual layer for any tick-synced interpolation.
+
+---
+
 ## The Base Event Layer
 
 A filtering step ahead of the normal event roll, not a separate pipeline
@@ -322,8 +378,10 @@ arrest) flush the queue outright.
 
 ```
 Clock signals → Sim, FeelingDriver, StateDriver, Rooms, Memory, Relationships, Traits, Architect
-Sim calls     → Events, Actions, Context, Memory, Decisions
+Sim._on_tick  → Events, Actions, Context, Memory, Decisions
+Sim._process  → movement advancement (frame-based, reads CharData waypoints, writes movement_sim_pos)
 Actions calls → Memory, Relationships, Rooms, Pathfinder, Factions, Audio
+Pathfinder signals → Sim (passenger_boarded, passenger_exited for elevator phase transitions)
 Architect     ← listens to Sim (event fired) + Clock (day_ticked)
               → applies weight mods to Sim's eligible pool
 Mayor         ← Clock (rent, progression)
@@ -353,7 +411,10 @@ MEMORY:      short_term_memory (5 categories × 2), intent_queue,
 
 LOCATION:    current_room, home_room, is_in_transit,
              movement_target_room, waypoints, waypoint_index,
-             movement_type, known_blockages, is_sleeping
+             movement_type, known_blockages, is_sleeping,
+             zone_target_pos,
+             movement_sim_pos, movement_prev_pos,
+             movement_phase, movement_speed_mode
 
 SEQUENCE:    active_sequence, sequence_beat, sequence_partner_id,
              sequence_role, sequence_context
@@ -372,6 +433,25 @@ FAMILY:      parent_ids, child_ids, sibling_ids
 
 current_arc_id: int, story_arcs: Array (populated Phase 11, stamped from Phase 4)
 ```
+
+### Movement fields (added Session 29)
+
+- movement_sim_pos: Vector3 — sim-authoritative position. Updated every
+  frame by Sim._process(). The single source of truth for where a
+  character physically is. character_body reads this for visual position.
+
+- movement_prev_pos: Vector3 — position at start of current movement
+  advance. Used as lerp source when visual interpolation is needed.
+
+- movement_phase: String — current movement state. Controls which
+  advance function runs in Sim._process(). Empty string = idle.
+  Values: "", "walking", "waiting_elevator", "riding_elevator", "paused"
+
+- movement_speed_mode: String — indexes into Sim.MOVEMENT_SPEED_MULTIPLIERS.
+  Default "walk". Future modes: "run", "sneak", "limp".
+
+All four fields are included in CharData.snapshot() and restore().
+
 ## ARC TRACKING (added Session 26)
 
 Fields on CharData:
@@ -420,6 +500,7 @@ alongside the related Clock.total_ticks field (see Clock section) and
 the [T<tick> A<arc_id>] log format (see Log Format section).
 
 Owning functions (sim.gd): _open_arc(), _close_arc(), _append_arc().
+
 ---
 
 ## Calendar
@@ -489,3 +570,4 @@ Age hidden from player. UI shows stage only. Player starts at 16.
 8. Test small. Small chunks over massive refactors.
 9. Profile before optimising. Don't guess what's slow.
 10. The building is the character.
+11. Sim/visual layer separation. Visual layer reads sim state, never writes to it. (Session 28–29)

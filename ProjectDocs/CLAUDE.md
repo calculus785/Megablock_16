@@ -38,39 +38,52 @@ To resolve any duplication: **the table above wins.** If two docs disagree, the 
 PHASE 4 — Base Event Layer + Social Systems
 
 DONE THIS SESSION:
-✅ Gossip/secret fix — SHARE_SECRET_BEAT + BETRAY_SECRET_BEAT wired into
-   CONVERSE_SEQ beat pool, bond gates tuned (5 for share, has_secrets for
-   betray). Both confirmed firing in live tests.
-✅ Arc tracking stamps — current_arc_id/current_arc_data/story_arcs on
-   CharData, Clock.total_ticks added, _open_arc/_close_arc/_append_arc
-   wired into ~15 call sites in sim.gd. Confirmed working across two
-   live test runs.
-✅ Log format overhaul — full [T<tick> A<arc_id>] KEYWORD | char | detail
-   format across sim.gd, actions.gd, memory.gd, state_driver.gd,
-   feeling_driver.gd. RELCHANGE split into per-character lines. Arc-id
-   ordering bug on BASEROLL/NEEDROLL/SEQINTERRUPT fixed (deferred-print
-   pattern). Confirmed correct across two live test runs.
+✅ Frame-based movement engine — replaces tween-driven movement.
+   Sim._process(delta) advances all characters at constant speed
+   along waypoint paths. Boundary crossings fire deterministically
+   when characters reach tagged waypoints. Visual layer just reads
+   movement_sim_pos. movement_controller.gd disabled (not deleted).
+✅ New CharData fields — movement_sim_pos, movement_prev_pos,
+   movement_phase, movement_speed_mode. All in snapshot/restore.
+✅ Elevator snapshot/restore — Pathfinder.snapshot_cars() and
+   restore_cars() wired into rewind system.
+✅ RNG discipline — bare randi() in pathfinder.gd lane selection
+   now routes through optional rng parameter.
+✅ Rewind simplified — body_positions snapshot removed. Characters
+   snap to movement_sim_pos from CharData on restore. Mid-elevator
+   characters cancel trip and return to current_room.
+✅ Room Building Guide created — waypoint types, naming conventions,
+   checklists for new rooms/floors. In project knowledge.
+
+KNOWN BUGS:
+⚠️ Elevator rewind: characters near elevator can snap to Vector3.ZERO
+   because hallway spawn_pos is ZERO. Fix: use a real position (e.g.
+   the elevator_entry waypoint for the floor) instead of spawn_pos
+   for hallway rooms.
+⚠️ Rewind replay is not fully deterministic — frame-based movement
+   means arrival timing varies slightly between runs. Acceptable
+   for gameplay but not pixel-perfect.
+
+IN PROGRESS:
+→ VHS-STYLE REWIND — design idea: play snapshot positions backward
+  at high speed instead of instant snap. Needs own session.
 
 NEXT UP (in order):
-1. Deterministic rewind / tick stepper — RNG instance ready, ring buffer
-   ~50 ticks, deterministic replay. Flagged urgent before codebase grows.
-2. Enhanced EventInspector — multi-tag filter panel, "Copy for Debugger"
-   button, character follow mode.
-3. Passive relationship decay (Sprint item 7)
-4. Public Humiliation → Cold Phase → Jealousy → Lying (locked order)
+1. Fix hallway spawn_pos bug (quick — register real positions)
+2. VHS rewind visual effect
+3. Door animations triggered from visual layer
+4. Proximity system (distance-based event triggers using movement_sim_pos)
+5. Enhanced EventInspector — multi-tag filter, character follow mode
+6. Passive relationship decay
 
 PRE-PHASE-5 PARKING LOT:
-- Circular floating hands on character bodies — so characters can visibly
-  hold drinks/books. New this session, needed before inventory/grocery
-  checkout work lands.
-- Full event audit + actions.gd cleanup pass — after debug tools are
-  solid. Go through all events, add missing ones, clean up actions.gd.
-  Alexander flagged this explicitly this session.
-- GREET/ARGUE/SHARE_STORY/REMINISCE_TOGETHER — still reserved, not wired
-  into CONVERSE_SEQ. Deliberately left out this session, fold into the
-  event audit pass above.
-- Minor: arc base_event for hallway CONVERSE_SEQ locks reads as generic
-  "CONVERSE" instead of something more descriptive — cosmetic, not urgent.
+- Circular floating hands on character bodies
+- Full event audit + actions.gd cleanup pass
+- GREET/ARGUE/SHARE_STORY/REMINISCE_TOGETHER beat wiring
+- Elevator tick-driving (remove last tween dependency)
+- movement_controller.gd deletion (currently disabled, not removed)
+- Waypoint validation function (from Room Building Guide)
+- Minor: arc base_event for hallway CONVERSE_SEQ reads as generic "CONVERSE"
 ```
 
 ---

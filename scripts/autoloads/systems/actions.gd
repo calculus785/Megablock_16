@@ -29,6 +29,7 @@ extends Node
 const DONE := "DONE"
 const REPEAT := "REPEAT"
 const LOCK_SEQUENCE := "LOCK_SEQUENCE"
+var rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
@@ -175,7 +176,7 @@ func _maybe_push_avoidance(character: CharData, avoided: CharData,
 
 	chance = clampf(chance, 0.10, 0.95)
 
-	if randf() >= chance:
+	if rng.randf() >= chance:
 		return
 
 	# Guard: char_id must be valid before pushing
@@ -202,7 +203,7 @@ func start_movement(character: CharData, dest_room: String) -> void:
 	if dest_room == character.current_room:
 		return
 
-	var waypoints: Array = Pathfinder.plan_route(character.current_room, dest_room)
+	var waypoints: Array = Pathfinder.plan_route(character.current_room, dest_room, Sim.rng)
 	if waypoints.is_empty():
 		push_warning("[Actions] No route: %s → %s" % [character.current_room, dest_room])
 		return
@@ -211,6 +212,12 @@ func start_movement(character: CharData, dest_room: String) -> void:
 	character.movement_target_room = dest_room
 	character.waypoints = waypoints
 	character.waypoint_index = 0
+
+	# Tick-driven movement fields — sim advances these each tick
+	character.movement_phase = "walking"
+	# movement_sim_pos should already be at character's current position
+	# (set on spawn and updated on zone_target completion)
+	character.movement_prev_pos = character.movement_sim_pos
 
 	if Settings.debug_console_logging:
 		print("[T%d A%d] MOVEMENT | %s | moving from %s to %s" % [
@@ -287,7 +294,7 @@ func _pick_wander_destination(character: CharData) -> String:
 		options.append(room_id)
 	if options.is_empty():
 		return ""
-	return options[randi() % options.size()]
+	return options[rng.randi() % options.size()]
 
 
 # ═════════════════════════════════════════════════════════════
@@ -588,7 +595,7 @@ func _start_pool_game(character: CharData, target, _args: Dictionary) -> String:
 
 	accept_chance = clamp(accept_chance, 5.0, 95.0)
 
-	if randf() * 100.0 > accept_chance:
+	if rng.randf() * 100.0 > accept_chance:
 		var my_traits: Array = character.get_all_active_traits()
 		if "INSECURE" in my_traits or "SHY" in my_traits:
 			FeelingDriver.push(character, "HUMILIATED", {
@@ -807,7 +814,7 @@ func _flirt(character: CharData, target, _args: Dictionary) -> String:
 
 	chance = clampf(chance, 0.05, 0.95)
 
-	if randf() < chance:
+	if rng.randf() < chance:
 		# Reciprocated — push FLIRTY directional feeling on target toward actor
 		Relationships.set_directional_feeling(
 			target.char_id, character.char_id, "FLIRTY", 1.0)
@@ -853,7 +860,7 @@ func _ask_out(character: CharData, target, _args: Dictionary) -> String:
 
 	chance = clampf(chance, 0.05, 0.95)
 
-	if randf() < chance:
+	if rng.randf() < chance:
 		# ACCEPTED — set event-gated tier to ROMANTIC_INTEREST
 		Relationships.set_event_gated_tier(
 			character.char_id, target.char_id, "ROMANTIC_INTEREST")
@@ -919,7 +926,7 @@ func _apologise(character: CharData, target, _args: Dictionary) -> String:
 
 	chance = clampf(chance, 0.15, 0.90)
 
-	if randf() < chance:
+	if rng.randf() < chance:
 		# Accepted
 		Relationships.modify_bond(character.char_id, target.char_id, 12.0)
 		Relationships.modify_rivalry(character.char_id, target.char_id, -5.0)
@@ -1125,7 +1132,7 @@ func _gossip(character: CharData, target, _args: Dictionary) -> String:
 			if "OBLIVIOUS" in bystander.get_all_active_traits():
 				listen_chance *= 0.5
 
-			if randf() > listen_chance:
+			if rng.randf() > listen_chance:
 				continue
 
 			var already_shared: Array = entry.get("shared_to", [])
@@ -1242,7 +1249,7 @@ func _share_secret(character: CharData, target, _args: Dictionary) -> String:
 		if t in ["negative", "neutral"]:
 			candidates.append(mem_entry)
 	if not candidates.is_empty():
-		var picked: Dictionary = candidates[randi() % candidates.size()]
+		var picked: Dictionary = candidates[rng.randi() % candidates.size()]
 		content = picked.get("summary", "something private about %s" % character.char_name)
 	else:
 		var templates: Array = [
@@ -1250,7 +1257,7 @@ func _share_secret(character: CharData, target, _args: Dictionary) -> String:
 			"something %s has never told anyone" % character.char_name,
 			"a private matter involving %s" % character.char_name,
 		]
-		content = templates[randi() % templates.size()]
+		content = templates[rng.randi() % templates.size()]
 
 	# ── Create the secret ───────────────────────────────────
 	var secret_id: String = Memory.generate_secret_id(character.char_id)
@@ -1308,7 +1315,7 @@ func _betray_secret(character: CharData, target, _args: Dictionary) -> String:
 				Clock.total_ticks, character.current_arc_id, character.char_name])
 		return DONE
 
-	var picked: Dictionary = betrayable[randi() % betrayable.size()]
+	var picked: Dictionary = betrayable[rng.randi() % betrayable.size()]
 	var secret_id: String = picked.get("secret_id", "")
 	var original_owner_id: String = picked.get("original_owner_id", "")
 	var content: String = picked.get("content", "something")

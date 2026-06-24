@@ -540,3 +540,7 @@ Arc boundary rule: An arc closes when the original motivation no longer exists, 
 current_arc_id / current_arc_data kept separate on CharData — redundant byte cost accepted for inspector/logging clarity over collapsing into one dict.
 Clock.total_ticks added as the monotonic tick counter for arc/log timestamps — get_total_days() confirmed too coarse.
 Large mechanical multi-file rewrites delegate to Claude Code; chat handles design decisions, ambiguous judgment calls, and small surgical diffs.
+
+Movement is frame-based, not tick-based — _process(delta) at constant speed. Ticks handle events only. Arrival timing is slightly frame-dependent. Rewind snaps to CharData positions. — Session 29
+Mid-elevator characters on rewind cancel their trip and return to current_room — simpler than re-planning routes from mid-shaft positions. — Session 29
+movement_controller.gd disabled but not deleted — prevents signal interference while keeping the file available for reference during cleanup. — Session 29

@@ -139,7 +139,7 @@ func modify_bond(id_a: String, id_b: String, delta: float) -> void:
 
 	if loner_cap and record["bond"] > MAX_PLATONIC_BOND:
 		# 5% chance to break through the cap
-		if randf() > 0.05:
+		if Sim.rng.randf() > 0.05:
 			record["bond"] = minf(record["bond"], MAX_PLATONIC_BOND)
 
 	record["last_interaction_day"] = Clock.get_total_days()

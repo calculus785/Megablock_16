@@ -21,19 +21,25 @@ func _ready() -> void:
 		push_error("[CharBody] No char_data assigned!")
 		return
 	_build_visuals()
-	_setup_movement_controller()
+	# Movement controller disabled — sim.gd now drives movement via tick-driven engine.
+	# _setup_movement_controller()
 	snap_to_room()
 
 
 func _process(_delta: float) -> void:
 	if char_data == null:
 		return
-	# Room-to-room movement — start waypoint travel
-	if char_data.is_in_transit and not _movement_started:
-		if not char_data.waypoints.is_empty():
-			_movement_started = true
-			_move_ctrl.start_movement(char_data.waypoints)
+
+	# VHS rewind — Sim writes positions, we just read them
+	#if Sim.is_rewinding:
+		#position = char_data.movement_sim_pos
+		#return
+
+	# Sim-driven movement (walking, elevator, etc.)
+	if char_data.movement_phase != "":
+		position = char_data.movement_sim_pos
 		return
+
 	# Zone movement — tween to spot inside the current room
 	if char_data.zone_target_pos != Vector3.ZERO:
 		_move_to_zone_target()
@@ -101,62 +107,25 @@ func _setup_movement_controller() -> void:
 	_move_ctrl.movement_completed.connect(_on_movement_completed)
 
 
-func _on_waypoint_reached(wp: Dictionary) -> void:
-	match wp["type"]:
-		"exit_room", "wait_room_door_exit":
-			# Leaving a room — release spots and remove from occupant list
-			Rooms.release_all_spots(char_data.current_room, char_data.char_id)
-			Rooms.remove_occupant(char_data.current_room, char_data.char_id)
-			char_data.zone_target_pos = Vector3.ZERO
-			if _zone_tween and _zone_tween.is_valid():
-				_zone_tween.kill()
-		"exit_hallway_doorway":
-			# Walked through hallway door into the corridor — register in hallway room
-			var room_id: String = wp.get("room_id", "")
-			var floor_index: int = Rooms.get_floor_index(room_id)
-			var hallway_id: String = Rooms.get_hallway_for_floor(floor_index)
-			if hallway_id != "":
-				char_data.current_room = hallway_id
-				Rooms.add_occupant(hallway_id, char_data.char_id)
-		"ride_elevator":
-			# Exited elevator onto destination floor — register in that floor's hallway
-			var dest_floor: int = wp.get("to_floor", -1)
-			var hallway_id: String = Rooms.get_hallway_for_floor(dest_floor)
-			if hallway_id != "":
-				char_data.current_room = hallway_id
-				Rooms.add_occupant(hallway_id, char_data.char_id)
-		"wait_hallway_door":
-			# Approaching a room door from the corridor — leaving the hallway
-			if Rooms.is_hallway(char_data.current_room):
-				Rooms.remove_occupant(char_data.current_room, char_data.char_id)
-		"wait_elevator":
-			# Approaching elevator shaft — leaving the hallway
-			if Rooms.is_hallway(char_data.current_room):
-				Rooms.remove_occupant(char_data.current_room, char_data.char_id) 
-                 
+func _on_waypoint_reached(_wp: Dictionary) -> void:
+	# Boundary crossing logic has moved to sim.gd _on_sim_waypoint_arrived.
+	# This stub remains because MovementController still emits waypoint_reached.
+	# MovementController will be removed in a future cleanup pass.
+	pass
 
 
 func _on_movement_completed() -> void:
+	# Movement completion logic has moved to sim.gd _complete_movement.
+	# This stub remains because MovementController still emits movement_completed.
 	_movement_started = false
-	char_data.is_in_transit = false
-
-	var dest_room: String = char_data.movement_target_room
-	char_data.current_room = dest_room
-	char_data.movement_target_room = ""
-	char_data.waypoints.clear()
-	char_data.waypoint_index = 0
-
-	Rooms.add_occupant(dest_room, char_data.char_id)
-	snap_to_room()
-
-	if Settings.debug_console_logging:
-		print("[CharBody] %s arrived at %s" % [char_data.char_name, dest_room])
 
 
 func snap_to_room() -> void:
 	var pos: Vector3 = Rooms.get_spawn_pos(char_data.current_room)
 	if pos != Vector3.ZERO:
 		position = pos
+		char_data.movement_sim_pos = pos
+		char_data.movement_prev_pos = pos
 
 # Stops all movement and resets the movement-started flag.
 # Called by Sim when a character is intercepted for a hallway conversation.
@@ -164,24 +133,34 @@ func cancel_movement() -> void:
 	_movement_started = false
 	if _zone_tween and _zone_tween.is_valid():
 		_zone_tween.kill()
-	_move_ctrl.stop_movement()
+	if _move_ctrl:
+		_move_ctrl.stop_movement()
+	char_data.movement_phase = ""
 
 func _move_to_zone_target() -> void:
 	var target: Vector3 = char_data.zone_target_pos
-	# Already there — clear and done
+
+	# Already there — snap and sync
 	if position.distance_to(target) < 0.05:
 		position = target
 		char_data.zone_target_pos = Vector3.ZERO
+		char_data.movement_sim_pos = target
+		char_data.movement_prev_pos = target
 		return
+
 	# Tween already running — don't start another
 	if _zone_tween and _zone_tween.is_valid():
 		return
+
 	var dist: float = position.distance_to(target)
 	var duration: float = maxf(dist / 6.0, 0.1)
 	_zone_tween = create_tween()
 	_zone_tween.tween_property(self, "position", target, duration)
 	_zone_tween.finished.connect(func():
 		char_data.zone_target_pos = Vector3.ZERO
+		# Sync sim position to where the body actually is
+		char_data.movement_sim_pos = position
+		char_data.movement_prev_pos = position
 	, CONNECT_ONE_SHOT)
 
 

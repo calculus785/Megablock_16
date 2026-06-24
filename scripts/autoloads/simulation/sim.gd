@@ -22,6 +22,8 @@ extends Node
 
 # Emitted after each event fires — EventInspector listens to this
 signal event_fired(char_id: String, event_key: String, summary: String)
+signal replay_started
+signal replay_ended
 
 # Global counter — increments every time any event fires on any character.
 # Cooldowns store the _event_counter value when the event becomes available again.
@@ -99,15 +101,46 @@ var callout_decline_templates: Array = [
 	"{name} started to say something. {target} didn't notice.",
 ]
 
+# ── REWIND / REPLAY SYSTEM ──────────────────────────────────
+# Full-state snapshots in a ring buffer. Rewind restores a past
+# snapshot and replays forward deterministically (same RNG state
+# → same decisions). replay_target_tick tracks when we've caught
+# up to the original present so normal buffer trimming resumes.
+ 
+var _snapshots: Array = []               # ring buffer of state dicts
+var snapshot_buffer_size: int = 50       # max snapshots kept
+var rewind_step_size: int = 5            # ticks per Backspace press
+var replay_target_tick: int = -1         # -1 = not replaying
+var is_replaying: bool = false
+
+# ── Movement constants ──
+# Movement runs every frame in _process(), not per tick.
+# BASE_MOVEMENT_SPEED = units per real second at walk speed.
+# Tick loop skips in-transit characters; arrivals are detected on the next tick.
+const BASE_MOVEMENT_SPEED: float = 6.0
+
+const MOVEMENT_SPEED_MULTIPLIERS: Dictionary = {
+	"walk": 1.0,
+	"run": 1.8,
+	"sneak": 0.4,
+	"limp": 0.3,
+}
 
 func _ready() -> void:
 	Clock.tick.connect(_on_tick)
 	Clock.half_hour_ticked.connect(_on_half_hour)
+	Pathfinder.passenger_boarded.connect(_on_elevator_boarded)
+	Pathfinder.passenger_exited.connect(_on_elevator_exited)
 	rng.randomize()
 	print("[Sim] Loaded. Listening to Clock.tick.")
 
 
 func _on_tick() -> void:
+	# Snapshot BEFORE processing — captures pre-event state.
+	# During replay we still capture (buffer fills naturally,
+	# player can rewind further mid-replay).
+	_capture_snapshot()
+
 	for character in Registry.get_all():
 		if character.is_sleeping:
 			_try_wake(character)
@@ -143,6 +176,14 @@ func _on_tick() -> void:
 		if character.intent_queue.size() >= Memory.INTENT_SOFT_CAP:
 			continue
 		_run_pipeline(character)
+ 
+	# ── REPLAY CATCH-UP CHECK ───────────────────────────────
+	if is_replaying and Clock.total_ticks >= replay_target_tick:
+		is_replaying = false
+		replay_target_tick = -1
+		replay_ended.emit()
+		if Settings.debug_console_logging:
+			print("[Sim] ⏩ REPLAY COMPLETE at tick %d" % Clock.total_ticks)
 
 func _on_half_hour() -> void:
 	for character in Registry.get_all():
@@ -1387,7 +1428,7 @@ func _advance_sequence(character: CharData) -> void:
 			"target": other.char_name if other else "someone",
 		}
 		var templates: Array  = beat["storybook_templates"]
-		var template: String  = templates[randi() % templates.size()]
+		var template: String  = templates[rng.randi() % templates.size()]
 		var summary: String   = Context.fill_template(template, frame)
 
 		Memory.write_storybook(character, {
@@ -1644,7 +1685,7 @@ func _advance_pool_sequence(character: CharData) -> void:
 		continue_chance += mood * mood_cont_bonus
 	continue_chance = clampf(continue_chance, 0.05, 0.95)
 
-	if randf() > continue_chance:
+	if rng.randf() > continue_chance:
 		_end_pool_sequence(character, partner, seq_key, seq_def)
 		return
 
@@ -1688,7 +1729,7 @@ func _advance_pool_sequence(character: CharData) -> void:
 			"target": partner.char_name,
 			"topic": ctx.get("topic", "nothing in particular"),
 		}
-		var template: String = templates[randi() % templates.size()]
+		var template: String = templates[rng.randi() % templates.size()]
 		var summary: String = Context.fill_template(template, frame)
 
 		Memory.write_storybook(character, {
@@ -1719,7 +1760,7 @@ func _advance_pool_sequence(character: CharData) -> void:
 	# ── ESCALATION END CHECK ────────────────────────────────
 	# Some beats (SPIT_ON etc.) have a chance to end the conversation.
 	var end_chance: float = beat_def.get("ends_conversation_chance", 0.0)
-	if end_chance > 0.0 and randf() < end_chance:
+	if end_chance > 0.0 and rng.randf() < end_chance:
 		if Settings.debug_console_logging:
 			print("[T%d A%d] SEQEND | %s | %s escalation ended the conversation" % [
 				Clock.total_ticks, character.current_arc_id, character.char_name, beat_key])
@@ -1740,9 +1781,9 @@ func _fire_converse_opening(character: CharData, partner: CharData,
 	var bond: float = Relationships.get_bond(character.char_id, partner.char_id)
 	var tone: String = "neutral"
 	if bond > 20:
-		tone = ["positive", "neutral", "neutral"][randi() % 3]
+		tone = ["positive", "neutral", "neutral"][rng.randi() % 3]
 	elif bond < -10:
-		tone = ["negative", "neutral", "neutral"][randi() % 3]
+		tone = ["negative", "neutral", "neutral"][rng.randi() % 3]
 
 	var topic: String = Sequences.get_conversation_topic(tone)
 	ctx["topic"] = topic
@@ -1765,7 +1806,7 @@ func _fire_converse_opening(character: CharData, partner: CharData,
 			"target": partner.char_name,
 			"topic": topic,
 		}
-		var template: String = templates[randi() % templates.size()]
+		var template: String = templates[rng.randi() % templates.size()]
 		var summary: String = Context.fill_template(template, frame)
 
 		Memory.write_storybook(character, {
@@ -1831,7 +1872,7 @@ func _roll_converse_beat(character: CharData, partner: CharData,
 	for entry in pool:
 		total += entry[1]
 
-	var roll: float = randf() * total
+	var roll: float = rng.randf() * total
 	var running: float = 0.0
 	for entry in pool:
 		running += entry[1]
@@ -2078,7 +2119,7 @@ func _roll_converse_end(character: CharData, end_pool: Dictionary, mood: float) 
 	for entry in pool:
 		total += entry[1]
 
-	var roll: float = randf() * total
+	var roll: float = rng.randf() * total
 	var running: float = 0.0
 	for entry in pool:
 		running += entry[1]
@@ -2111,7 +2152,7 @@ func _write_converse_summary(character: CharData, partner: CharData,
 		"target": partner.char_name if partner else "someone",
 		"topic": ctx.get("topic", "nothing"),
 	}
-	var template: String = templates[randi() % templates.size()]
+	var template: String = templates[rng.randi() % templates.size()]
 	var summary: String = Context.fill_template(template, frame)
 
 	var is_memorable: bool = absf(mood) >= threshold
@@ -2309,3 +2350,432 @@ func _stop_character_movement(character: CharData) -> void:
 				body.cancel_movement()
 			return
 
+# ═════════════════════════════════════════════════════════════
+# FRAME-BASED MOVEMENT ENGINE
+# Movement runs every frame in _process() at constant speed.
+# Boundary crossings fire immediately when characters reach
+# tagged waypoints. Tick loop skips in-transit characters.
+# Elevator boarding/exiting uses Pathfinder signals.
+# ═════════════════════════════════════════════════════════════
+
+
+func _process(delta: float) -> void:
+	# Scale delta by Engine.time_scale so movement speeds up with sim speed.
+	# Engine.time_scale is already applied to delta by Godot, so this just works.
+	for character in Registry.get_all():
+		if character.movement_phase == "":
+			continue
+
+		match character.movement_phase:
+			"walking":
+				_advance_walking_realtime(character, delta)
+			"waiting_elevator":
+				pass  # Held in place — Pathfinder signal advances them
+			"riding_elevator":
+				_advance_riding_elevator_realtime(character)
+			"paused":
+				pass  # Frozen in place for interaction
+
+
+func _advance_walking_realtime(character: CharData, delta: float) -> void:
+	var speed: float = BASE_MOVEMENT_SPEED * MOVEMENT_SPEED_MULTIPLIERS.get(
+		character.movement_speed_mode, 1.0) * delta
+	var remaining: float = speed
+
+	while remaining > 0.0 and character.waypoint_index < character.waypoints.size():
+		var wp: Dictionary = character.waypoints[character.waypoint_index]
+		var target: Vector3 = wp["pos"]
+		var dist: float = character.movement_sim_pos.distance_to(target)
+
+		if dist <= remaining:
+			# Reached this waypoint
+			character.movement_sim_pos = target
+			remaining -= dist
+			_on_sim_waypoint_arrived(character, wp)
+
+			# If phase changed (elevator wait, paused, etc), the handler
+			# manages waypoint_index from here. Stop advancing.
+			if character.movement_phase != "walking":
+				return
+
+			# Normal waypoint — advance to the next one
+			character.waypoint_index += 1
+		else:
+			# Partial move toward waypoint
+			var dir: Vector3 = (target - character.movement_sim_pos).normalized()
+			character.movement_sim_pos += dir * remaining
+			remaining = 0.0
+
+	# Exhausted all waypoints — movement complete
+	if character.movement_phase == "walking" and character.waypoint_index >= character.waypoints.size():
+		_complete_movement(character)
+
+
+func _advance_riding_elevator_realtime(character: CharData) -> void:
+	# Follow the elevator car's position every frame.
+	var wp_idx: int = character.waypoint_index
+	if wp_idx >= character.waypoints.size():
+		return
+	var wp: Dictionary = character.waypoints[wp_idx]
+	var car_index: int = wp.get("car_index", 0)
+	var car_node: Node3D = Pathfinder.get_car_node(car_index)
+	if car_node:
+		character.movement_sim_pos.y = car_node.position.y
+
+
+# ── Boundary crossing — fires when character reaches a tagged waypoint ──
+
+func _on_sim_waypoint_arrived(character: CharData, wp: Dictionary) -> void:
+	var wp_type: String = wp["type"]
+
+	match wp_type:
+		"wait_room_door_exit":
+			Rooms.release_all_spots(character.current_room, character.char_id)
+			Rooms.remove_occupant(character.current_room, character.char_id)
+			character.zone_target_pos = Vector3.ZERO
+
+		"exit_hallway_doorway":
+			var room_id: String = wp.get("room_id", "")
+			var floor_index: int = Rooms.get_floor_index(room_id)
+			var hallway_id: String = Rooms.get_hallway_for_floor(floor_index)
+			if hallway_id != "":
+				character.current_room = hallway_id
+				Rooms.add_occupant(hallway_id, character.char_id)
+
+		"wait_hallway_door":
+			if Rooms.is_hallway(character.current_room):
+				Rooms.remove_occupant(character.current_room, character.char_id)
+
+		"wait_elevator":
+			if Rooms.is_hallway(character.current_room):
+				Rooms.remove_occupant(character.current_room, character.char_id)
+			character.movement_phase = "waiting_elevator"
+			# Advance past wait_elevator to ride_elevator BEFORE requesting,
+			# because request_elevator can fire passenger_boarded synchronously.
+			character.waypoint_index += 1
+			var car_index: int = wp["car_index"]
+			Pathfinder.request_elevator(
+				car_index, wp["from_floor"], wp["to_floor"], character.char_id)
+
+		"ride_elevator":
+			var dest_floor: int = wp.get("to_floor", -1)
+			var hallway_id: String = Rooms.get_hallway_for_floor(dest_floor)
+			if hallway_id != "":
+				character.current_room = hallway_id
+				Rooms.add_occupant(hallway_id, character.char_id)
+
+
+func _complete_movement(character: CharData) -> void:
+	var dest_room: String = character.movement_target_room
+
+	character.is_in_transit = false
+	character.movement_phase = ""
+	character.current_room = dest_room
+	character.movement_target_room = ""
+	character.waypoints.clear()
+	character.waypoint_index = 0
+
+	Rooms.add_occupant(dest_room, character.char_id)
+
+	character.movement_prev_pos = character.movement_sim_pos
+
+	if Settings.debug_console_logging:
+		print("[T%d A%d] ARRIVED | %s | at %s" % [
+			Clock.total_ticks, character.current_arc_id,
+			character.char_name, dest_room])
+
+
+# ── Elevator signal handlers ──
+
+func _on_elevator_boarded(car_index: int, char_id: String) -> void:
+	var character: CharData = Registry.get_character(char_id)
+	if character == null or character.movement_phase != "waiting_elevator":
+		return
+	if character.active_sequence != "":
+		character.movement_phase = ""
+		character.is_in_transit = false
+		character.waypoints.clear()
+		character.waypoint_index = 0
+		return
+	character.movement_phase = "riding_elevator"
+	character.is_riding_elevator = true
+	# Snap to car position so rider doesn't float from hallway
+	var car_node: Node3D = Pathfinder.get_car_node(car_index)
+	if car_node:
+		character.movement_sim_pos = Vector3(
+			car_node.position.x,
+			car_node.position.y,
+			character.movement_sim_pos.z)
+		character.movement_prev_pos = character.movement_sim_pos
+	# waypoint_index already points to ride_elevator
+	# (set by _on_sim_waypoint_arrived for wait_elevator)
+
+
+func _on_elevator_exited(car_index: int, char_id: String) -> void:
+	var character: CharData = Registry.get_character(char_id)
+	if character == null or character.movement_phase != "riding_elevator":
+		return
+	character.is_riding_elevator = false
+	# Current waypoint_index points to ride_elevator — process its boundary logic
+	if character.waypoint_index < character.waypoints.size():
+		var wp: Dictionary = character.waypoints[character.waypoint_index]
+		# Snap Y to the destination floor
+		character.movement_sim_pos.y = wp["pos"].y
+		# Fire boundary crossing (adds character to destination hallway)
+		_on_sim_waypoint_arrived(character, wp)
+	# Advance past ride_elevator to the next walk waypoint
+	character.waypoint_index += 1
+	character.movement_phase = "walking"
+
+# ═════════════════════════════════════════════════════════════
+# REWIND / REPLAY SYSTEM
+# ═════════════════════════════════════════════════════════════
+#
+# Every tick, _capture_snapshot() deep-copies the entire world
+# state into a ring buffer (max snapshot_buffer_size entries).
+#
+# rewind(steps) restores the snapshot `steps` entries back,
+# sets replay_target_tick to the original present, and lets
+# the sim run forward. Because the RNG state is restored, every
+# roll produces the same result — deterministic replay.
+#
+# When total_ticks catches up to replay_target_tick, replay
+# ends and normal buffer trimming resumes.
+#
+# Keyboard: Backspace = rewind by rewind_step_size ticks.
+# Multiple presses keep rewinding until the buffer is exhausted.
+# ═════════════════════════════════════════════════════════════
+ 
+ 
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_BACKSPACE:
+			rewind()
+ 
+ 
+# ── PUBLIC API ───────────────────────────────────────────────
+# Call from UI, keyboard, or debug tools.
+# Returns true if rewind succeeded, false if buffer empty.
+ 
+func rewind(steps: int = 0) -> bool:
+	if steps <= 0:
+		steps = rewind_step_size
+ 
+	if _snapshots.is_empty():
+		if Settings.debug_console_logging:
+			print("[Sim] ⏪ REWIND — no snapshots in buffer")
+		return false
+ 
+	# Find the target snapshot index
+	var target_index: int = _snapshots.size() - steps
+	if target_index < 0:
+		target_index = 0
+ 
+	var snap: Dictionary = _snapshots[target_index]
+ 
+	# Only set the replay target on the FIRST rewind.
+	# Subsequent presses during replay keep the original target
+	# so we know when we've fully caught up.
+	if not is_replaying:
+		replay_target_tick = Clock.total_ticks
+ 
+	# Pause clock during restore to prevent a tick mid-swap
+	Clock._timer.stop()
+ 
+	# ── Restore Clock ───────────────────────────────────────
+	# Subtract 1 from total_ticks because Clock._on_tick increments
+	# BEFORE emitting the tick signal. When the timer resumes, the
+	# next Clock._on_tick will bump it back to the correct value.
+	Clock.total_ticks       = snap["clock"]["total_ticks"] - 1
+	Clock.current_tick      = snap["clock"]["current_tick"]
+	Clock.current_hour      = snap["clock"]["current_hour"]
+	Clock.current_day       = snap["clock"]["current_day"]
+	Clock.current_week      = snap["clock"]["current_week"]
+	Clock.current_month     = snap["clock"]["current_month"]
+	Clock.current_year      = snap["clock"]["current_year"]
+	Clock.current_season    = snap["clock"]["current_season"]
+	Clock.season_intensity  = snap["clock"]["season_intensity"]
+	Clock._tick_in_half_hour = snap["clock"]["_tick_in_half_hour"]
+ 
+	# ── Restore Sim state ───────────────────────────────────
+	_event_counter = snap["sim"]["_event_counter"]
+	_arc_counter   = snap["sim"]["_arc_counter"]
+	rng.state      = snap["sim"]["rng_state"]
+ 
+	# ── Restore all CharData ────────────────────────────────
+	for char_id in snap["characters"]:
+		var character: CharData = Registry.get_character(char_id)
+		if character:
+			character.restore(snap["characters"][char_id])
+ 
+	# ── Restore Relationships ───────────────────────────────
+	Relationships._records = snap["relationships"].duplicate(true)
+ 
+	# ── Restore Room occupancy + zone spots ─────────────────
+	_restore_rooms(snap["rooms"])
+
+	# ── Restore Elevators ────────────────────────────────────
+	Pathfinder.restore_cars(snap["elevators"])
+
+	# ── Snap visual bodies + fix elevator characters ────────
+	# movement_sim_pos is on CharData and restored above.
+	# Characters mid-elevator get their route re-planned.
+	var container = get_node_or_null("/root/main/Building/Characters")
+	if container:
+		for body in container.get_children():
+			if "char_data" not in body or body.char_data == null:
+				continue
+			var cd: CharData = body.char_data
+			body.position = cd.movement_sim_pos
+			if body.has_method("cancel_movement"):
+				body.cancel_movement()
+
+			# Characters mid-elevator can't resume — cancel their trip.
+			# They'll get a new event next tick. One tick of lost progress
+			# is invisible to the player.
+			if cd.movement_phase in ["waiting_elevator", "riding_elevator"]:
+				cd.is_riding_elevator = false
+				cd.movement_phase = ""
+				cd.is_in_transit = false
+				cd.movement_target_room = ""
+				cd.waypoints.clear()
+				cd.waypoint_index = 0
+				# Put them back in their current room
+				if cd.current_room != "":
+					Rooms.add_occupant(cd.current_room, cd.char_id)
+					var spawn: Vector3 = Rooms.get_spawn_pos(cd.current_room)
+					if spawn != Vector3.ZERO:
+						cd.movement_sim_pos = spawn
+						cd.movement_prev_pos = spawn
+						body.position = spawn
+
+	# ── Trim buffer to the restore point ────────────────────
+	# Everything after target_index is "future" — discard it.
+	_snapshots.resize(target_index)
+ 
+	is_replaying = true
+	replay_started.emit()
+ 
+	if Settings.debug_console_logging:
+		print("[Sim] ⏪ REWIND to tick %d (replay target: %d, buffer: %d left)" % [
+			snap["clock"]["total_ticks"], replay_target_tick, _snapshots.size()])
+ 
+	# Resume the clock
+	Clock._timer.start()
+	return true
+ 
+ 
+# ── SNAPSHOT CAPTURE ─────────────────────────────────────────
+# Called at the top of every _on_tick, BEFORE character processing.
+# Captures the full world state as a plain Dictionary.
+ 
+func _capture_snapshot() -> void:
+	var snap: Dictionary = {}
+ 
+	# Clock — all time vars at this moment
+	snap["clock"] = {
+		"total_ticks":       Clock.total_ticks,
+		"current_tick":      Clock.current_tick,
+		"current_hour":      Clock.current_hour,
+		"current_day":       Clock.current_day,
+		"current_week":      Clock.current_week,
+		"current_month":     Clock.current_month,
+		"current_year":      Clock.current_year,
+		"current_season":    Clock.current_season,
+		"season_intensity":  Clock.season_intensity,
+		"_tick_in_half_hour": Clock._tick_in_half_hour,
+	}
+ 
+	# Sim internal state + RNG
+	snap["sim"] = {
+		"_event_counter": _event_counter,
+		"_arc_counter":   _arc_counter,
+		"rng_state":      rng.state,
+	}
+ 
+	# All characters — calls the snapshot() method we added to CharData
+	var chars: Dictionary = {}
+	for character in Registry.get_all():
+		chars[character.char_id] = character.snapshot()
+	snap["characters"] = chars
+ 
+	# Relationships — deep copy of the pairwise records
+	snap["relationships"] = Relationships._records.duplicate(true)
+ 
+	# Rooms — only dynamic state (occupants + zone spot claims)
+	snap["rooms"] = _snapshot_rooms()
+
+	# Elevators — car floor/state/passengers + wait queues
+	snap["elevators"] = Pathfinder.snapshot_cars()
+
+	# Push to ring buffer, trim oldest if over capacity
+	_snapshots.append(snap)
+	if _snapshots.size() > snapshot_buffer_size:
+		_snapshots.pop_front()
+ 
+ 
+# ── ROOM SNAPSHOT / RESTORE ──────────────────────────────────
+# Only captures the dynamic parts: who's in each room and which
+# zone spots are claimed. Static layout data doesn't change.
+ 
+func _snapshot_rooms() -> Dictionary:
+	var snap: Dictionary = {}
+	for room_id in Rooms._rooms:
+		var room_data: Dictionary = Rooms._rooms[room_id]
+		var room_snap: Dictionary = {
+			"occupants": room_data.get("occupants", []).duplicate(),
+		}
+		var zones_snap: Array = []
+		for zone in room_data.get("zones", []):
+			var spots_snap: Array = []
+			for spot in zone.get("spots", []):
+				spots_snap.append({
+					"name": spot["name"],
+					"occupied_by": spot["occupied_by"],
+				})
+			zones_snap.append({
+				"zone_name": zone["zone_name"],
+				"spots": spots_snap,
+			})
+		room_snap["zones"] = zones_snap
+		snap[room_id] = room_snap
+	return snap
+ 
+ 
+func _restore_rooms(snap: Dictionary) -> void:
+	for room_id in snap:
+		if not Rooms._rooms.has(room_id):
+			continue
+		var room_data: Dictionary = Rooms._rooms[room_id]
+		room_data["occupants"] = snap[room_id]["occupants"].duplicate()
+		for zone_snap in snap[room_id].get("zones", []):
+			var zone: Dictionary = Rooms.get_zone(room_id, zone_snap["zone_name"])
+			if zone.is_empty():
+				continue
+			for i in zone_snap["spots"].size():
+				if i < zone["spots"].size():
+					zone["spots"][i]["occupied_by"] = zone_snap["spots"][i]["occupied_by"]
+ 
+ 
+# ── REPLAY QUERY HELPERS ─────────────────────────────────────
+# For UI — EventInspector, HUD progress bar, etc.
+ 
+func get_replay_ticks_remaining() -> int:
+	if not is_replaying:
+		return 0
+	return maxi(0, replay_target_tick - Clock.total_ticks)
+ 
+func get_replay_progress() -> float:
+	# Returns 0.0 → 1.0 (how far through the replay we are)
+	if not is_replaying or replay_target_tick <= 0:
+		return 1.0
+	var oldest_tick: int = Clock.total_ticks
+	var span: int = replay_target_tick - oldest_tick
+	if span <= 0:
+		return 1.0
+	# We don't know the rewind start tick here, so use buffer
+	return 1.0 - (float(span) / float(maxi(span, 1)))
+ 
+func get_buffer_depth() -> int:
+	# How many ticks back the player CAN rewind right now
+	return _snapshots.size()

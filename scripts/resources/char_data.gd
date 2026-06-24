@@ -143,6 +143,12 @@ extends Resource
 
 @export var zone_target_pos: Vector3 = Vector3.ZERO
 
+# ── Tick-driven movement (sim-authoritative) ──
+@export var movement_sim_pos: Vector3 = Vector3.ZERO     # where the sim says this character is RIGHT NOW
+@export var movement_prev_pos: Vector3 = Vector3.ZERO    # where they were last tick (visual lerp source)
+@export var movement_phase: String = ""                   # "" / "walking" / "waiting_elevator" / "riding_elevator" / "paused" / "in_doorway"
+@export var movement_speed_mode: String = "walk"          # "walk" / "run" / "sneak" / "limp" — maps to speed multiplier
+
 
 
 
@@ -294,3 +300,135 @@ func get_all_active_traits() -> Array:
 	combined.append_array(traits)
 	combined.append_array(hidden_traits)
 	return combined
+
+# ═════════════════════════════════════════════════════════════
+# SNAPSHOT / RESTORE — Rewind System
+# Deep-copies all mutable state into a plain Dictionary.
+# Used by Sim._capture_snapshot() every tick. Restore reverses it.
+# Cost: ~35 characters × one .duplicate(true) per field per tick.
+# Acceptable at tick rate (6+ real seconds); optimise later if
+# profiling shows a problem.
+# ═════════════════════════════════════════════════════════════
+
+func snapshot() -> Dictionary:
+	return {
+		# Stats & personality
+		"stats": stats.duplicate(true),
+		"traits": traits.duplicate(),
+		"hidden_traits": hidden_traits.duplicate(),
+		"feelings": feelings.duplicate(true),
+		"states": states.duplicate(),
+		"persistent_states": persistent_states.duplicate(),
+		"event_cooldowns": event_cooldowns.duplicate(true),
+		"trait_progress": trait_progress.duplicate(true),
+		# Memory
+		"short_term_memory": short_term_memory.duplicate(true),
+		"storybook": storybook.duplicate(true),
+		"intent_queue": intent_queue.duplicate(true),
+		"action_count": action_count,
+		"secrets": secrets.duplicate(true),
+		# Location
+		"current_room": current_room,
+		"home_room": home_room,
+		"is_in_transit": is_in_transit,
+		"movement_target_room": movement_target_room,
+		"waypoints": waypoints.duplicate(true),
+		"waypoint_index": waypoint_index,
+		"movement_type": movement_type,
+		"is_riding_elevator": is_riding_elevator,
+		"known_blockages": known_blockages.duplicate(true),
+		"is_sleeping": is_sleeping,
+		"zone_target_pos": zone_target_pos,
+		# Tick-driven movement
+		"movement_sim_pos": movement_sim_pos,
+		"movement_prev_pos": movement_prev_pos,
+		"movement_phase": movement_phase,
+		"movement_speed_mode": movement_speed_mode,
+		# Sequence
+		"active_sequence": active_sequence,
+		"sequence_beat": sequence_beat,
+		"sequence_partner_id": sequence_partner_id,
+		"sequence_role": sequence_role,
+		"sequence_context": sequence_context.duplicate(true),
+		"current_motivation": current_motivation.duplicate(true),
+		# Arc tracking
+		"current_arc_id": current_arc_id,
+		"current_arc_data": current_arc_data.duplicate(true),
+		"story_arcs": story_arcs.duplicate(true),
+		# Inventory
+		"held_items": held_items.duplicate(),
+		"carried_items": carried_items.duplicate(),
+		"equipped": equipped.duplicate(true),
+		"apartment_items": apartment_items.duplicate(),
+		"apartment_storage": apartment_storage.duplicate(),
+		"groceries": groceries,
+		"current_encumbrance": current_encumbrance,
+		# Social
+		"object_impressions": object_impressions.duplicate(true),
+		"faction_sentiment": faction_sentiment.duplicate(true),
+		"faction_memberships": faction_memberships.duplicate(),
+		"job_satisfaction": job_satisfaction,
+		"is_employed": is_employed,
+		"is_homeless": is_homeless,
+	}
+
+
+func restore(snap: Dictionary) -> void:
+	# Stats & personality
+	stats = snap["stats"].duplicate(true)
+	traits.assign(snap["traits"])                   # typed Array[String] — .assign() preserves type
+	hidden_traits.assign(snap["hidden_traits"])
+	feelings = snap["feelings"].duplicate(true)
+	states.assign(snap["states"])
+	persistent_states.assign(snap["persistent_states"])
+	event_cooldowns = snap["event_cooldowns"].duplicate(true)
+	trait_progress = snap["trait_progress"].duplicate(true)
+	# Memory
+	short_term_memory = snap["short_term_memory"].duplicate(true)
+	storybook = snap["storybook"].duplicate(true)
+	intent_queue = snap["intent_queue"].duplicate(true)
+	action_count = snap["action_count"]
+	secrets = snap["secrets"].duplicate(true)
+	# Location
+	current_room = snap["current_room"]
+	home_room = snap["home_room"]
+	is_in_transit = snap["is_in_transit"]
+	movement_target_room = snap["movement_target_room"]
+	waypoints = snap["waypoints"].duplicate(true)
+	waypoint_index = snap["waypoint_index"]
+	movement_type = snap["movement_type"]
+	is_riding_elevator = snap["is_riding_elevator"]
+	known_blockages = snap["known_blockages"].duplicate(true)
+	is_sleeping = snap["is_sleeping"]
+	zone_target_pos = snap["zone_target_pos"]
+	# Tick-driven movement
+	movement_sim_pos = snap["movement_sim_pos"]
+	movement_prev_pos = snap["movement_prev_pos"]
+	movement_phase = snap["movement_phase"]
+	movement_speed_mode = snap["movement_speed_mode"]
+	# Sequence
+	active_sequence = snap["active_sequence"]
+	sequence_beat = snap["sequence_beat"]
+	sequence_partner_id = snap["sequence_partner_id"]
+	sequence_role = snap["sequence_role"]
+	sequence_context = snap["sequence_context"].duplicate(true)
+	current_motivation = snap["current_motivation"].duplicate(true)
+	# Arc tracking
+	current_arc_id = snap["current_arc_id"]
+	current_arc_data = snap["current_arc_data"].duplicate(true)
+	story_arcs = snap["story_arcs"].duplicate(true)
+	# Inventory
+	held_items = snap["held_items"].duplicate()
+	carried_items = snap["carried_items"].duplicate()
+	equipped = snap["equipped"].duplicate(true)
+	apartment_items = snap["apartment_items"].duplicate()
+	apartment_storage = snap["apartment_storage"].duplicate()
+	groceries = snap["groceries"]
+	current_encumbrance = snap["current_encumbrance"]
+	# Social
+	object_impressions = snap["object_impressions"].duplicate(true)
+	faction_sentiment = snap["faction_sentiment"].duplicate(true)
+	faction_memberships.assign(snap["faction_memberships"])
+	job_satisfaction = snap["job_satisfaction"]
+	is_employed = snap["is_employed"]
+	is_homeless = snap["is_homeless"]

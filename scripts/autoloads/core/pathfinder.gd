@@ -67,10 +67,10 @@ func _ready() -> void:
 # Builds the full waypoint array for a room-to-room journey.
 # Called by Actions.start_movement() — result stored on CharData.waypoints.
 
-func plan_route(origin_room: String, dest_room: String) -> Array:
+func plan_route(origin_room: String, dest_room: String, rng: RandomNumberGenerator = null) -> Array:
 	# Hallway origins skip the "exit room" waypoints — character is already in the corridor
 	if origin_room.begins_with("hallway_"):
-		return _plan_from_hallway(origin_room, dest_room)
+		return _plan_from_hallway(origin_room, dest_room, rng)
 
 	var origin: Dictionary = Rooms.get_room_data(origin_room)
 	var dest: Dictionary = Rooms.get_room_data(dest_room)
@@ -90,7 +90,7 @@ func plan_route(origin_room: String, dest_room: String) -> Array:
 		Vector3(0, 0, 0.65),
 		Vector3(0, 0, 1.0),
 	])
-	var chosen_lane: Vector3 = lanes[randi() % lanes.size()]
+	var chosen_lane: Vector3 = lanes[rng.randi() % lanes.size()] if rng else lanes[randi() % lanes.size()]
 	var lane_z: float = chosen_lane.z
 
 	# ── EXIT ORIGIN ROOM ─────────────────────────────────────
@@ -199,7 +199,7 @@ func plan_route(origin_room: String, dest_room: String) -> Array:
 # Plans a route starting from a hallway corridor.
 # Skips room exit waypoints — character is already in the corridor.
 # Used when resuming movement after a hallway conversation.
-func _plan_from_hallway(origin_hallway: String, dest_room: String) -> Array:
+func _plan_from_hallway(origin_hallway: String, dest_room: String, rng: RandomNumberGenerator = null) -> Array:
 	var dest: Dictionary = Rooms.get_room_data(dest_room)
 	if dest.is_empty():
 		push_warning("[Pathfinder] Bad dest room: %s" % dest_room)
@@ -212,7 +212,7 @@ func _plan_from_hallway(origin_hallway: String, dest_room: String) -> Array:
 	var origin_fd: Dictionary = Rooms.get_floor_data_by_index(origin_floor)
 	var lanes: Array = origin_fd.get("hallway_lanes", [
 		Vector3(0, 0, 0.3), Vector3(0, 0, 0.65), Vector3(0, 0, 1.0)])
-	var chosen_lane: Vector3 = lanes[randi() % lanes.size()]
+	var chosen_lane: Vector3 = lanes[rng.randi() % lanes.size()] if rng else lanes[randi() % lanes.size()]
 	var lane_z: float = chosen_lane.z
 
 	var waypoints: Array = []
@@ -545,3 +545,52 @@ func debug_elevator_state() -> void:
 		print("[Pathfinder] Car %d: floor=%d state=%s passengers=%d queue=%d" % [
 			i, c["floor"], c["state"], c["passengers"].size(), _wait_queues[i].size()
 		])
+
+
+# ── SNAPSHOT / RESTORE — Rewind & Save Support ────────────
+# Captures all mutable elevator state into a plain Dictionary.
+# Called by Sim._capture_snapshot(). Restore reverses it and
+# snaps car nodes to correct positions.
+
+func snapshot_cars() -> Dictionary:
+	var car_snapshots: Array = []
+	for i in CAR_COUNT:
+		var car: Dictionary = _cars[i]
+		car_snapshots.append({
+			"floor": car["floor"],
+			"state": car["state"],
+			"passengers": car["passengers"].duplicate(true),
+		})
+	return {
+		"cars": car_snapshots,
+		"wait_queues": _wait_queues.duplicate(true),
+	}
+
+
+func restore_cars(snap: Dictionary) -> void:
+	var car_snapshots: Array = snap["cars"]
+	for i in CAR_COUNT:
+		var car: Dictionary = _cars[i]
+		var cs: Dictionary = car_snapshots[i]
+		# Kill any active tween — we're snapping, not animating
+		if car["tween"] and car["tween"].is_valid():
+			car["tween"].kill()
+		car["tween"] = null
+		car["floor"] = cs["floor"]
+		car["state"] = cs["state"]
+		car["passengers"] = cs["passengers"].duplicate(true)
+		# Snap the car node to the correct Y for this floor
+		var node: Node3D = car["node"]
+		if node:
+			node.position.y = _get_car_y_for_floor(i, cs["floor"])
+	_wait_queues = snap["wait_queues"].duplicate(true)
+	# Stop all door timers — they'll restart naturally from state
+	for timer in _door_timers:
+		timer.stop()
+	# Reset all cars to idle — tweens and timers were killed above,
+	# so "moving" / "doors_open" states would be stuck. The replay
+	# will re-trigger elevator requests naturally.
+	for i in CAR_COUNT:
+		_cars[i]["state"] = "idle"
+		_cars[i]["passengers"] = []
+	_wait_queues = [[], []]
