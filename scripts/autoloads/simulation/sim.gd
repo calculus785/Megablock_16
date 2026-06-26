@@ -22,8 +22,8 @@ extends Node
 
 # Emitted after each event fires — EventInspector listens to this
 signal event_fired(char_id: String, event_key: String, summary: String)
-signal replay_started
-signal replay_ended
+signal rewind_started
+signal rewind_ended
 
 # Global counter — increments every time any event fires on any character.
 # Cooldowns store the _event_counter value when the event becomes available again.
@@ -102,16 +102,26 @@ var callout_decline_templates: Array = [
 ]
 
 # ── REWIND / REPLAY SYSTEM ──────────────────────────────────
-# Full-state snapshots in a ring buffer. Rewind restores a past
-# snapshot and replays forward deterministically (same RNG state
-# → same decisions). replay_target_tick tracks when we've caught
-# up to the original present so normal buffer trimming resumes.
- 
+# Full-state snapshots in a ring buffer. Used to restore sim state
+# when a VHS rewind ends (see VHS REWIND section below).
+
 var _snapshots: Array = []               # ring buffer of state dicts
 var snapshot_buffer_size: int = 50       # max snapshots kept
-var rewind_step_size: int = 5            # ticks per Backspace press
-var replay_target_tick: int = -1         # -1 = not replaying
-var is_replaying: bool = false
+var rewind_step_size: int = 5            # unused, kept for potential reuse
+
+# ── VHS REWIND ──────────────────────────────────────────────
+# Records character + elevator positions every frame. On rewind,
+# plays them backwards so characters visually retrace their paths.
+# State restoration uses the existing tick snapshot system.
+
+var is_rewinding: bool = false
+var _position_history: Array = []            # ring buffer of frame records
+var _position_history_max: int = 12000       # ~3-4 minutes at 60fps
+var _rewind_index: int = -1                  # current playback position in history
+var _rewind_speed: float = 2.0              # frames stepped backward per real frame
+var _char_container: Node = null             # cached ref to /root/main/Building/Characters
+var _rewind_max_ticks: int = 10             # max ticks the player can rewind
+var _rewind_start_tick: int = -1            # tick when rewind began
 
 # ── Movement constants ──
 # Movement runs every frame in _process(), not per tick.
@@ -136,9 +146,11 @@ func _ready() -> void:
 
 
 func _on_tick() -> void:
+	# Don't process ticks during rewind — clock is paused but guard anyway
+	if is_rewinding:
+		return
+
 	# Snapshot BEFORE processing — captures pre-event state.
-	# During replay we still capture (buffer fills naturally,
-	# player can rewind further mid-replay).
 	_capture_snapshot()
 
 	for character in Registry.get_all():
@@ -176,14 +188,7 @@ func _on_tick() -> void:
 		if character.intent_queue.size() >= Memory.INTENT_SOFT_CAP:
 			continue
 		_run_pipeline(character)
- 
-	# ── REPLAY CATCH-UP CHECK ───────────────────────────────
-	if is_replaying and Clock.total_ticks >= replay_target_tick:
-		is_replaying = false
-		replay_target_tick = -1
-		replay_ended.emit()
-		if Settings.debug_console_logging:
-			print("[Sim] ⏩ REPLAY COMPLETE at tick %d" % Clock.total_ticks)
+
 
 func _on_half_hour() -> void:
 	for character in Registry.get_all():
@@ -2000,7 +2005,7 @@ func _end_pool_sequence(character: CharData, partner: CharData,
 			"target": partner.char_name if partner else "someone",
 			"topic": ctx.get("topic", "nothing"),
 		}
-		var template: String = end_templates[randi() % end_templates.size()]
+		var template: String = end_templates[rng.randi() % end_templates.size()]
 		var summary: String = Context.fill_template(template, frame)
 
 		Memory.write_storybook(character, {
@@ -2360,6 +2365,11 @@ func _stop_character_movement(character: CharData) -> void:
 
 
 func _process(delta: float) -> void:
+	# VHS rewind — play recorded positions backwards
+	if is_rewinding:
+		_advance_rewind()
+		return
+
 	# Scale delta by Engine.time_scale so movement speeds up with sim speed.
 	# Engine.time_scale is already applied to delta by Godot, so this just works.
 	for character in Registry.get_all():
@@ -2375,6 +2385,9 @@ func _process(delta: float) -> void:
 				_advance_riding_elevator_realtime(character)
 			"paused":
 				pass  # Frozen in place for interaction
+
+	# Record positions for VHS rewind
+	_record_frame()
 
 
 func _advance_walking_realtime(character: CharData, delta: float) -> void:
@@ -2528,64 +2541,162 @@ func _on_elevator_exited(car_index: int, char_id: String) -> void:
 	character.movement_phase = "walking"
 
 # ═════════════════════════════════════════════════════════════
-# REWIND / REPLAY SYSTEM
+# VHS REWIND SYSTEM
 # ═════════════════════════════════════════════════════════════
 #
-# Every tick, _capture_snapshot() deep-copies the entire world
-# state into a ring buffer (max snapshot_buffer_size entries).
+# Every frame, _record_frame() captures character + elevator car
+# positions into a ring buffer. Holding Backspace plays those
+# positions backwards (_advance_rewind), so characters visually
+# retrace their actual recorded paths — no re-simulation, no
+# determinism requirement.
 #
-# rewind(steps) restores the snapshot `steps` entries back,
-# sets replay_target_tick to the original present, and lets
-# the sim run forward. Because the RNG state is restored, every
-# roll produces the same result — deterministic replay.
-#
-# When total_ticks catches up to replay_target_tick, replay
-# ends and normal buffer trimming resumes.
-#
-# Keyboard: Backspace = rewind by rewind_step_size ticks.
-# Multiple presses keep rewinding until the buffer is exhausted.
+# Releasing Backspace (_stop_rewind) finds the tick snapshot that
+# matches the rewind point, restores full sim state from it, syncs
+# visuals, trims both buffers, and resumes the clock.
 # ═════════════════════════════════════════════════════════════
- 
- 
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_BACKSPACE:
-			rewind()
- 
- 
-# ── PUBLIC API ───────────────────────────────────────────────
-# Call from UI, keyboard, or debug tools.
-# Returns true if rewind succeeded, false if buffer empty.
- 
-func rewind(steps: int = 0) -> bool:
-	if steps <= 0:
-		steps = rewind_step_size
- 
-	if _snapshots.is_empty():
+
+
+func _get_char_container() -> Node:
+	if _char_container == null or not is_instance_valid(_char_container):
+		_char_container = get_node_or_null("/root/main/Building/Characters")
+	return _char_container
+
+
+# Records visual positions of all characters and elevator cars.
+# Reads from body nodes (not CharData) to capture zone tween mid-positions.
+# Each frame is tagged with the current tick for snapshot correlation.
+func _record_frame() -> void:
+	var frame: Dictionary = {
+		"tick": Clock.total_ticks,
+		"chars": {},
+		"cars": [],
+	}
+
+	var container: Node = _get_char_container()
+	if container:
+		for body in container.get_children():
+			if "char_data" in body and body.char_data != null:
+				frame["chars"][body.char_data.char_id] = body.position
+
+	for i in Pathfinder.CAR_COUNT:
+		var car_node: Node3D = Pathfinder.get_car_node(i)
+		if car_node:
+			frame["cars"].append(car_node.position)
+		else:
+			frame["cars"].append(Vector3.ZERO)
+
+	_position_history.append(frame)
+	if _position_history.size() > _position_history_max:
+		_position_history.pop_front()
+
+
+func _start_rewind() -> void:
+	if _position_history.is_empty():
 		if Settings.debug_console_logging:
-			print("[Sim] ⏪ REWIND — no snapshots in buffer")
-		return false
- 
-	# Find the target snapshot index
-	var target_index: int = _snapshots.size() - steps
-	if target_index < 0:
-		target_index = 0
- 
-	var snap: Dictionary = _snapshots[target_index]
- 
-	# Only set the replay target on the FIRST rewind.
-	# Subsequent presses during replay keep the original target
-	# so we know when we've fully caught up.
-	if not is_replaying:
-		replay_target_tick = Clock.total_ticks
- 
-	# Pause clock during restore to prevent a tick mid-swap
+			print("[Sim] ⏪ REWIND — no position history recorded")
+		return
+
+	is_rewinding = true
+	_rewind_index = _position_history.size() - 1
+	_rewind_start_tick = Clock.total_ticks
+
 	Clock._timer.stop()
- 
+
+	# Kill elevator car tweens so they don't fight position writes
+	Pathfinder.kill_car_tweens()
+
+	var container: Node = _get_char_container()
+	if container:
+		for body in container.get_children():
+			if body.has_method("cancel_movement"):
+				body.cancel_movement()
+
+	rewind_started.emit()
+
+	if Settings.debug_console_logging:
+		print("[Sim] ⏪ VHS REWIND started — %d frames in buffer" % _position_history.size())
+
+
+# Steps backwards through position history, setting character and
+# elevator positions from recorded frames. Characters visually
+# retrace their paths in reverse.
+func _advance_rewind() -> void:
+	var frames_to_step: int = ceili(_rewind_speed)
+
+	_rewind_index -= frames_to_step
+	if _rewind_index < 0:
+		_rewind_index = 0
+		_stop_rewind()
+		return
+
+	var frame: Dictionary = _position_history[_rewind_index]
+
+	# Check tick depth cap
+	var frame_tick: int = frame.get("tick", 0)
+	if _rewind_start_tick - frame_tick >= _rewind_max_ticks:
+		_stop_rewind()
+		return
+
+	# Set character positions from recorded history
+	var container: Node = _get_char_container()
+	if container:
+		for body in container.get_children():
+			if "char_data" not in body or body.char_data == null:
+				continue
+			var char_id: String = body.char_data.char_id
+			if frame["chars"].has(char_id):
+				var pos: Vector3 = frame["chars"][char_id]
+				body.char_data.movement_sim_pos = pos
+				# Also set directly in case character_body._process
+				# runs before us in the frame order
+				body.position = pos
+
+	# Set elevator car positions from recorded history
+	for i in frame["cars"].size():
+		var car_node: Node3D = Pathfinder.get_car_node(i)
+		if car_node and i < frame["cars"].size():
+			car_node.position = frame["cars"][i]
+
+
+# Finds the tick snapshot matching the current rewind position,
+# restores full sim state, syncs visuals, trims buffers, resumes.
+func _stop_rewind() -> void:
+	if not is_rewinding:
+		return
+
+	# Minimum rewind distance — prevent quick-tap snaps that cause
+	# characters to float through floors. If we haven't rewound far
+	# enough, keep rewinding (player released too early).
+	var frames_rewound: int = (_position_history.size() - 1) - _rewind_index
+	if frames_rewound < 30:
+		# Not enough visual distance yet — auto-stop will catch it
+		# when buffer exhausts, or player can tap again
+		return
+
+	is_rewinding = false
+
+	var target_tick: int = 0
+	if _rewind_index >= 0 and _rewind_index < _position_history.size():
+		target_tick = _position_history[_rewind_index]["tick"]
+
+	var best_idx: int = -1
+	for i in _snapshots.size():
+		if _snapshots[i]["clock"]["total_ticks"] <= target_tick:
+			best_idx = i
+
+	if best_idx < 0 and not _snapshots.is_empty():
+		best_idx = 0
+
+	if best_idx < 0:
+		Clock._timer.start()
+		rewind_ended.emit()
+		if Settings.debug_console_logging:
+			print("[Sim] ⏪ VHS REWIND ended — no snapshots, resuming as-is")
+		return
+
+	var snap: Dictionary = _snapshots[best_idx]
+
 	# ── Restore Clock ───────────────────────────────────────
-	# Subtract 1 from total_ticks because Clock._on_tick increments
-	# BEFORE emitting the tick signal. When the timer resumes, the
-	# next Clock._on_tick will bump it back to the correct value.
 	Clock.total_ticks       = snap["clock"]["total_ticks"] - 1
 	Clock.current_tick      = snap["clock"]["current_tick"]
 	Clock.current_hour      = snap["clock"]["current_hour"]
@@ -2596,75 +2707,85 @@ func rewind(steps: int = 0) -> bool:
 	Clock.current_season    = snap["clock"]["current_season"]
 	Clock.season_intensity  = snap["clock"]["season_intensity"]
 	Clock._tick_in_half_hour = snap["clock"]["_tick_in_half_hour"]
- 
+
 	# ── Restore Sim state ───────────────────────────────────
 	_event_counter = snap["sim"]["_event_counter"]
 	_arc_counter   = snap["sim"]["_arc_counter"]
 	rng.state      = snap["sim"]["rng_state"]
- 
+
 	# ── Restore all CharData ────────────────────────────────
 	for char_id in snap["characters"]:
 		var character: CharData = Registry.get_character(char_id)
 		if character:
 			character.restore(snap["characters"][char_id])
- 
+
+	# ── Complete near-arrivals ──────────────────────────────
+	# Characters close to their final waypoint get snapped to
+	# arrival. Eliminates the biggest source of post-rewind
+	# divergence: frame-dependent arrival timing.
+	for character in Registry.get_all():
+		if not character.is_in_transit:
+			continue
+		if character.waypoints.is_empty():
+			continue
+		if character.movement_phase in ["waiting_elevator", "riding_elevator"]:
+			continue
+		var final_wp: Dictionary = character.waypoints[character.waypoints.size() - 1]
+		var dist: float = character.movement_sim_pos.distance_to(final_wp["pos"])
+		if dist <= 2.0:
+			_complete_movement(character)
+
 	# ── Restore Relationships ───────────────────────────────
 	Relationships._records = snap["relationships"].duplicate(true)
- 
+
 	# ── Restore Room occupancy + zone spots ─────────────────
 	_restore_rooms(snap["rooms"])
 
 	# ── Restore Elevators ────────────────────────────────────
 	Pathfinder.restore_cars(snap["elevators"])
 
-	# ── Snap visual bodies + fix elevator characters ────────
-	# movement_sim_pos is on CharData and restored above.
-	# Characters mid-elevator get their route re-planned.
-	var container = get_node_or_null("/root/main/Building/Characters")
+	# ── Sync visual bodies ──────────────────────────────────
+	# No special elevator handling — restore_cars re-dispatches
+	# cars with passengers, characters resume naturally.
+	var container: Node = _get_char_container()
 	if container:
 		for body in container.get_children():
 			if "char_data" not in body or body.char_data == null:
 				continue
 			var cd: CharData = body.char_data
-			body.position = cd.movement_sim_pos
+			var restored_phase: String = cd.movement_phase
 			if body.has_method("cancel_movement"):
 				body.cancel_movement()
+			cd.movement_phase = restored_phase
+			body.position = cd.movement_sim_pos
 
-			# Characters mid-elevator can't resume — cancel their trip.
-			# They'll get a new event next tick. One tick of lost progress
-			# is invisible to the player.
-			if cd.movement_phase in ["waiting_elevator", "riding_elevator"]:
-				cd.is_riding_elevator = false
-				cd.movement_phase = ""
-				cd.is_in_transit = false
-				cd.movement_target_room = ""
-				cd.waypoints.clear()
-				cd.waypoint_index = 0
-				# Put them back in their current room
-				if cd.current_room != "":
-					Rooms.add_occupant(cd.current_room, cd.char_id)
-					var spawn: Vector3 = Rooms.get_spawn_pos(cd.current_room)
-					if spawn != Vector3.ZERO:
-						cd.movement_sim_pos = spawn
-						cd.movement_prev_pos = spawn
-						body.position = spawn
+	# ── Trim buffers ────────────────────────────────────────
+	_snapshots.resize(best_idx)
+	if _rewind_index >= 0:
+		_position_history.resize(_rewind_index + 1)
 
-	# ── Trim buffer to the restore point ────────────────────
-	# Everything after target_index is "future" — discard it.
-	_snapshots.resize(target_index)
- 
-	is_replaying = true
-	replay_started.emit()
- 
-	if Settings.debug_console_logging:
-		print("[Sim] ⏪ REWIND to tick %d (replay target: %d, buffer: %d left)" % [
-			snap["clock"]["total_ticks"], replay_target_tick, _snapshots.size()])
- 
-	# Resume the clock
+	_rewind_index = -1
+
 	Clock._timer.start()
-	return true
- 
- 
+	rewind_ended.emit()
+
+	if Settings.debug_console_logging:
+		print("[Sim] ⏪ VHS REWIND complete — restored to tick %d (snap %d)" % [
+			snap["clock"]["total_ticks"], best_idx])
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not event is InputEventKey or event.keycode != KEY_BACKSPACE:
+		return
+	# Press: start rewinding. Release: stop and restore.
+	if event.pressed and not event.echo:
+		if not is_rewinding:
+			_start_rewind()
+	elif not event.pressed:
+		if is_rewinding:
+			_stop_rewind()
+
+
 # ── SNAPSHOT CAPTURE ─────────────────────────────────────────
 # Called at the top of every _on_tick, BEFORE character processing.
 # Captures the full world state as a plain Dictionary.
@@ -2757,25 +2878,8 @@ func _restore_rooms(snap: Dictionary) -> void:
 					zone["spots"][i]["occupied_by"] = zone_snap["spots"][i]["occupied_by"]
  
  
-# ── REPLAY QUERY HELPERS ─────────────────────────────────────
+# ── REWIND QUERY HELPERS ─────────────────────────────────────
 # For UI — EventInspector, HUD progress bar, etc.
- 
-func get_replay_ticks_remaining() -> int:
-	if not is_replaying:
-		return 0
-	return maxi(0, replay_target_tick - Clock.total_ticks)
- 
-func get_replay_progress() -> float:
-	# Returns 0.0 → 1.0 (how far through the replay we are)
-	if not is_replaying or replay_target_tick <= 0:
-		return 1.0
-	var oldest_tick: int = Clock.total_ticks
-	var span: int = replay_target_tick - oldest_tick
-	if span <= 0:
-		return 1.0
-	# We don't know the rewind start tick here, so use buffer
-	return 1.0 - (float(span) / float(maxi(span, 1)))
- 
-func get_buffer_depth() -> int:
-	# How many ticks back the player CAN rewind right now
-	return _snapshots.size()
+
+func get_rewind_depth() -> int:
+	return _position_history.size()

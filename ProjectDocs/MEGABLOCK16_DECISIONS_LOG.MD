@@ -544,3 +544,7 @@ Large mechanical multi-file rewrites delegate to Claude Code; chat handles desig
 Movement is frame-based, not tick-based — _process(delta) at constant speed. Ticks handle events only. Arrival timing is slightly frame-dependent. Rewind snaps to CharData positions. — Session 29
 Mid-elevator characters on rewind cancel their trip and return to current_room — simpler than re-planning routes from mid-shaft positions. — Session 29
 movement_controller.gd disabled but not deleted — prevents signal interference while keeping the file available for reference during cleanup. — Session 29
+
+VHS-style rewind (record-and-playback) chosen over replay-forward re-simulation — replay-forward was fundamentally incompatible with frame-based movement's non-determinism. Recording actual positions and playing them back removes the need for determinism entirely. Session 30.
+Accepted residual rewind divergence as good-enough rather than chasing perfect replay — true zero-divergence would require tick-aligning arrival detection (currently frame-based), a refactor disproportionate to the benefit for a life-sim where narrative direction matters more than pixel-perfect reproduction. Mitigated with depth cap + near-arrival snap instead. Session 30.
+Rewind snapshot/restore infrastructure doubles as the save/load foundation — CharData.snapshot()/restore(), room/elevator snapshot functions are reusable as-is for a future save system regardless of rewind's fate. Session 30.

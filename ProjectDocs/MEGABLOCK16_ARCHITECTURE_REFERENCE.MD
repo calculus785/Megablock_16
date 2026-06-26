@@ -187,7 +187,7 @@ megablock16/
 | Clock | Heartbeat, calendar, seasons, intensity curve, signals, get_tick_progress() | — |
 | Registry | Master character list, generation, ID lookup | — |
 | Rooms | Occupant tracking, zone/spot occupancy, aura ticking (occupied rooms only) | AuraManager |
-| Pathfinder | Room-to-room routing, elevator dispatch + car state, snapshot_cars/restore_cars | ElevatorManager |
+| Pathfinder | Room-to-room routing, elevator dispatch + car state, snapshot_cars/restore_cars, kill_car_tweens (VHS rewind support) | ElevatorManager |
 | Memory | Short/long-term read/write, intent queue, daily pruning | — |
 
 ### Tier 3 — Systems (7) — Reads Tier 1 + 2
@@ -301,14 +301,75 @@ in character_body.gd. Waypoint types that trigger state changes:
 movement_controller.gd is DISABLED (not instantiated by character_body).
 File kept for reference; will be deleted in a future cleanup pass.
 
-Rewind: movement_sim_pos is on CharData and included in snapshot/restore.
-On rewind, bodies snap to restored movement_sim_pos. Mid-elevator
-characters cancel their trip and return to current_room.
+Rewind (replaced Session 30 — see VHS Rewind System section below for
+full detail). movement_sim_pos is on CharData and included in
+snapshot/restore. character_body.gd checks Sim.is_rewinding before
+reading movement_phase, so visual rewind playback takes priority over
+normal movement rendering.
 
 Elevator cars still use tweens (Pathfinder). Tick-driving them is a
-future task. Pathfinder.snapshot_cars()/restore_cars() handle rewind.
+future task. Pathfinder.kill_car_tweens() stops them cleanly when
+rewind starts; restore_cars() re-dispatches any car left holding
+passengers rather than force-idling it.
 
 ---
+
+---
+
+## VHS Rewind System (added Session 30)
+
+Replaces the original replay-forward rewind (snapshot restore + re-
+simulate). Replay-forward was non-deterministic with frame-based
+movement — arrival timing varied between runs, causing story
+divergence and elevator characters snapping to bad positions.
+
+VHS rewind instead records actual visual positions and plays them
+back. No re-simulation, no determinism requirement.
+
+**Recording (every frame, Sim._process):**
+  _record_frame() reads body.position for every character (not
+  CharData — this captures zone-tween mid-positions accurately) plus
+  every elevator car's position, tags the frame with Clock.total_ticks,
+  and pushes it into _position_history (ring buffer, 12,000 frames).
+
+**Rewinding (hold Backspace):**
+  _start_rewind() pauses Clock, calls Pathfinder.kill_car_tweens() so
+  active tweens don't fight position writes, cancels character body
+  movement, sets is_rewinding = true.
+  _advance_rewind() runs every frame instead of normal movement —
+  steps _rewind_index backward through _position_history at
+  _rewind_speed (default 2.0 frames/frame), writing each character's
+  and car's recorded position directly. Auto-stops if the player
+  rewinds past _rewind_max_ticks (default 10) from the tick rewind
+  started on.
+
+**Stopping (release Backspace):**
+  _stop_rewind() requires at least 30 frames of rewind distance
+  (prevents quick-tap snap/float-through-floor artifacts) — releasing
+  too early is a no-op. On a valid stop: finds the tick snapshot
+  matching the current rewind position, restores Clock/Sim/CharData/
+  Relationships/Rooms/Elevators from it, runs a near-arrival pass
+  (any in-transit character within 2 units of their final waypoint
+  gets _complete_movement() called immediately — eliminates the
+  biggest divergence source), syncs all body positions, trims both
+  _position_history and _snapshots to the restore point, resumes Clock.
+
+**character_body.gd integration:** checks `Sim.is_rewinding` first in
+_process() — when true, just reads movement_sim_pos every frame like
+normal movement, but the VALUE being read is being driven by
+_advance_rewind() instead of the walking/elevator engine.
+
+**Known limitation:** divergence after rewind is low but not zero.
+Root cause is arrival detection happening in _process (frame-based)
+rather than _on_tick (tick-aligned) — a character might arrive one
+tick later/earlier between runs, changing room occupants and
+downstream rolls. Accepted as good-enough; true fix would require
+tick-aligning arrival detection, a bigger refactor not justified for
+a life-sim where narrative direction matters more than exact replay.
+
+Owning functions (sim.gd): _record_frame(), _start_rewind(),
+_advance_rewind(), _stop_rewind(), _get_char_container().
+Owning function (pathfinder.gd): kill_car_tweens(), restore_cars().
 
 ## Clock
 

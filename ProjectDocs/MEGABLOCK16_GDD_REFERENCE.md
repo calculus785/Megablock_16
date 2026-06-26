@@ -375,3 +375,5 @@ Base event layer — Replace flat event pool with two-tier pipeline. Tier 1: hig
 Generic VISIT_ event — Remove VISIT_BAR, VISIT_CAFE, VISIT_LIBRARY etc. Replace with single VISIT_ event that evaluates character state and picks destination. Same logic as base event layer Tier 1 VISIT_ above. Simplifies events.gd significantly.
 
  "Player-as-Mayor system — player character is building manager, handles resident/building-level decisions via PLAYER_GATE, income tied to building performance metrics (resident satisfaction, occupancy, condition) with a corpo % cut. Needs dedicated brainstorm session. Open question: does the mayor have a separate day job, or is building management the job?"
+
+ Replay/rewatch snippet viewer for EventInspector — click an arc, see a SubViewport replay of that moment, following the character. Considered this session as a possible near-term build but deferred: it would need its own recording/playback pipeline (or re-simulation) distinct from VHS rewind, and overlaps heavily with planned Phase 11 Chronicle work. → GDD_REFERENCE §15, flagged for revisit once Phase 8 storybook summarizer exists.

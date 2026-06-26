@@ -31,9 +31,9 @@ func _process(_delta: float) -> void:
 		return
 
 	# VHS rewind — Sim writes positions, we just read them
-	#if Sim.is_rewinding:
-		#position = char_data.movement_sim_pos
-		#return
+	if Sim.is_rewinding:
+		position = char_data.movement_sim_pos
+		return
 
 	# Sim-driven movement (walking, elevator, etc.)
 	if char_data.movement_phase != "":
@@ -95,30 +95,6 @@ func set_storybook_visible(show: bool) -> void:
 
 
 # ─── MOVEMENT ────────────────────────────────────────────────
-
-func _setup_movement_controller() -> void:
-	var mc_script = load("res://scripts/world/movement_controller.gd")
-	_move_ctrl = Node.new()
-	_move_ctrl.set_script(mc_script)
-	_move_ctrl.name = "MovementController"
-	add_child(_move_ctrl)
-
-	_move_ctrl.waypoint_reached.connect(_on_waypoint_reached)
-	_move_ctrl.movement_completed.connect(_on_movement_completed)
-
-
-func _on_waypoint_reached(_wp: Dictionary) -> void:
-	# Boundary crossing logic has moved to sim.gd _on_sim_waypoint_arrived.
-	# This stub remains because MovementController still emits waypoint_reached.
-	# MovementController will be removed in a future cleanup pass.
-	pass
-
-
-func _on_movement_completed() -> void:
-	# Movement completion logic has moved to sim.gd _complete_movement.
-	# This stub remains because MovementController still emits movement_completed.
-	_movement_started = false
-
 
 func snap_to_room() -> void:
 	var pos: Vector3 = Rooms.get_spawn_pos(char_data.current_room)

@@ -38,52 +38,58 @@ To resolve any duplication: **the table above wins.** If two docs disagree, the 
 PHASE 4 — Base Event Layer + Social Systems
 
 DONE THIS SESSION:
-✅ Frame-based movement engine — replaces tween-driven movement.
-   Sim._process(delta) advances all characters at constant speed
-   along waypoint paths. Boundary crossings fire deterministically
-   when characters reach tagged waypoints. Visual layer just reads
-   movement_sim_pos. movement_controller.gd disabled (not deleted).
-✅ New CharData fields — movement_sim_pos, movement_prev_pos,
-   movement_phase, movement_speed_mode. All in snapshot/restore.
-✅ Elevator snapshot/restore — Pathfinder.snapshot_cars() and
-   restore_cars() wired into rewind system.
-✅ RNG discipline — bare randi() in pathfinder.gd lane selection
-   now routes through optional rng parameter.
-✅ Rewind simplified — body_positions snapshot removed. Characters
-   snap to movement_sim_pos from CharData on restore. Mid-elevator
-   characters cancel trip and return to current_room.
-✅ Room Building Guide created — waypoint types, naming conventions,
-   checklists for new rooms/floors. In project knowledge.
+✅ Zone movement sync fix — character_body.gd's zone tween completion
+   now syncs movement_sim_pos/movement_prev_pos to the body's actual
+   position. Fixed snapping on room exit and after conversations.
+✅ Hallway spawn_pos fix — building.gd registers a real position
+   (HallwayLane0 global_position) instead of Vector3.ZERO. Elevator
+   characters no longer snap to world origin.
+✅ VHS-style rewind — full replace of replay-forward system. Records
+   character/elevator positions every frame into a 12k-frame ring
+   buffer. Hold Backspace to play positions backwards; release
+   restores the matching tick snapshot. No re-simulation.
+✅ Elevator rewind fix — Pathfinder.restore_cars() was force-resetting
+   state right after restoring it (leftover from old replay system).
+   Now re-dispatches cars with passengers instead of wiping them.
+✅ Rewind cleanup pass — removed all is_replaying/replay_target_tick/
+   replay_started/replay_ended remnants from sim.gd.
+✅ Divergence safeguards — 10-tick rewind depth cap, and near-arrival
+   completion (characters within 2 units of destination on restore
+   snap to arrival) to reduce post-rewind cascade.
+✅ Minimum rewind distance guard (30 frames) — quick-tap Backspace no
+   longer causes snap/float-through-floor artifacts.
 
 KNOWN BUGS:
-⚠️ Elevator rewind: characters near elevator can snap to Vector3.ZERO
-   because hallway spawn_pos is ZERO. Fix: use a real position (e.g.
-   the elevator_entry waypoint for the floor) instead of spawn_pos
-   for hallway rooms.
-⚠️ Rewind replay is not fully deterministic — frame-based movement
-   means arrival timing varies slightly between runs. Acceptable
-   for gameplay but not pixel-perfect.
+⚠️ Rewind divergence is low but not zero — root cause is frame-based
+   arrival timing (movement completes in _process, not _on_tick).
+   Accepted as good-enough; true fix would mean tick-aligning arrival
+   detection, which is a bigger refactor not worth doing now.
+⚠️ Door animations don't sync with the frame-based movement engine —
+   old movement_controller.gd handled door wait/open via signals;
+   sim.gd's _on_sim_waypoint_arrived only handles room occupancy, not
+   actual door visuals. Characters walk through closed-looking doors.
 
 IN PROGRESS:
-→ VHS-STYLE REWIND — design idea: play snapshot positions backward
-  at high speed instead of instant snap. Needs own session.
+(none — rewind work is complete for this phase)
 
 NEXT UP (in order):
-1. Fix hallway spawn_pos bug (quick — register real positions)
-2. VHS rewind visual effect
-3. Door animations triggered from visual layer
-4. Proximity system (distance-based event triggers using movement_sim_pos)
-5. Enhanced EventInspector — multi-tag filter, character follow mode
-6. Passive relationship decay
+1. Door animations triggered from visual layer
+2. Proximity system (distance-based event triggers using movement_sim_pos)
+3. Enhanced EventInspector — multi-tag filter, character follow mode
+4. Passive relationship decay
+5. Full event audit + actions.gd cleanup pass
 
 PRE-PHASE-5 PARKING LOT:
 - Circular floating hands on character bodies
-- Full event audit + actions.gd cleanup pass
 - GREET/ARGUE/SHARE_STORY/REMINISCE_TOGETHER beat wiring
 - Elevator tick-driving (remove last tween dependency)
 - movement_controller.gd deletion (currently disabled, not removed)
 - Waypoint validation function (from Room Building Guide)
 - Minor: arc base_event for hallway CONVERSE_SEQ reads as generic "CONVERSE"
+- Replay/rewatch snippet viewer for EventInspector (click an arc, see a
+  SubViewport replay of that moment) — explicitly deferred to Phase 11
+  Chronicle work rather than building now; would need its own recording
+  pipeline or re-simulation, not a quick add.
 ```
 
 ---

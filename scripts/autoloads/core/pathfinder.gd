@@ -546,6 +546,15 @@ func debug_elevator_state() -> void:
 			i, c["floor"], c["state"], c["passengers"].size(), _wait_queues[i].size()
 		])
 
+# Called by Sim when VHS rewind starts — kills car tweens so they
+# don't fight with position writes during visual rewind.
+func kill_car_tweens() -> void:
+	for i in CAR_COUNT:
+		if _cars[i]["tween"] and _cars[i]["tween"].is_valid():
+			_cars[i]["tween"].kill()
+		_cars[i]["tween"] = null
+	for timer in _door_timers:
+		timer.stop()
 
 # ── SNAPSHOT / RESTORE — Rewind & Save Support ────────────
 # Captures all mutable elevator state into a plain Dictionary.
@@ -572,25 +581,28 @@ func restore_cars(snap: Dictionary) -> void:
 	for i in CAR_COUNT:
 		var car: Dictionary = _cars[i]
 		var cs: Dictionary = car_snapshots[i]
-		# Kill any active tween — we're snapping, not animating
 		if car["tween"] and car["tween"].is_valid():
 			car["tween"].kill()
 		car["tween"] = null
 		car["floor"] = cs["floor"]
 		car["state"] = cs["state"]
 		car["passengers"] = cs["passengers"].duplicate(true)
-		# Snap the car node to the correct Y for this floor
 		var node: Node3D = car["node"]
 		if node:
 			node.position.y = _get_car_y_for_floor(i, cs["floor"])
 	_wait_queues = snap["wait_queues"].duplicate(true)
-	# Stop all door timers — they'll restart naturally from state
 	for timer in _door_timers:
 		timer.stop()
-	# Reset all cars to idle — tweens and timers were killed above,
-	# so "moving" / "doors_open" states would be stuck. The replay
-	# will re-trigger elevator requests naturally.
+	# Don't force-reset to idle — VHS rewind needs restored state.
+	# Re-dispatch any car that has passengers so tweens resume.
 	for i in CAR_COUNT:
-		_cars[i]["state"] = "idle"
-		_cars[i]["passengers"] = []
-	_wait_queues = [[], []]
+		if not _cars[i]["passengers"].is_empty():
+			var next_floor: int = _get_next_dest_floor(i)
+			if next_floor >= 0:
+				_cars[i]["state"] = "idle"
+				_dispatch_car(i, next_floor)
+			else:
+				_cars[i]["state"] = "idle"
+				_cars[i]["passengers"] = []
+		else:
+			_cars[i]["state"] = "idle"
