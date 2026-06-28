@@ -9,7 +9,7 @@ var _storybook_logs_visible: bool = false
 @export var zoom_ortho_threshold: float = 80.0   # camera Z distance to switch
 
 var _is_ortho: bool = false
-
+const DEFAULT_VESTIBULE_SCENE: String = "res://scenes/world/vestibule_template.tscn"
 
 func _ready() -> void:
 	_build_floors()
@@ -47,6 +47,8 @@ func _build_floors() -> void:
 		_register_floor_info(floor_node, floor_def, i)
 
 		_register_doors(floor_node, floor_def, type_def)
+
+		_instance_vestibules(floor_node, floor_def, type_def)
 
 		_register_hallway_spots(floor_node, floor_def, i)
 
@@ -283,17 +285,11 @@ func _instance_room_scene(floor_node: Node3D, slot: Dictionary, room_id: String)
 
 	# Store room-side door positions
 	var door_wait = room_node.get_node_or_null("DoorWaitPos")
-	var room_doorway = room_node.get_node_or_null("DoorwayPos")
 
 	if door_wait:
 		Rooms.set_room_door_wait_pos(room_id, door_wait.global_position)
 	else:
 		push_warning("[Building] No DoorWaitPos in room scene for %s" % room_id)
-
-	if room_doorway:
-		Rooms.set_room_doorway_pos(room_id, room_doorway.global_position)
-	else:
-		push_warning("[Building] No DoorwayPos in room scene for %s" % room_id)
 
 func _set_storybook_visible(show: bool) -> void:
 	var container = get_node_or_null("Characters")
@@ -422,3 +418,71 @@ func update_apartment_labels() -> void:
 		var label: Label3D = _room_labels[room_id]
 		label.text = character.char_name.split(" ")[0]
 		label.modulate = Color(0.7, 0.9, 1.0, 0.85)  # blue-ish
+
+func _instance_vestibules(floor_node: Node3D, floor_def: Dictionary,
+		type_def: Dictionary) -> void:
+	var slots: Array = type_def["slots"]
+ 
+	for room_entry in floor_def["rooms"]:
+		var room_id: String = room_entry["room_id"]
+		var slot: Dictionary = slots[room_entry["slot"]]
+ 
+		# Use the existing doorway marker as vestibule placement origin.
+		# These are the RoomX_Doorway markers on floor scenes.
+		var doorway_node_path: String = slot.get("doorway_node", "")
+		var origin_marker = floor_node.get_node_or_null(doorway_node_path)
+		if origin_marker == null:
+			push_warning("[Building] No doorway marker for vestibule — %s" % room_id)
+			continue
+ 
+		# Per-slot scene override for future bespoke vestibules.
+		# Falls back to the default template if not specified.
+		var scene_path: String = slot.get("vestibule_scene", DEFAULT_VESTIBULE_SCENE)
+		var packed: PackedScene = load(scene_path)
+		if packed == null:
+			push_error("[Building] Can't load vestibule scene: %s" % scene_path)
+			continue
+ 
+		var vest_node: Node3D = packed.instantiate()
+		vest_node.name = room_id + "_Vestibule"
+		vest_node.position = origin_marker.position
+		floor_node.add_child(vest_node)
+ 
+		# Read spot positions from the instanced vestibule
+		var spots_node = vest_node.get_node_or_null("Spots")
+		if spots_node == null:
+			push_warning("[Building] No Spots node in vestibule for %s" % room_id)
+			continue
+ 
+		var vestibule_data: Dictionary = {}
+ 
+		var room_out = spots_node.get_node_or_null("RoomOutSpot")
+		var mid_00 = spots_node.get_node_or_null("MidSpot00")
+		var mid_01 = spots_node.get_node_or_null("MidSpot01")
+		var room_in = spots_node.get_node_or_null("RoomInSpot")
+ 
+		if room_out:
+			vestibule_data["room_out"] = room_out.global_position
+		else:
+			push_warning("[Building] Vestibule missing RoomOutSpot — %s" % room_id)
+ 
+		if mid_00:
+			vestibule_data["mid_00"] = mid_00.global_position
+		else:
+			push_warning("[Building] Vestibule missing MidSpot00 — %s" % room_id)
+ 
+		if mid_01:
+			vestibule_data["mid_01"] = mid_01.global_position
+		else:
+			push_warning("[Building] Vestibule missing MidSpot01 — %s" % room_id)
+ 
+		if room_in:
+			vestibule_data["room_in"] = room_in.global_position
+		else:
+			push_warning("[Building] Vestibule missing RoomInSpot — %s" % room_id)
+ 
+		Rooms.set_vestibule_data(room_id, vestibule_data)
+ 
+		if Settings.debug_console_logging:
+			print("[Building] 🚪 Vestibule placed for %s (%d spots)" % [
+				room_id, vestibule_data.size()])

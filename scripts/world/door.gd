@@ -2,12 +2,24 @@
 # Attach to a Node3D root of a door scene.
 # The door mesh is a child node named "DoorMesh".
 # Slides open via tween, tracks occupants, auto-closes when empty.
+#
+# Query methods for event requirements:
+#   is_open()    — door is fully open
+#   is_closed()  — door is fully closed
+#   is_locked()  — door won't respond to request_open()
+#   get_state()  — returns string: "closed" / "opening" / "open" / "closing"
+#
+# Lock/unlock for future use (apartment privacy, police lockdown, etc.):
+#   lock()   — prevents opening, door_locked emitted
+#   unlock() — allows opening again, door_unlocked emitted
 
 extends Node3D
 
 @export var slide_direction: Vector3 = Vector3(-1, 0, 0)  # left for hallway, back for room
 @export var slide_distance: float = 2.5
-@export var slide_speed: float = 0.4  # seconds to open/close
+@export var slide_speed: float = 0.4          # seconds to open/close
+@export var close_wait_time: float = 1.5      # seconds door stays open after last person passes
+@export var locked: bool = false              # locked doors ignore request_open()
 
 enum State { CLOSED, OPENING, OPEN, CLOSING }
 var _state: State = State.CLOSED
@@ -20,6 +32,9 @@ var _open_pos: Vector3
 
 signal door_opened
 signal door_closed
+signal door_locked
+signal door_unlocked
+signal open_refused                           # fired when request_open() hits a locked door
 
 
 func _ready() -> void:
@@ -33,12 +48,20 @@ func _ready() -> void:
 
 	_close_timer = Timer.new()
 	_close_timer.one_shot = true
-	_close_timer.wait_time = 1.5
+	_close_timer.wait_time = close_wait_time
 	_close_timer.timeout.connect(_on_close_timer)
 	add_child(_close_timer)
 
 
-func request_open() -> void:
+# ── OPEN / CLOSE ─────────────────────────────────────────────
+
+# Returns true if the door will open (or is already open).
+# Returns false if locked — emits open_refused so callers can react.
+func request_open() -> bool:
+	if locked:
+		open_refused.emit()
+		return false
+
 	_occupant_count += 1
 
 	match _state:
@@ -53,6 +76,8 @@ func request_open() -> void:
 		State.OPENING:
 			pass  # Already opening, just wait
 
+	return true
+
 
 func notify_through() -> void:
 	_occupant_count = max(0, _occupant_count - 1)
@@ -61,9 +86,38 @@ func notify_through() -> void:
 		_close_timer.start()
 
 
+# ── QUERY ────────────────────────────────────────────────────
+
 func is_open() -> bool:
 	return _state == State.OPEN
 
+func is_closed() -> bool:
+	return _state == State.CLOSED
+
+func is_locked() -> bool:
+	return locked
+
+func get_state() -> String:
+	match _state:
+		State.CLOSED:  return "closed"
+		State.OPENING: return "opening"
+		State.OPEN:    return "open"
+		State.CLOSING: return "closing"
+	return "unknown"
+
+
+# ── LOCK / UNLOCK ────────────────────────────────────────────
+
+func lock() -> void:
+	locked = true
+	door_locked.emit()
+
+func unlock() -> void:
+	locked = false
+	door_unlocked.emit()
+
+
+# ── INTERNALS ────────────────────────────────────────────────
 
 func _slide_to(target: Vector3, during_state: State, end_state: State) -> void:
 	if _door_mesh == null:

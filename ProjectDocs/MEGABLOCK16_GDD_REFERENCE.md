@@ -377,3 +377,7 @@ Generic VISIT_ event — Remove VISIT_BAR, VISIT_CAFE, VISIT_LIBRARY etc. Replac
  "Player-as-Mayor system — player character is building manager, handles resident/building-level decisions via PLAYER_GATE, income tied to building performance metrics (resident satisfaction, occupancy, condition) with a corpo % cut. Needs dedicated brainstorm session. Open question: does the mayor have a separate day job, or is building management the job?"
 
  Replay/rewatch snippet viewer for EventInspector — click an arc, see a SubViewport replay of that moment, following the character. Considered this session as a possible near-term build but deferred: it would need its own recording/playback pipeline (or re-simulation) distinct from VHS rewind, and overlaps heavily with planned Phase 11 Chronicle work. → GDD_REFERENCE §15, flagged for revisit once Phase 8 storybook summarizer exists.
+
+ Proximity system (close + eyesight) — needs facing_direction on CharData, distance checks in _process(), event integration. Two types: close (bumping, smell) and directional (noticing people/things). Deferred to phase where facing direction is added. → GDD_REFERENCE §15
+Locked door events — door.gd has lock/unlock + open_refused signal. Future events: knock, pick lock, give up and leave, lockdown. → GDD_REFERENCE §15
+Bespoke vestibule scenes — slot["vestibule_scene"] override ready. Make unique vestibules per room type (bar entrance, apartment stairwell, etc.). → GDD_REFERENCE §15

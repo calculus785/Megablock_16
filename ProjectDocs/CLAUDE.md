@@ -38,58 +38,49 @@ To resolve any duplication: **the table above wins.** If two docs disagree, the 
 PHASE 4 — Base Event Layer + Social Systems
 
 DONE THIS SESSION:
-✅ Zone movement sync fix — character_body.gd's zone tween completion
-   now syncs movement_sim_pos/movement_prev_pos to the body's actual
-   position. Fixed snapping on room exit and after conversations.
-✅ Hallway spawn_pos fix — building.gd registers a real position
-   (HallwayLane0 global_position) instead of Vector3.ZERO. Elevator
-   characters no longer snap to world origin.
-✅ VHS-style rewind — full replace of replay-forward system. Records
-   character/elevator positions every frame into a 12k-frame ring
-   buffer. Hold Backspace to play positions backwards; release
-   restores the matching tick snapshot. No re-simulation.
-✅ Elevator rewind fix — Pathfinder.restore_cars() was force-resetting
-   state right after restoring it (leftover from old replay system).
-   Now re-dispatches cars with passengers instead of wiping them.
-✅ Rewind cleanup pass — removed all is_replaying/replay_target_tick/
-   replay_started/replay_ended remnants from sim.gd.
-✅ Divergence safeguards — 10-tick rewind depth cap, and near-arrival
-   completion (characters within 2 units of destination on restore
-   snap to arrival) to reduce post-rewind cascade.
-✅ Minimum rewind distance guard (30 frames) — quick-tap Backspace no
-   longer causes snap/float-through-floor artifacts.
+✅ Door animation system — characters wait at doors (movement_phase
+   "waiting_door"), request_open(), resume on door_opened signal.
+   If door already open, walk through immediately. No timers.
+✅ door.gd future-proofing — request_open() returns bool (locked check),
+   is_locked/is_closed/get_state queries, lock/unlock methods,
+   door_locked/door_unlocked/open_refused signals, close_wait_time
+   exposed as @export.
+✅ Vestibule template scene — L-shaped corridor at every doorway.
+   4 spots: RoomOutSpot, MidSpot00, MidSpot01, RoomInSpot.
+   Replaces old DoorwayPos (room) and RoomX_Doorway (floor) markers.
+✅ Vestibule instancing in building.gd — _instance_vestibules() reads
+   RoomX_Doorway as placement origin, registers spots via
+   Rooms.set_vestibule_data(). Per-slot scene override ready for
+   future bespoke vestibules.
+✅ Pathfinder vestibule routing — plan_route and _plan_from_hallway
+   route through vestibule spots. DRY helpers: _append_exit_waypoints
+   and _append_enter_waypoints.
 
 KNOWN BUGS:
 ⚠️ Rewind divergence is low but not zero — root cause is frame-based
-   arrival timing (movement completes in _process, not _on_tick).
-   Accepted as good-enough; true fix would mean tick-aligning arrival
-   detection, which is a bigger refactor not worth doing now.
-⚠️ Door animations don't sync with the frame-based movement engine —
-   old movement_controller.gd handled door wait/open via signals;
-   sim.gd's _on_sim_waypoint_arrived only handles room occupancy, not
-   actual door visuals. Characters walk through closed-looking doors.
+   arrival timing. Accepted as good-enough.
+⚠️ Vestibule marker positioning may need per-floor tweaking of
+   RoomX_Doorway markers in the editor.
 
 IN PROGRESS:
-(none — rewind work is complete for this phase)
+(none)
 
 NEXT UP (in order):
-1. Door animations triggered from visual layer
-2. Proximity system (distance-based event triggers using movement_sim_pos)
-3. Enhanced EventInspector — multi-tag filter, character follow mode
-4. Passive relationship decay
-5. Full event audit + actions.gd cleanup pass
+1. Enhanced EventInspector — multi-tag filter, character follow mode
+2. Passive relationship decay
+3. Full event audit + actions.gd cleanup pass
 
 PRE-PHASE-5 PARKING LOT:
+- Proximity system (close + eyesight) — needs facing_direction on CharData
+- Locked door events (knock, pick lock, give up, lockdown)
+- Bespoke vestibule scenes per room type
 - Circular floating hands on character bodies
 - GREET/ARGUE/SHARE_STORY/REMINISCE_TOGETHER beat wiring
 - Elevator tick-driving (remove last tween dependency)
 - movement_controller.gd deletion (currently disabled, not removed)
 - Waypoint validation function (from Room Building Guide)
 - Minor: arc base_event for hallway CONVERSE_SEQ reads as generic "CONVERSE"
-- Replay/rewatch snippet viewer for EventInspector (click an arc, see a
-  SubViewport replay of that moment) — explicitly deferred to Phase 11
-  Chronicle work rather than building now; would need its own recording
-  pipeline or re-simulation, not a quick add.
+- Replay/rewatch snippet viewer for EventInspector (deferred to Phase 11)
 ```
 
 ---

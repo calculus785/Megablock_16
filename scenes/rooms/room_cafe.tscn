@@ -78,7 +78,7 @@ mesh = SubResource("BoxMesh_eyqys")
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -11.891766, 1.5266385, -1.6334488)
 
 [node name="DoorWaitPos" type="Marker3D" parent="." unique_id=1375017990]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.617745, 0.5, -1.6304507)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.064655, 0.5, -1.6304507)
 
 [node name="DoorwayPos" type="Marker3D" parent="." unique_id=1260476153]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13.302413, 0.5, -1.6304507)

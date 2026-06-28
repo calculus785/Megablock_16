@@ -1,0 +1,60 @@
+[gd_scene format=3 uid="uid://kfkb7b8qwvuu"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_cxygc"]
+size = Vector3(2, 0.1, 3)
+
+[sub_resource type="BoxMesh" id="BoxMesh_xlnwh"]
+size = Vector3(0.1, 3, 3)
+
+[sub_resource type="BoxMesh" id="BoxMesh_oa3uw"]
+size = Vector3(4, 3, 0.1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_mfdg5"]
+size = Vector3(0.1, 3, 2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_lf478"]
+size = Vector3(2, 0.1, 3)
+
+[node name="VestibuleTemplate" type="Node3D" unique_id=1155941409]
+
+[node name="OmniLight3D" type="OmniLight3D" parent="." unique_id=1994650950]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.1329834, 0, 0)
+
+[node name="Geometry2" type="Node3D" parent="." unique_id=936794399]
+
+[node name="Floor" type="MeshInstance3D" parent="Geometry2" unique_id=377089002]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.025395155, 0, -1.5121577)
+mesh = SubResource("BoxMesh_cxygc")
+
+[node name="LeftWall" type="MeshInstance3D" parent="Geometry2" unique_id=1128983272]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.0223553, 1.5050017, -1.5208087)
+mesh = SubResource("BoxMesh_xlnwh")
+
+[node name="BackWall" type="MeshInstance3D" parent="Geometry2" unique_id=74421242]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.004853, 1.5018222, -3.049042)
+mesh = SubResource("BoxMesh_oa3uw")
+
+[node name="RightWall2" type="MeshInstance3D" parent="Geometry2" unique_id=1247571588]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.0647552, 1.4843955, -1.0050354)
+mesh = SubResource("BoxMesh_mfdg5")
+
+[node name="Cieling" type="MeshInstance3D" parent="Geometry2" unique_id=1245577688]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.018700361, 3.0021994, -1.4890251)
+mesh = SubResource("BoxMesh_lf478")
+
+[node name="Spots" type="Node3D" parent="." unique_id=1844021731]
+
+[node name="RoomOutSpot" type="Marker3D" parent="Spots" unique_id=1600630199]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.021440268, 0.12968886, -0.3635645)
+
+[node name="MidSpot00" type="Marker3D" parent="Spots" unique_id=136942306]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.062235475, 0.1565423, -2.5403721)
+
+[node name="MidSpot01" type="Marker3D" parent="Spots" unique_id=1956418385]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.7375376, 0.16586697, -2.6979856)
+
+[node name="RoomInSpot" type="Marker3D" parent="Spots" unique_id=938013134]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.0777774, 1.1591699, -2.4698405)
+
+[node name="Marker3D5" type="Marker3D" parent="Spots" unique_id=2128156108]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.1329834, 0, 0)

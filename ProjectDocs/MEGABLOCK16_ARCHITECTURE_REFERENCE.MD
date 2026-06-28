@@ -1,7 +1,7 @@
 # MegaBlock 16 — Architecture Reference
 *Project knowledge document. Reference for all chat sessions.*
 *Created: Architecture Planning Meeting, Session 3-4*
-*Last updated: Session 29 — Frame-based movement refactor*
+*Last updated: Session 31 — Door system + vestibule architecture*
 
 ---
 
@@ -78,6 +78,7 @@ megablock16/
 │   │
 │   ├── world/
 │   │   ├── character_body.gd        # visual only — reads movement_sim_pos
+│   │   ├── door.gd                  # slides open/closed, tracks occupants, locked state
 │   │   └── movement_controller.gd   # DISABLED (Session 29) — not deleted, not instantiated
 │   │
 │   ├── building/
@@ -115,6 +116,9 @@ megablock16/
 │   │   ├── shop.tscn
 │   │   ├── police_station.tscn
 │   │   └── [future rooms]
+│   │
+│   ├── world/
+│   │   └── vestibule_template.tscn  # L-shaped doorway corridor (Session 31)
 │   │
 │   ├── characters/
 │   │   └── character_body.tscn
@@ -186,8 +190,8 @@ megablock16/
 |---|---|---|
 | Clock | Heartbeat, calendar, seasons, intensity curve, signals, get_tick_progress() | — |
 | Registry | Master character list, generation, ID lookup | — |
-| Rooms | Occupant tracking, zone/spot occupancy, aura ticking (occupied rooms only) | AuraManager |
-| Pathfinder | Room-to-room routing, elevator dispatch + car state, snapshot_cars/restore_cars, kill_car_tweens (VHS rewind support) | ElevatorManager |
+| Rooms | Occupant tracking, zone/spot occupancy, vestibule data, aura ticking (occupied rooms only) | AuraManager |
+| Pathfinder | Room-to-room routing (through vestibules), elevator dispatch + car state, snapshot_cars/restore_cars, kill_car_tweens (VHS rewind support) | ElevatorManager |
 | Memory | Short/long-term read/write, intent queue, daily pruning | — |
 
 ### Tier 3 — Systems (7) — Reads Tier 1 + 2
@@ -255,8 +259,9 @@ RESOLVE → FRAME → PLAYER_GATE → ACT → EXECUTE → ECHO → CONTINUE
 Every frame (_process):
 Sim._process(delta) advances all in-transit characters along their
 waypoint paths at constant speed. Boundary crossings (room occupancy
-changes) fire immediately when characters reach tagged waypoints.
-Elevator riders track car Y every frame.
+changes, door requests) fire immediately when characters reach tagged
+waypoints. Elevator riders track car Y every frame. Characters in
+"waiting_door" phase are frozen until the door_opened signal resumes them.
 
 Periodic:
 
@@ -269,7 +274,7 @@ On room arrival: Sim fires one reactive event
 
 ---
 
-## Movement Architecture (added Session 29)
+## Movement Architecture (added Session 29, updated Session 31)
 
 Movement runs every frame in Sim._process(delta), NOT per tick.
 Ticks decide events. Movement decides physical position.
@@ -284,6 +289,7 @@ Movement phases (CharData.movement_phase):
   "walking"          — advancing along waypoints at BASE_MOVEMENT_SPEED * speed_multiplier
   "waiting_elevator" — at shaft, waiting for car. Pathfinder signal advances.
   "riding_elevator"  — following car Y. Pathfinder signal exits.
+  "waiting_door"     — frozen at door waypoint. Resumed by door_opened signal. (Session 31)
   "paused"           — frozen for interaction (hallway conversation etc.)
 
 Speed modes (CharData.movement_speed_mode → Sim.MOVEMENT_SPEED_MULTIPLIERS):
@@ -292,11 +298,82 @@ Speed modes (CharData.movement_speed_mode → Sim.MOVEMENT_SPEED_MULTIPLIERS):
 Boundary crossings fire in _on_sim_waypoint_arrived() when a character
 reaches a tagged waypoint. This replaces the old tween-callback approach
 in character_body.gd. Waypoint types that trigger state changes:
-  wait_room_door_exit  → remove_occupant(room), release spots
-  exit_hallway_doorway → add_occupant(hallway)
-  wait_hallway_door    → remove_occupant(hallway)
+  wait_room_door_exit  → remove_occupant(room), release spots, request room door open + wait
+  exit_room_doorway    → notify_through room door
+  wait_hallway_door_exit → request hallway door open + wait
+  exit_hallway_doorway → notify_through hallway door, add_occupant(hallway)
+  wait_hallway_door    → remove_occupant(hallway), request hallway door open + wait
+  enter_doorway        → notify_through hallway door
+  wait_room_door       → request room door open + wait
+  arrive               → notify_through room door
   wait_elevator        → remove_occupant(hallway), phase → waiting_elevator
   ride_elevator        → add_occupant(dest_hallway)
+
+### Door System (added Session 31)
+
+door.gd handles the visual door slides. Attached to Node3D roots in
+room scenes (Geometry/Door0) and floor scenes (Doors/Door0).
+
+Core flow: character reaches a wait waypoint → Sim calls door.request_open()
+→ if door is already open, character walks through immediately. If not,
+movement_phase is set to "waiting_door" and character freezes until the
+door_opened signal fires, then resumes walking.
+
+door.gd API:
+  request_open() → bool  — returns false if locked, increments occupant count
+  notify_through()       — decrements occupant count, starts close timer
+  is_open() / is_closed() / is_locked() / get_state() — query methods
+  lock() / unlock()      — for future events (lockdown, privacy, etc.)
+
+Signals: door_opened, door_closed, door_locked, door_unlocked, open_refused
+
+@export vars: slide_direction, slide_distance, slide_speed (0.4s),
+close_wait_time (1.5s — how long door stays open after last person passes),
+locked (bool).
+
+The close_wait_time is what keeps doors open for multiple characters —
+if a second character arrives while the door is still open, they walk
+through immediately without triggering a wait.
+
+Owning function (sim.gd): _request_door_and_wait().
+Helper called by _on_sim_waypoint_arrived() at all four wait waypoint types.
+
+### Vestibule System (added Session 31)
+
+L-shaped corridor scenes placed at every room doorway, connecting the
+room door to the hallway door. Replaces the old DoorwayPos (room scene)
+and RoomX_Doorway (floor scene) markers with a proper walkable space.
+
+Vestibule scene structure:
+  VestibuleTemplate (Node3D)
+  ├── Geometry (Node3D) — L-shaped corridor mesh
+  └── Spots (Node3D)
+      ├── RoomOutSpot (Marker3D)  — vestibule side of hallway door
+      ├── MidSpot00 (Marker3D)    — L-shape corner
+      ├── MidSpot01 (Marker3D)    — near top of L
+      └── RoomInSpot (Marker3D)   — vestibule side of room door
+
+building.gd instances vestibule scenes at each room slot's RoomX_Doorway
+marker position. Spot positions registered via Rooms.set_vestibule_data().
+Per-slot scene override via slot["vestibule_scene"] for future bespoke
+vestibules (bar entrance, apartment stairwell, etc.).
+
+Pathfinder reads vestibule spots via Rooms.get_vestibule_spot(room_id, spot_name).
+Exit/enter sequences route through all four spots. Two DRY helpers:
+_append_exit_waypoints() and _append_enter_waypoints().
+
+EXIT path (room → hallway):
+  DoorWaitPos (room) → RoomInSpot → MidSpot01 → MidSpot00 → RoomOutSpot → hallway
+
+ENTER path (hallway → room):
+  door_pos (floor) → RoomOutSpot → MidSpot00 → MidSpot01 → RoomInSpot → SpawnPos (room)
+
+The Y difference between MidSpot01 and RoomInSpot creates the stair
+effect — the walking engine interpolates in 3D automatically.
+
+Markers removed from scenes:
+  - DoorwayPos from room scenes (replaced by RoomInSpot)
+  - RoomX_Doorway kept in floor scenes as vestibule placement origins
 
 movement_controller.gd is DISABLED (not instantiated by character_body).
 File kept for reference; will be deleted in a future cleanup pass.
@@ -441,8 +518,10 @@ arrest) flush the queue outright.
 Clock signals → Sim, FeelingDriver, StateDriver, Rooms, Memory, Relationships, Traits, Architect
 Sim._on_tick  → Events, Actions, Context, Memory, Decisions
 Sim._process  → movement advancement (frame-based, reads CharData waypoints, writes movement_sim_pos)
+               → door wait/resume (via door_opened signals)
 Actions calls → Memory, Relationships, Rooms, Pathfinder, Factions, Audio
 Pathfinder signals → Sim (passenger_boarded, passenger_exited for elevator phase transitions)
+Door signals  → Sim (door_opened resumes waiting_door characters)
 Architect     ← listens to Sim (event fired) + Clock (day_ticked)
               → applies weight mods to Sim's eligible pool
 Mayor         ← Clock (rent, progression)
@@ -506,7 +585,7 @@ current_arc_id: int, story_arcs: Array (populated Phase 11, stamped from Phase 4
 
 - movement_phase: String — current movement state. Controls which
   advance function runs in Sim._process(). Empty string = idle.
-  Values: "", "walking", "waiting_elevator", "riding_elevator", "paused"
+  Values: "", "walking", "waiting_elevator", "riding_elevator", "waiting_door", "paused"
 
 - movement_speed_mode: String — indexes into Sim.MOVEMENT_SPEED_MULTIPLIERS.
   Default "walk". Future modes: "run", "sneak", "limp".

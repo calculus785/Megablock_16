@@ -273,3 +273,19 @@ func get_floor_index_by_y(y_pos: float) -> int:
 			best_dist = dist
 			best_index = _floors[fid].get("index", -1)
 	return best_index
+
+# Stores vestibule spot positions for a room's doorway.
+# Called by building.gd after instancing the vestibule scene.
+# Data shape: { "room_in": Vector3, "mid_01": Vector3,
+#               "mid_00": Vector3, "room_out": Vector3 }
+func set_vestibule_data(room_id: String, data: Dictionary) -> void:
+	if _rooms.has(room_id):
+		_rooms[room_id]["vestibule"] = data
+ 
+# Returns a single vestibule spot position by name.
+# spot_name: "room_in" | "mid_01" | "mid_00" | "room_out"
+func get_vestibule_spot(room_id: String, spot_name: String) -> Vector3:
+	if not _rooms.has(room_id):
+		return Vector3.ZERO
+	var vest: Dictionary = _rooms[room_id].get("vestibule", {})
+	return vest.get(spot_name, Vector3.ZERO)

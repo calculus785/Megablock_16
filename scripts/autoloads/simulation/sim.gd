@@ -2369,13 +2369,11 @@ func _process(delta: float) -> void:
 	if is_rewinding:
 		_advance_rewind()
 		return
-
-	# Scale delta by Engine.time_scale so movement speeds up with sim speed.
-	# Engine.time_scale is already applied to delta by Godot, so this just works.
+ 
 	for character in Registry.get_all():
 		if character.movement_phase == "":
 			continue
-
+ 
 		match character.movement_phase:
 			"walking":
 				_advance_walking_realtime(character, delta)
@@ -2383,9 +2381,11 @@ func _process(delta: float) -> void:
 				pass  # Held in place — Pathfinder signal advances them
 			"riding_elevator":
 				_advance_riding_elevator_realtime(character)
+			"waiting_door":
+				pass  # Frozen at door — resumed when door_opened fires
 			"paused":
 				pass  # Frozen in place for interaction
-
+ 
 	# Record positions for VHS rewind
 	_record_frame()
 
@@ -2440,36 +2440,71 @@ func _advance_riding_elevator_realtime(character: CharData) -> void:
 
 func _on_sim_waypoint_arrived(character: CharData, wp: Dictionary) -> void:
 	var wp_type: String = wp["type"]
-
+	var room_id: String = wp.get("room_id", "")
+ 
 	match wp_type:
+ 
+		# ── EXIT: step 1 — inside room, at room door ────────
 		"wait_room_door_exit":
 			Rooms.release_all_spots(character.current_room, character.char_id)
 			Rooms.remove_occupant(character.current_room, character.char_id)
 			character.zone_target_pos = Vector3.ZERO
-
+			_request_door_and_wait(character, Rooms.get_room_door(
+				room_id if room_id != "" else character.current_room))
+ 
+		# ── EXIT: step 2 — walking through room doorway ─────
+		"exit_room_doorway":
+			var door: Node3D = Rooms.get_room_door(room_id)
+			if door and door.has_method("notify_through"):
+				door.notify_through()
+ 
+		# ── EXIT: step 3 — at hallway door (from inside) ────
+		"wait_hallway_door_exit":
+			_request_door_and_wait(character, Rooms.get_hallway_door(room_id))
+ 
+		# ── EXIT: step 4 — through hallway doorway ──────────
 		"exit_hallway_doorway":
-			var room_id: String = wp.get("room_id", "")
 			var floor_index: int = Rooms.get_floor_index(room_id)
 			var hallway_id: String = Rooms.get_hallway_for_floor(floor_index)
 			if hallway_id != "":
 				character.current_room = hallway_id
 				Rooms.add_occupant(hallway_id, character.char_id)
-
+			var door: Node3D = Rooms.get_hallway_door(room_id)
+			if door and door.has_method("notify_through"):
+				door.notify_through()
+ 
+		# ── ENTER: step 1 — at hallway door (from outside) ──
 		"wait_hallway_door":
 			if Rooms.is_hallway(character.current_room):
 				Rooms.remove_occupant(character.current_room, character.char_id)
-
+			_request_door_and_wait(character, Rooms.get_hallway_door(room_id))
+ 
+		# ── ENTER: step 2 — through hallway doorway ─────────
+		"enter_doorway":
+			var door: Node3D = Rooms.get_hallway_door(room_id)
+			if door and door.has_method("notify_through"):
+				door.notify_through()
+ 
+		# ── ENTER: step 3 — at room door (from doorway) ─────
+		"wait_room_door":
+			_request_door_and_wait(character, Rooms.get_room_door(room_id))
+ 
+		# ── ENTER: step 4 — arriving inside the room ────────
+		"arrive":
+			var door: Node3D = Rooms.get_room_door(room_id)
+			if door and door.has_method("notify_through"):
+				door.notify_through()
+ 
+		# ── ELEVATOR ────────────────────────────────────────
 		"wait_elevator":
 			if Rooms.is_hallway(character.current_room):
 				Rooms.remove_occupant(character.current_room, character.char_id)
 			character.movement_phase = "waiting_elevator"
-			# Advance past wait_elevator to ride_elevator BEFORE requesting,
-			# because request_elevator can fire passenger_boarded synchronously.
 			character.waypoint_index += 1
 			var car_index: int = wp["car_index"]
 			Pathfinder.request_elevator(
 				car_index, wp["from_floor"], wp["to_floor"], character.char_id)
-
+ 
 		"ride_elevator":
 			var dest_floor: int = wp.get("to_floor", -1)
 			var hallway_id: String = Rooms.get_hallway_for_floor(dest_floor)
@@ -2477,6 +2512,44 @@ func _on_sim_waypoint_arrived(character: CharData, wp: Dictionary) -> void:
 				character.current_room = hallway_id
 				Rooms.add_occupant(hallway_id, character.char_id)
 
+# Character arrives at a door waypoint. If the door is already
+# open, walk through immediately. If closed/opening, freeze
+# and wait for the door_opened signal. If locked, skip through
+# (future: knock, give up, pick lock event, etc.).
+#
+# The door's own close_wait_time keeps it open long enough for
+# other characters to walk through without re-triggering a wait.
+ 
+func _request_door_and_wait(character: CharData, door: Node3D) -> void:
+	if door == null:
+		# No door registered for this room — walk straight through
+		character.waypoint_index += 1
+		return
+ 
+	# Locked door — skip for now, future hook for events
+	if door.has_method("is_locked") and door.is_locked():
+		character.waypoint_index += 1
+		if Settings.debug_console_logging:
+			print("[T%d A%d] DOOR | %s | door locked — skipping" % [
+				Clock.total_ticks, character.current_arc_id, character.char_name])
+		return
+ 
+	# Ask the door to open (increments its occupant count)
+	door.request_open()
+ 
+	if door.is_open():
+		# Already open — walk through immediately
+		character.waypoint_index += 1
+		return
+ 
+	# Door is opening — freeze here until animation finishes
+	character.movement_phase = "waiting_door"
+	door.door_opened.connect(func():
+		# Guard: character may have been interrupted or rewound
+		if character.movement_phase == "waiting_door":
+			character.waypoint_index += 1
+			character.movement_phase = "walking"
+	, CONNECT_ONE_SHOT)
 
 func _complete_movement(character: CharData) -> void:
 	var dest_room: String = character.movement_target_room
